@@ -13,11 +13,17 @@ return new class extends Migration
     {
         Schema::create('attendances', function (Blueprint $table) {
             $table->id();
-
+            $table->bigInteger('timestamp')->comment('Timestamp en milisegundos');
+            $table->double('latitude', 10, 7);
+            $table->double('longitude', 11, 8);
+            $table->text('notes')->nullable();
+            $table->string('device_model', 255);
+            $table->unsignedTinyInteger('battery_percentage');
+            $table->unsignedTinyInteger('signal_strength');
+            $table->string('network_type', 50);
+            $table->boolean('is_internet_available');
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
-            $table->timestamp('check_in_at');
-            $table->timestamp('check_out_at')->nullable();
-
+            $table->string('type', 50);
             $table->timestamps();
         });
     }

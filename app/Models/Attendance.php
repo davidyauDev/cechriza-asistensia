@@ -8,13 +8,21 @@ class Attendance extends Model
 {
     protected $fillable = [
         'user_id',
-        'check_in_at',
-        'check_out_at',
+        'timestamp',
+        'latitude',
+        'longitude',
+        'notes',
+        'device_model',
+        'battery_percentage',
+        'signal_strength',
+        'network_type',
+        'is_internet_available',
+        'type',
     ];
 
     protected $casts = [
-        'check_in_at' => 'datetime',
-        'check_out_at' => 'datetime',
+        'is_internet_available' => 'boolean',
+        'timestamp' => 'datetime:Uv',
     ];
 
     public function user()

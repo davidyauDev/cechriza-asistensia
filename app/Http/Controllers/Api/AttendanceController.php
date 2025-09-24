@@ -23,8 +23,16 @@ class AttendanceController extends Controller
     {
         $validated = $request->validate([
             'user_id' => ['required', 'exists:users,id'],
-            'check_in_at' => ['required', 'date'],
-            'check_out_at' => ['nullable', 'date', 'after:check_in_at'],
+            'timestamp' => ['required', 'integer'],
+            'latitude' => ['required', 'numeric', 'between:-90,90'],
+            'longitude' => ['required', 'numeric', 'between:-180,180'],
+            'notes' => ['nullable', 'string', 'max:255'],
+            'device_model' => ['required', 'string', 'max:255'],
+            'battery_percentage' => ['required', 'integer', 'min:0', 'max:100'],
+            'signal_strength' => ['required', 'integer', 'min:0', 'max:4'], 
+            'network_type' => ['required', 'string', 'max:50'],
+            'is_internet_available' => ['required', 'boolean'],
+            'type' => ['required', 'string'], 
         ]);
 
         Attendance::create($validated);
