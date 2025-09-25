@@ -19,3 +19,4 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/attendances', [AttendanceController::class, 'store']);
 });
     
+    Route::get('/attendances', [AttendanceController::class, 'index']);

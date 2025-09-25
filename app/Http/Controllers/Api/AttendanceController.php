@@ -13,7 +13,8 @@ class AttendanceController extends Controller
      */
     public function index()
     {
-        //
+        $attendances = Attendance::with('user')->get();
+        return response()->json($attendances);
     }
 
     /**
