@@ -17,6 +17,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/users', [UserController::class, 'index']);
 
     Route::post('/attendances', [AttendanceController::class, 'store']);
+    Route::get('/attendances', [AttendanceController::class, 'index']);
+
 });
     
-    Route::get('/attendances', [AttendanceController::class, 'index']);

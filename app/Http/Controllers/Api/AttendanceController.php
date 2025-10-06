@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api;
 
-use Illuminate\Validation\ValidationException;
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use Illuminate\Http\Request;
@@ -14,7 +13,7 @@ class AttendanceController extends Controller
      */
     public function index()
     {
-        $attendances = Attendance::with(['user','image'])->get();
+        $attendances = Attendance::with(['user', 'image'])->get();
         return response()->json($attendances);
     }
 
@@ -22,8 +21,7 @@ class AttendanceController extends Controller
      * Store a newly created resource in storage.
      */
     public function store(Request $request)
-{
-    try {
+    {
         $validated = $request->validate([
             'user_id' => ['required', 'exists:users,id'],
             'timestamp' => ['required', 'integer'],
@@ -49,26 +47,8 @@ class AttendanceController extends Controller
             ]);
         }
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Attendance recorded successfully',
-            'data'    => $attendance
-        ], 201);
-
-    } catch (ValidationException $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Validation failed',
-            'errors'  => $e->errors()
-        ], 422);
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Server error',
-            'error'   => $e->getMessage()
-        ], 500);
+        return response()->json(['message' => 'Attendance recorded successfully'], 201);
     }
-}
 
     /**
      * Display the specified resource.
