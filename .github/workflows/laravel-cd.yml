@@ -13,11 +13,20 @@ jobs:
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         run: |
-           echo "$env:SSH_PRIVATE_KEY" | Out-File -Encoding ascii -FilePath id_ed25519
+          echo "$env:SSH_PRIVATE_KEY" | Out-File -Encoding ascii -FilePath id_ed25519
 
-      - name: 📦 Conectarse al VPS y hacer git pull
+      - name: 📦 Conectarse al VPS y hacer git pull + deploy
         run: |
-          ssh -i id_ed25519 -o StrictHostKeyChecking=no user01@172.19.0.14 'cd /var/www/cechriza-asistensia && git config --global --add safe.directory /var/www/cechriza-asistensia && git pull origin main && composer install --no-interaction --prefer-dist --optimize-autoloader && php artisan migrate --force && php artisan config:cache && php artisan route:cache && php artisan view:cache'
+          ssh -i id_ed25519 -o StrictHostKeyChecking=no user01@172.19.0.14 `
+            "git config --global --add safe.directory /var/www/cechriza-asistensia && \
+            cd /var/www/cechriza-asistensia && \
+            git pull origin main && \
+            rm -rf vendor/ && \
+            composer install --no-interaction --prefer-dist --optimize-autoloader && \
+            php artisan migrate --force && \
+            php artisan config:cache && \
+            php artisan route:cache && \
+            php artisan view:cache"
 
-      - name:  Limpiar clave privada
-        run: rm -f id_ed25519
+      - name: 🧹 Limpiar clave privada
+        run: Remove-Item -Force id_ed25519
