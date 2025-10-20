@@ -1,0 +1,32 @@
+name: Laravel Deploy CD (git pull)
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+
+    steps:
+      - name: 🔐 Crear archivo clave SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          echo "$SSH_PRIVATE_KEY" > id_ed25519
+          chmod 600 id_ed25519
+
+      - name: 📦 Conectarse al VPS y hacer git pull
+        run: |
+          ssh -i id_ed25519 -o StrictHostKeyChecking=no user01@172.19.0.14 << 'EOF'
+            cd /var/www/cechriza-asistensia
+            git pull origin main
+            composer install --no-interaction --prefer-dist --optimize-autoloader
+            php artisan migrate --force
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache
+          EOF
+
+      - name: 🧹 Limpiar clave privada
+        run: rm -f id_ed25519
