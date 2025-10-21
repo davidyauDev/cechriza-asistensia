@@ -10,17 +10,25 @@ jobs:
 
     steps:
       - name: 🔐 Crear archivo clave SSH
+        shell: powershell
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         run: |
-           echo "$env:SSH_PRIVATE_KEY" | Out-File -Encoding ascii -FilePath id_ed25519
-          echo "$env:SSH_PRIVATE_KEY" | Out-File -Encoding ascii -FilePath id_ed25519
+          $sshPath = "$env:TEMP\id_ed25519"
+          Set-Content -Path $sshPath -Value $env:SSH_PRIVATE_KEY -Force -Encoding ascii
 
-      - name: 📦 Conectarse al VPS y hacer git pull
+          # Proteger permisos
+          icacls $sshPath /inheritance:r | Out-Null
+          $runnerUser = (whoami)
+          icacls $sshPath /grant:r "$($runnerUser):(R)" | Out-Null
+
+          # Exportar variable de entorno
+          echo "SSH_KEY_PATH=$sshPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8
+
       - name: 📦 Conectarse al VPS y hacer git pull + deploy
+        shell: powershell
         run: |
-          ssh -i id_ed25519 -o StrictHostKeyChecking=no user01@172.19.0.14 'cd /var/www/cechriza-asistensia && git config --global --add safe.directory /var/www/cechriza-asistensia && git pull origin main && composer install --no-interaction --prefer-dist --optimize-autoloader && php artisan migrate --force && php artisan config:cache && php artisan route:cache && php artisan view:cache'
-          ssh -i id_ed25519 -o StrictHostKeyChecking=no user01@172.19.0.14 `
+          ssh -i $env:SSH_KEY_PATH -o StrictHostKeyChecking=no user01@172.19.0.14 `
             "git config --global --add safe.directory /var/www/cechriza-asistensia && \
             cd /var/www/cechriza-asistensia && \
             git pull origin main && \
@@ -31,7 +39,6 @@ jobs:
             php artisan route:cache && \
             php artisan view:cache"
 
-      - name:  Limpiar clave privada
-        run: rm -f id_ed25519
       - name: 🧹 Limpiar clave privada
-        run: Remove-Item -Force id_ed25519
+        shell: powershell
+        run: Remove-Item -Force $env:SSH_KEY_PATH
