@@ -9,12 +9,13 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      - name: 🔐 Crear archivo clave SSH en carpeta segura del usuario
+      - name: 🔐 Crear archivo clave SSH en carpeta segura del workspace
         shell: powershell
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         run: |
-          $sshDir = "$env:USERPROFILE\.ssh"
+          $sshDir = Join-Path $env:GITHUB_WORKSPACE "ssh_keys"
+          New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
           $sshPath = Join-Path $sshDir "id_ed25519"
           Set-Content -Path $sshPath -Value $env:SSH_PRIVATE_KEY -Force -Encoding ascii
           icacls $sshPath /inheritance:r | Out-Null
@@ -24,15 +25,8 @@ jobs:
       - name: 🚀 Conectarse al VPS y hacer git pull + deploy
         shell: powershell
         run: |
-          ssh -i $env:SSH_KEY_PATH -o StrictHostKeyChecking=no user01@172.19.0.14 `
-            "cd /var/www/cechriza-asistensia && \
-            git config --global --add safe.directory /var/www/cechriza-asistensia && \
-            git pull origin main && \
-            composer install --no-interaction --prefer-dist --optimize-autoloader && \
-            php artisan migrate --force && \
-            php artisan config:cache && \
-            php artisan route:cache && \
-            php artisan view:cache && \
-            echo '✅ DEPLOY COMPLETADO EXITOSAMENTE'"
+          ssh -i $env:SSH_KEY_PATH -o StrictHostKeyChecking=no user01@172.19.0.14 "cd /var/www/cechriza-asistensia && git config --global --add safe.directory /var/www/cechriza-asistensia && git pull origin main && composer install --no-interaction --prefer-dist --optimize-autoloader && php artisan migrate --force && php artisan config:cache && php artisan route:cache && php artisan view:cache && echo '✅ DEPLOY COMPLETADO EXITOSAMENTE'"
 
-
+      - name: 🧹 Limpiar clave privada
+        shell: powershell
+        run: Remove-Item -Force $env:SSH_KEY_PATH
