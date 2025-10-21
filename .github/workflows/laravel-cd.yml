@@ -2,40 +2,29 @@ name: Laravel Deploy CD (git pull)
 
 on:
   push:
-    branches: [main]  # Cambia main si usas otra rama
+    branches: [main]
 
 jobs:
   deploy:
     runs-on: self-hosted
 
     steps:
-      - name: 🔑 Crear archivo clave SSH
+      - name: 🔐 Crear archivo clave SSH temporal
         shell: powershell
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         run: |
-          $sshDir = "C:\ssh_keys_runner"
-          $sshPath = Join-Path $sshDir "id_ed25519"
+          $sshPath = "id_ed25519"
           Set-Content -Path $sshPath -Value $env:SSH_PRIVATE_KEY -Force -Encoding ascii
-
-          # Proteger permisos de la clave
           icacls $sshPath /inheritance:r | Out-Null
-          $runnerUser = (whoami)
-          icacls $sshPath /grant:r "$($runnerUser):(R)" | Out-Null
+          icacls $sshPath /grant:r "$($env:USERNAME):(R)" | Out-Null
 
-          # Exportar variable para los siguientes pasos
-          echo "SSH_KEY_PATH=$sshPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8
-
-      - name: 🔍 Probar conexión SSH
+      - name: 🚀 Conectarse al VPS y hacer git pull + deploy
         shell: powershell
         run: |
-          ssh -i $env:SSH_KEY_PATH -o StrictHostKeyChecking=no user01@172.19.0.14 "echo ✅ Conexión SSH exitosa desde GitHub Runner"
-
-      - name: 🚀 Desplegar Laravel en VPS
-        shell: powershell
-        run: |
-          ssh -i $env:SSH_KEY_PATH -o StrictHostKeyChecking=no user01@172.19.0.14 `
+          ssh -i id_ed25519 -o StrictHostKeyChecking=no user01@172.19.0.14 `
             "cd /var/www/cechriza-asistensia && \
+            git config --global --add safe.directory /var/www/cechriza-asistensia && \
             git pull origin main && \
             composer install --no-interaction --prefer-dist --optimize-autoloader && \
             php artisan migrate --force && \
@@ -44,6 +33,6 @@ jobs:
             php artisan view:cache && \
             echo '✅ DEPLOY COMPLETADO EXITOSAMENTE'"
 
-      - name: 🧹 Limpiar clave privada (opcional)
+      - name: 🧹 Limpiar clave privada
         shell: powershell
-        run: Remove-Item -Force $env:SSH_KEY_PATH
+        run: Remove-Item -Force id_ed25519
