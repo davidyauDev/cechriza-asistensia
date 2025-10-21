@@ -9,31 +9,18 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      - name: 🔐 Crear archivo clave SSH desde secreto de GitHub
-        shell: powershell
+      - name: 🔐 Crear archivo clave SSH
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         run: |
-          $sshPath = "$env:TEMP\id_ed25519"
-          $env:SSH_PRIVATE_KEY | Out-File -Encoding ascii -FilePath $sshPath -Force
+           echo "$env:SSH_PRIVATE_KEY" | Out-File -Encoding ascii -FilePath id_ed25519
+          echo "$env:SSH_PRIVATE_KEY" | Out-File -Encoding ascii -FilePath id_ed25519
 
-          # Proteger permisos de la clave privada
-          icacls $sshPath /inheritance:r | Out-Null
-          $runnerUser = (whoami)
-          icacls $sshPath /grant:r "$($runnerUser):(R)" | Out-Null
-
-          # Exportar variable para siguientes pasos
-          echo "SSH_KEY_PATH=$sshPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8
-
-      - name: 📡 Probar conexión SSH
-        shell: powershell
+      - name: 📦 Conectarse al VPS y hacer git pull
+      - name: 📦 Conectarse al VPS y hacer git pull + deploy
         run: |
-          ssh -i $env:SSH_KEY_PATH -o StrictHostKeyChecking=no user01@172.19.0.14 "echo ✅ Conexión exitosa con el VPS"
-
-      - name: 🚀 Desplegar Laravel en el VPS
-        shell: powershell
-        run: |
-          ssh -i $env:SSH_KEY_PATH -o StrictHostKeyChecking=no user01@172.19.0.14 `
+          ssh -i id_ed25519 -o StrictHostKeyChecking=no user01@172.19.0.14 'cd /var/www/cechriza-asistensia && git config --global --add safe.directory /var/www/cechriza-asistensia && git pull origin main && composer install --no-interaction --prefer-dist --optimize-autoloader && php artisan migrate --force && php artisan config:cache && php artisan route:cache && php artisan view:cache'
+          ssh -i id_ed25519 -o StrictHostKeyChecking=no user01@172.19.0.14 `
             "git config --global --add safe.directory /var/www/cechriza-asistensia && \
             cd /var/www/cechriza-asistensia && \
             git pull origin main && \
@@ -42,9 +29,9 @@ jobs:
             php artisan migrate --force && \
             php artisan config:cache && \
             php artisan route:cache && \
-            php artisan view:cache && \
-            echo '✅ Despliegue completado exitosamente'"
+            php artisan view:cache"
 
-      - name: 🧹 Limpiar clave privada del sistema
-        shell: powershell
-        run: Remove-Item -Force $env:SSH_KEY_PATH
+      - name:  Limpiar clave privada
+        run: rm -f id_ed25519
+      - name: 🧹 Limpiar clave privada
+        run: Remove-Item -Force id_ed25519
