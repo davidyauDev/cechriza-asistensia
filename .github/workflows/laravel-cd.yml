@@ -19,7 +19,8 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           icacls id_ed25519 /inheritance:r
-          icacls id_ed25519 /grant:r "$($env:USERNAME):(R)"
+          $runnerUser = (whoami)
+          icacls id_ed25519 /grant:r "$runnerUser:(R)"
 
       - name: 📦 Conectarse al VPS y hacer git pull + deploy
         run: |
