@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\BannerController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
@@ -24,5 +25,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/attendances', [AttendanceController::class, 'store']);
     Route::get('/attendances', [AttendanceController::class, 'index']);
 
+
+    Route::get('/banners', [BannerController::class, 'index']);
+    Route::post('/banners', [BannerController::class, 'store']);
+    Route::get('/banners/{banner}', [BannerController::class, 'show']);
+    Route::put('/banners/{banner}', [BannerController::class, 'update']);
+    Route::patch('/banners/{banner}', [BannerController::class, 'update']);
+    Route::delete('/banners/{banner}', [BannerController::class, 'destroy']);
 });
-    

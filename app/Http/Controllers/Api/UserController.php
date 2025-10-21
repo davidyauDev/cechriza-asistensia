@@ -6,17 +6,36 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
 use App\Http\Resources\UserResource;
-use App\Models\User;
+use App\DataTransferObjects\UserData;
+use App\Services\UserServiceInterface;
 use Illuminate\Http\Request;
 use OpenApi\Annotations as OA;
 
+/**
+ * @OA\Schema(
+ *   schema="User",
+ *   @OA\Property(property="id", type="integer", example=1),
+ *   @OA\Property(property="name", type="string", example="Juan Perez"),
+ *   @OA\Property(property="email", type="string", format="email", example="juan@example.com")
+ * )
+ *
+ * @OA\Schema(
+ *   schema="UserCollection",
+ *   type="array",
+ *   @OA\Items(ref="#/components/schemas/User")
+ * )
+ */
+
 class UserController extends Controller
 {
+    public function __construct(private UserServiceInterface $service)
+    {
+    }
 
     public function index(Request $request)
     {
         $perPage = min((int) $request->input('per_page', 10), 100);
-        $users  = User::paginate($perPage);
+        $users  = $this->service->list($perPage);
         return UserResource::collection($users);
     }
 
@@ -39,12 +58,10 @@ class UserController extends Controller
 
     public function store(StoreUserRequest $request)
     {
-        $data = $request->validated();
-        $data['password'] = bcrypt($data['password']);
+        $dto = UserData::fromArray($request->validated());
+        $user = $this->service->create($dto);
 
-        $user = User::create($data);
-
-         return (new UserResource($user->fresh()))->response()->setStatusCode(201);
+        return (new UserResource($user))->response()->setStatusCode(201);
     }
 
     /**
@@ -62,8 +79,12 @@ class UserController extends Controller
      * )
      */
 
-    public function show(User $user)
+    public function show(int $id)
     {
+        $user = $this->service->get($id);
+        if (!$user) {
+            return response()->json(['message' => 'User not found.'], 404);
+        }
         return new UserResource($user);
     }
 
@@ -83,19 +104,15 @@ class UserController extends Controller
      * )
      */
 
-    public function update(UpdateUserRequest $request, User $user)
+    public function update(UpdateUserRequest $request, int $id)
     {
-        $data = $request->validated();
-
-        if (!empty($data['password'])) {
-            $data['password'] = bcrypt($data['password']);
-        } else {
-            unset($data['password']);
+        $dto = UserData::fromArray(array_merge(['id' => $id], $request->validated()));
+        $updated = $this->service->update($id, $dto);
+        if (!$updated) {
+            return response()->json(['message' => 'User not found.'], 404);
         }
 
-        $user->update($data);
-
-        return new UserResource($user->fresh());
+        return new UserResource($updated);
     }
 
     /**
@@ -114,9 +131,9 @@ class UserController extends Controller
      * )
      */
 
-    public function destroy(User $user)
+    public function destroy(int $id)
     {
-        $user->delete();
+        $this->service->delete($id);
         return response()->json(null, 204);
     }
 
@@ -133,12 +150,12 @@ class UserController extends Controller
 
     public function restore($id)
     {
-        $user = User::withTrashed()->findOrFail($id);
-        if ($user->trashed()) {
-            $user->restore();
-            return new UserResource($user->fresh());
+        $restored = $this->service->restore((int) $id);
+        if (!$restored) {
+            return response()->json(['message' => 'User not found or not deleted.'], 400);
         }
-        return response()->json(['message' => 'User is not deleted.'], 400);
+
+        return new UserResource($restored->fresh());
     }
 
     /**
