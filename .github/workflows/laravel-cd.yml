@@ -2,14 +2,14 @@ name: Laravel Deploy CD (git pull)
 
 on:
   push:
-    branches: [main]
+    branches: [main]  # Se ejecuta cuando haces push a main
 
 jobs:
   deploy:
-    runs-on: self-hosted
+    runs-on: self-hosted  # Tu runner privado
 
     steps:
-      - name: 🔐 Crear archivo clave SSH
+      - name: 🔑 Crear archivo clave SSH desde GitHub Secrets
         shell: powershell
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -17,33 +17,35 @@ jobs:
           $sshDir = Join-Path $env:GITHUB_WORKSPACE "ssh_keys"
           New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
           $sshPath = Join-Path $sshDir "id_ed25519"
+          # Guardar clave privada con formato correcto
           Set-Content -Path $sshPath -Value $env:SSH_PRIVATE_KEY -Force -Encoding ascii
-
+          
           # Proteger permisos
           icacls $sshPath /inheritance:r | Out-Null
           $runnerUser = (whoami)
           icacls $sshPath /grant:r "$($runnerUser):(R)" | Out-Null
 
-          # Exportar variable de entorno
+          # Exportar ruta para los siguientes pasos
           echo "SSH_KEY_PATH=$sshPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8
 
-      - name: 📡 Probar conexión SSH
+      - name: 🔍 Probar conexión SSH
         shell: powershell
         run: |
-          ssh -i $env:SSH_KEY_PATH -o StrictHostKeyChecking=no user01@172.19.0.14 "echo ✅ Conexión exitosa con el VPS"
+          ssh -i $env:SSH_KEY_PATH -o StrictHostKeyChecking=no user01@172.19.0.14 "echo ✅ Conexión SSH exitosa desde GitHub Runner"
 
-      - name: 🚀 Desplegar Laravel en el VPS
+      - name: 🚀 Desplegar Laravel en VPS
         shell: powershell
         run: |
           ssh -i $env:SSH_KEY_PATH -o StrictHostKeyChecking=no user01@172.19.0.14 `
             "cd /var/www/cechriza-asistensia && \
+            git config --global --add safe.directory /var/www/cechriza-asistensia && \
             git pull origin main && \
             composer install --no-interaction --prefer-dist --optimize-autoloader && \
             php artisan migrate --force && \
             php artisan config:cache && \
             php artisan route:cache && \
             php artisan view:cache && \
-            echo '✅ Despliegue completado exitosamente'"
+            echo '✅ DEPLOY COMPLETADO EXITOSAMENTE'"
 
       - name: 🧹 Limpiar clave privada
         shell: powershell
