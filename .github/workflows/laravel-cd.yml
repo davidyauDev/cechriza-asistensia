@@ -20,7 +20,7 @@ jobs:
           # Proteger permisos de la clave privada
           icacls $sshPath /inheritance:r | Out-Null
           $runnerUser = (whoami)
-          icacls $sshPath /grant:r "$runnerUser:(R)" | Out-Null
+          icacls $sshPath /grant:r "$($runnerUser):(R)" | Out-Null
 
           # Exportar variable para siguientes pasos
           echo "SSH_KEY_PATH=$sshPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8
