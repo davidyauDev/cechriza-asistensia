@@ -10,7 +10,7 @@ jobs:
 
     steps:
       - name: 🔐 Crear archivo clave SSH desde secreto de GitHub
-        shell: pwsh
+        shell: powershell
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         run: |
@@ -22,16 +22,16 @@ jobs:
           $runnerUser = (whoami)
           icacls $sshPath /grant:r "$runnerUser:(R)" | Out-Null
 
-          # Exportar ruta para siguientes pasos
+          # Exportar variable para siguientes pasos
           echo "SSH_KEY_PATH=$sshPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8
 
       - name: 📡 Probar conexión SSH
-        shell: pwsh
+        shell: powershell
         run: |
           ssh -i $env:SSH_KEY_PATH -o StrictHostKeyChecking=no user01@172.19.0.14 "echo ✅ Conexión exitosa con el VPS"
 
       - name: 🚀 Desplegar Laravel en el VPS
-        shell: pwsh
+        shell: powershell
         run: |
           ssh -i $env:SSH_KEY_PATH -o StrictHostKeyChecking=no user01@172.19.0.14 `
             "git config --global --add safe.directory /var/www/cechriza-asistensia && \
@@ -46,5 +46,5 @@ jobs:
             echo '✅ Despliegue completado exitosamente'"
 
       - name: 🧹 Limpiar clave privada del sistema
-        shell: pwsh
+        shell: powershell
         run: Remove-Item -Force $env:SSH_KEY_PATH
