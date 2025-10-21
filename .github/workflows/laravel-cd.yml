@@ -9,20 +9,22 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      - name: 🔐 Crear archivo clave SSH temporal
+      - name: 🔐 Crear archivo clave SSH en carpeta segura del usuario
         shell: powershell
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         run: |
-          $sshPath = "id_ed25519"
+          $sshDir = "$env:USERPROFILE\.ssh"
+          $sshPath = Join-Path $sshDir "id_ed25519"
           Set-Content -Path $sshPath -Value $env:SSH_PRIVATE_KEY -Force -Encoding ascii
           icacls $sshPath /inheritance:r | Out-Null
           icacls $sshPath /grant:r "$($env:USERNAME):(R)" | Out-Null
+          echo "SSH_KEY_PATH=$sshPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8
 
       - name: 🚀 Conectarse al VPS y hacer git pull + deploy
         shell: powershell
         run: |
-          ssh -i id_ed25519 -o StrictHostKeyChecking=no user01@172.19.0.14 `
+          ssh -i $env:SSH_KEY_PATH -o StrictHostKeyChecking=no user01@172.19.0.14 `
             "cd /var/www/cechriza-asistensia && \
             git config --global --add safe.directory /var/www/cechriza-asistensia && \
             git pull origin main && \
@@ -35,4 +37,5 @@ jobs:
 
       - name: 🧹 Limpiar clave privada
         shell: powershell
-        run: Remove-Item -Force id_ed25519
+        run: |
+          Remove-Item -Force $env:SSH_KEY_PATH
