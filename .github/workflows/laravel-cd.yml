@@ -14,7 +14,9 @@ jobs:
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         run: |
-          $sshPath = "$env:TEMP\id_ed25519"
+          $sshDir = Join-Path $env:GITHUB_WORKSPACE "ssh_keys"
+          New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
+          $sshPath = Join-Path $sshDir "id_ed25519"
           Set-Content -Path $sshPath -Value $env:SSH_PRIVATE_KEY -Force -Encoding ascii
 
           # Proteger permisos
@@ -25,19 +27,23 @@ jobs:
           # Exportar variable de entorno
           echo "SSH_KEY_PATH=$sshPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8
 
-      - name: 📦 Conectarse al VPS y hacer git pull + deploy
+      - name: 📡 Probar conexión SSH
+        shell: powershell
+        run: |
+          ssh -i $env:SSH_KEY_PATH -o StrictHostKeyChecking=no user01@172.19.0.14 "echo ✅ Conexión exitosa con el VPS"
+
+      - name: 🚀 Desplegar Laravel en el VPS
         shell: powershell
         run: |
           ssh -i $env:SSH_KEY_PATH -o StrictHostKeyChecking=no user01@172.19.0.14 `
-            "git config --global --add safe.directory /var/www/cechriza-asistensia && \
-            cd /var/www/cechriza-asistensia && \
+            "cd /var/www/cechriza-asistensia && \
             git pull origin main && \
-            rm -rf vendor/ && \
             composer install --no-interaction --prefer-dist --optimize-autoloader && \
             php artisan migrate --force && \
             php artisan config:cache && \
             php artisan route:cache && \
-            php artisan view:cache"
+            php artisan view:cache && \
+            echo '✅ Despliegue completado exitosamente'"
 
       - name: 🧹 Limpiar clave privada
         shell: powershell
