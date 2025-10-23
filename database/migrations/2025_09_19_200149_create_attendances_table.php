@@ -23,6 +23,7 @@ return new class extends Migration
             $table->string('network_type', 50);
             $table->boolean('is_internet_available');
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            $table->uuid('client_id')->comment('Identificador único');
             $table->string('type', 50);
             $table->timestamps();
         });

@@ -8,6 +8,7 @@ class Attendance extends Model
 {
     protected $fillable = [
         'user_id',
+        'client_id',
         'timestamp',
         'latitude',
         'longitude',

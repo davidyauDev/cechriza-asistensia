@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Log;
 
 class StoreAttendanceRequest extends FormRequest
 {
@@ -15,6 +16,7 @@ class StoreAttendanceRequest extends FormRequest
     {
         return [
             'user_id' => ['required', 'exists:users,id'],
+            'client_id' => ['required', 'uuid'], 
             'timestamp' => ['required', 'integer'],
             'latitude' => ['required', 'numeric', 'between:-90,90'],
             'longitude' => ['required', 'numeric', 'between:-180,180'],
@@ -25,7 +27,7 @@ class StoreAttendanceRequest extends FormRequest
             'network_type' => ['required', 'string', 'max:50'],
             'is_internet_available' => ['required', 'boolean'],
             'type' => ['required', 'string'],
-            'photo' => ['required', 'image', 'max:5120'],
+            'photo' => ['nullable', 'image', 'max:5120'], 
         ];
     }
 

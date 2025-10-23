@@ -18,6 +18,7 @@ class AttendanceResource extends JsonResource
         return [
             'id' => $this->id,
             'user' => new UserResource($this->whenLoaded('user')),
+            'client_id' => $this->client_id,
             'timestamp' => $this->timestamp,
             'latitude' => $this->latitude,
             'longitude' => $this->longitude,

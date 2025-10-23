@@ -10,6 +10,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use App\Models\User;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use OpenApi\Annotations as OA;
 
 class AttendanceController extends Controller
@@ -20,25 +22,25 @@ class AttendanceController extends Controller
      *     tags={"Attendances"},
      *     summary="List attendances",
      *     security={{"bearerAuth":{}}},
-    *     @OA\Response(
-    *         response=200,
-    *         description="OK",
-    *         @OA\JsonContent(type="array",
-    *             @OA\Items(
-    *                 type="object",
-    *                 @OA\Property(property="id", type="integer"),
-    *                 @OA\Property(property="user", type="object",
-    *                     @OA\Property(property="id", type="integer"),
-    *                     @OA\Property(property="name", type="string"),
-    *                     @OA\Property(property="email", type="string", format="email")
-    *                 ),
-    *                 @OA\Property(property="timestamp", type="string", format="date-time"),
-    *                 @OA\Property(property="latitude", type="number", format="float"),
-    *                 @OA\Property(property="longitude", type="number", format="float"),
-    *                 @OA\Property(property="notes", type="string")
-    *             )
-    *         )
-    *     )
+     *     @OA\Response(
+     *         response=200,
+     *         description="OK",
+     *         @OA\JsonContent(type="array",
+     *             @OA\Items(
+     *                 type="object",
+     *                 @OA\Property(property="id", type="integer"),
+     *                 @OA\Property(property="user", type="object",
+     *                     @OA\Property(property="id", type="integer"),
+     *                     @OA\Property(property="name", type="string"),
+     *                     @OA\Property(property="email", type="string", format="email")
+     *                 ),
+     *                 @OA\Property(property="timestamp", type="string", format="date-time"),
+     *                 @OA\Property(property="latitude", type="number", format="float"),
+     *                 @OA\Property(property="longitude", type="number", format="float"),
+     *                 @OA\Property(property="notes", type="string")
+     *             )
+     *         )
+     *     )
      * )
      */
     public function index()
@@ -78,23 +80,52 @@ class AttendanceController extends Controller
      *         required=true,
      *         @OA\MediaType(mediaType="multipart/form-data",
      *             @OA\Schema(
-     *                 required={"user_id","timestamp"},
-     *                 @OA\Property(property="user_id", type="integer"),
-     *                 @OA\Property(property="timestamp", type="string", format="date-time"),
-     *                 @OA\Property(property="latitude", type="number", format="float"),
-     *                 @OA\Property(property="longitude", type="number", format="float"),
-     *                 @OA\Property(property="photo", type="string", format="binary")
+                 required={"user_id","timestamp","latitude","longitude","device_model","battery_percentage","signal_strength","network_type","is_internet_available","type","photo"},
+                 @OA\Property(property="user_id", type="integer", description="ID del usuario"),
+                 @OA\Property(property="client_id", type="string", format="uuid", description="Identificador único del cliente/dispositivo (opcional, se genera automáticamente si no se proporciona)"),
+     *                 @OA\Property(property="timestamp", type="integer", description="Timestamp en milisegundos"),
+     *                 @OA\Property(property="latitude", type="number", format="float", minimum=-90, maximum=90, description="Latitud GPS"),
+     *                 @OA\Property(property="longitude", type="number", format="float", minimum=-180, maximum=180, description="Longitud GPS"),
+     *                 @OA\Property(property="notes", type="string", maxLength=255, description="Notas adicionales (opcional)"),
+     *                 @OA\Property(property="device_model", type="string", maxLength=255, description="Modelo del dispositivo"),
+     *                 @OA\Property(property="battery_percentage", type="integer", minimum=0, maximum=100, description="Porcentaje de batería"),
+     *                 @OA\Property(property="signal_strength", type="integer", minimum=0, maximum=4, description="Fuerza de la señal"),
+     *                 @OA\Property(property="network_type", type="string", maxLength=50, description="Tipo de red"),
+     *                 @OA\Property(property="is_internet_available", type="boolean", description="Disponibilidad de internet"),
+     *                 @OA\Property(property="type", type="string", description="Tipo de asistencia"),
+     *                 @OA\Property(property="photo", type="string", format="binary", description="Foto de asistencia (máximo 5MB)")
      *             )
      *         ),
      *         @OA\MediaType(mediaType="application/json",
      *             @OA\Schema(
-     *                 required={"user_id","timestamp"},
-     *                 @OA\Property(property="user_id", type="integer"),
-     *                 @OA\Property(property="timestamp", type="string", format="date-time"),
-     *                 @OA\Property(property="latitude", type="number", format="float"),
-     *                 @OA\Property(property="longitude", type="number", format="float")
+                 required={"user_id","timestamp","latitude","longitude","device_model","battery_percentage","signal_strength","network_type","is_internet_available","type"},
+                 @OA\Property(property="user_id", type="integer", description="ID del usuario"),
+                 @OA\Property(property="client_id", type="string", format="uuid", description="Identificador único del cliente/dispositivo (opcional, se genera automáticamente si no se proporciona)"),
+     *                 @OA\Property(property="timestamp", type="integer", description="Timestamp en milisegundos"),
+     *                 @OA\Property(property="latitude", type="number", format="float", minimum=-90, maximum=90, description="Latitud GPS"),
+     *                 @OA\Property(property="longitude", type="number", format="float", minimum=-180, maximum=180, description="Longitud GPS"),
+     *                 @OA\Property(property="notes", type="string", maxLength=255, description="Notas adicionales (opcional)"),
+     *                 @OA\Property(property="device_model", type="string", maxLength=255, description="Modelo del dispositivo"),
+     *                 @OA\Property(property="battery_percentage", type="integer", minimum=0, maximum=100, description="Porcentaje de batería"),
+     *                 @OA\Property(property="signal_strength", type="integer", minimum=0, maximum=4, description="Fuerza de la señal"),
+     *                 @OA\Property(property="network_type", type="string", maxLength=50, description="Tipo de red"),
+     *                 @OA\Property(property="is_internet_available", type="boolean", description="Disponibilidad de internet"),
+     *                 @OA\Property(property="type", type="string", description="Tipo de asistencia")
      *             ),
-     *             example={"user_id":1,"timestamp":"2025-10-20T12:00:00Z","latitude":-12.0464,"longitude":-77.0428}
+     *             example={
+     *                 "user_id": 1,
+     *                 "client_id": "550e8400-e29b-41d4-a716-446655440000",
+     *                 "timestamp": 1698066000000,
+     *                 "latitude": -12.0464,
+     *                 "longitude": -77.0428,
+     *                 "notes": "Llegada puntual",
+     *                 "device_model": "iPhone 14",
+     *                 "battery_percentage": 85,
+     *                 "signal_strength": 4,
+     *                 "network_type": "5G",
+     *                 "is_internet_available": true,
+     *                 "type": "entrada"
+     *             }
      *         )
      *     ),
      *     @OA\Response(response=201, description="Created"),
@@ -104,24 +135,50 @@ class AttendanceController extends Controller
     public function store(StoreAttendanceRequest $request)
     {
         $data = $request->validated();
-        DB::beginTransaction();
-        try {
-            $attendance = Attendance::create(collect($data)->except('photo')->toArray());
-            if ($request->hasFile('photo')) {
-                $path = $request->file('photo')->store('attendance_photos', config('filesystems.default_disk', 'public'));
 
+        $existing = Attendance::with(['user', 'image'])
+            ->where('user_id', $data['user_id'])
+            ->where('client_id', $data['client_id'])
+            ->first();
+
+        if ($existing) {
+            return new AttendanceResource($existing);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $attendance = Attendance::create(
+                collect($data)->except('photo')->toArray()
+            );
+
+            if ($request->hasFile('photo')) {
+                $disk = config('filesystems.default_disk', 'public');
+                $path = $request->file('photo')->store('attendance_photos', $disk);
                 $attendance->image()->create(['path' => $path]);
             }
-            DB::commit();
-            $attendance->load(['user', 'image']);
 
-            return (new AttendanceResource($attendance))->response()->setStatusCode(201);
-        } catch (\Exception $e) {
+            DB::commit();
+
+            $attendance->loadMissing(['user:id,name', 'image:id,attendance_id,path']);
+
+            return (new AttendanceResource($attendance))
+                ->response()
+                ->setStatusCode(201);
+        } catch (\Throwable $e) {
             DB::rollBack();
-            report($e);
-            return response()->json(['message' => 'Could not record attendance'], 500);
+            Log::error('Error creating attendance', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'message' => 'Could not record attendance',
+            ], 500);
         }
     }
+
+
 
     public function show(Attendance $attendance)
     {

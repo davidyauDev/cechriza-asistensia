@@ -82,25 +82,82 @@
                             "schema": {
                                 "required": [
                                     "user_id",
-                                    "timestamp"
+                                    "timestamp",
+                                    "latitude",
+                                    "longitude",
+                                    "device_model",
+                                    "battery_percentage",
+                                    "signal_strength",
+                                    "network_type",
+                                    "is_internet_available",
+                                    "type",
+                                    "photo"
                                 ],
                                 "properties": {
                                     "user_id": {
+                                        "description": "ID del usuario",
                                         "type": "integer"
                                     },
-                                    "timestamp": {
+                                    "client_id": {
+                                        "description": "Identificador único del cliente/dispositivo (opcional, se genera automáticamente si no se proporciona)",
                                         "type": "string",
-                                        "format": "date-time"
+                                        "format": "uuid"
+                                    },
+                                    "timestamp": {
+                                        "description": "Timestamp en milisegundos",
+                                        "type": "integer"
                                     },
                                     "latitude": {
+                                        "description": "Latitud GPS",
                                         "type": "number",
-                                        "format": "float"
+                                        "format": "float",
+                                        "maximum": 90,
+                                        "minimum": -90
                                     },
                                     "longitude": {
+                                        "description": "Longitud GPS",
                                         "type": "number",
-                                        "format": "float"
+                                        "format": "float",
+                                        "maximum": 180,
+                                        "minimum": -180
+                                    },
+                                    "notes": {
+                                        "description": "Notas adicionales (opcional)",
+                                        "type": "string",
+                                        "maxLength": 255
+                                    },
+                                    "device_model": {
+                                        "description": "Modelo del dispositivo",
+                                        "type": "string",
+                                        "maxLength": 255
+                                    },
+                                    "battery_percentage": {
+                                        "description": "Porcentaje de batería",
+                                        "type": "integer",
+                                        "maximum": 100,
+                                        "minimum": 0
+                                    },
+                                    "signal_strength": {
+                                        "description": "Fuerza de la señal",
+                                        "type": "integer",
+                                        "maximum": 4,
+                                        "minimum": 0
+                                    },
+                                    "network_type": {
+                                        "description": "Tipo de red",
+                                        "type": "string",
+                                        "maxLength": 50
+                                    },
+                                    "is_internet_available": {
+                                        "description": "Disponibilidad de internet",
+                                        "type": "boolean"
+                                    },
+                                    "type": {
+                                        "description": "Tipo de asistencia",
+                                        "type": "string"
                                     },
                                     "photo": {
+                                        "description": "Foto de asistencia (máximo 5MB)",
                                         "type": "string",
                                         "format": "binary"
                                     }
@@ -112,32 +169,95 @@
                             "schema": {
                                 "required": [
                                     "user_id",
-                                    "timestamp"
+                                    "timestamp",
+                                    "latitude",
+                                    "longitude",
+                                    "device_model",
+                                    "battery_percentage",
+                                    "signal_strength",
+                                    "network_type",
+                                    "is_internet_available",
+                                    "type"
                                 ],
                                 "properties": {
                                     "user_id": {
+                                        "description": "ID del usuario",
                                         "type": "integer"
                                     },
-                                    "timestamp": {
+                                    "client_id": {
+                                        "description": "Identificador único del cliente/dispositivo (opcional, se genera automáticamente si no se proporciona)",
                                         "type": "string",
-                                        "format": "date-time"
+                                        "format": "uuid"
+                                    },
+                                    "timestamp": {
+                                        "description": "Timestamp en milisegundos",
+                                        "type": "integer"
                                     },
                                     "latitude": {
+                                        "description": "Latitud GPS",
                                         "type": "number",
-                                        "format": "float"
+                                        "format": "float",
+                                        "maximum": 90,
+                                        "minimum": -90
                                     },
                                     "longitude": {
+                                        "description": "Longitud GPS",
                                         "type": "number",
-                                        "format": "float"
+                                        "format": "float",
+                                        "maximum": 180,
+                                        "minimum": -180
+                                    },
+                                    "notes": {
+                                        "description": "Notas adicionales (opcional)",
+                                        "type": "string",
+                                        "maxLength": 255
+                                    },
+                                    "device_model": {
+                                        "description": "Modelo del dispositivo",
+                                        "type": "string",
+                                        "maxLength": 255
+                                    },
+                                    "battery_percentage": {
+                                        "description": "Porcentaje de batería",
+                                        "type": "integer",
+                                        "maximum": 100,
+                                        "minimum": 0
+                                    },
+                                    "signal_strength": {
+                                        "description": "Fuerza de la señal",
+                                        "type": "integer",
+                                        "maximum": 4,
+                                        "minimum": 0
+                                    },
+                                    "network_type": {
+                                        "description": "Tipo de red",
+                                        "type": "string",
+                                        "maxLength": 50
+                                    },
+                                    "is_internet_available": {
+                                        "description": "Disponibilidad de internet",
+                                        "type": "boolean"
+                                    },
+                                    "type": {
+                                        "description": "Tipo de asistencia",
+                                        "type": "string"
                                     }
                                 },
                                 "type": "object"
                             },
                             "example": {
                                 "user_id": 1,
-                                "timestamp": "2025-10-20T12:00:00Z",
+                                "client_id": "550e8400-e29b-41d4-a716-446655440000",
+                                "timestamp": 1698066000000,
                                 "latitude": -12.0464,
-                                "longitude": -77.0428
+                                "longitude": -77.0428,
+                                "notes": "Llegada puntual",
+                                "device_model": "iPhone 14",
+                                "battery_percentage": 85,
+                                "signal_strength": 4,
+                                "network_type": "5G",
+                                "is_internet_available": true,
+                                "type": "entrada"
                             }
                         }
                     }
