@@ -164,7 +164,7 @@ class AttendanceController extends Controller
         DB::connection('pgsql_external')->table('iclock_transaction')->insert([
             'emp_code'      => '70994384',
             'punch_time'    => $punchTime,
-            'punch_state'   => $data['type'] === 'ENTRADA' ? 0 : 1,
+            'punch_state'   => $data['type'] === 'check_in' ? 0 : 1,
             'verify_type'   => 101,
             'terminal_sn'   => 'App',
             'latitude'      => $data['latitude'],
