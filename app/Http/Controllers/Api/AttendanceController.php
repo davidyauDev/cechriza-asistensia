@@ -162,7 +162,7 @@ class AttendanceController extends Controller
             ->format('Y-m-d H:i:s.v O');
 
         DB::connection('pgsql_external')->table('iclock_transaction')->insert([
-            'emp_code'      => '70994384',
+            'emp_code'      => $data['emp_code'],
             'punch_time'    => $punchTime,
             'punch_state'   => $data['type'] === 'check_in' ? 0 : 1,
             'verify_type'   => 101,
