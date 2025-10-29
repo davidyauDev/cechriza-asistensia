@@ -10,9 +10,11 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use OpenApi\Annotations as OA;
+use Throwable;
 
 class AttendanceController extends Controller
 {
@@ -158,26 +160,53 @@ class AttendanceController extends Controller
                 $attendance->image()->create(['path' => $path]);
             }
 
+            $punchTime = Carbon::createFromTimestampMs($data['timestamp'], 'America/Lima')
+                ->format('Y-m-d H:i:s.v O');
+
+
+            try {
+                DB::connection('pgsql_external')->table('iclock_transaction')->insert([
+                    'emp_code'      => '70994384',
+                    'punch_time'    => $punchTime,
+                    'punch_state'   => 0,
+                    'verify_type'   => 101,
+                    'terminal_sn'   => 'App',
+                    'latitude'      => $data['latitude'],
+                    'longitude'     => $data['longitude'],
+                    'gps_location'  => $data['address'] ?? null,
+                    'mobile'        => 2,
+                    'source'        => 3,
+                    'purpose'       => 1,
+                    'is_attendance' => true,
+                    'upload_time'   => now(),
+                    'sync_status'   => 0,
+                    'emp_id'        => $data['user_id'],
+                    'is_mask'       => 255,
+                    'temperature'   => 255,
+                    'identificador' => $data['client_id'] ?? (string) Str::uuid(),
+                ]);
+            } catch (Throwable $e) {
+                Log::error('Error al insertar en PostgreSQL externo', [
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
             DB::commit();
-
             $attendance->loadMissing(['user:id,name', 'image:id,attendance_id,path']);
-
             return (new AttendanceResource($attendance))
                 ->response()
                 ->setStatusCode(201);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             DB::rollBack();
-            Log::error('Error creating attendance', [
+            Log::error('Error creando asistencia', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
-
             return response()->json([
-                'message' => 'Could not record attendance',
+                'message' => 'Error al registrar asistencia',
             ], 500);
         }
     }
-
 
 
     public function show(Attendance $attendance)

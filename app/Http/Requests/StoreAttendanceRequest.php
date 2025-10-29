@@ -17,7 +17,7 @@ class StoreAttendanceRequest extends FormRequest
         return [
             'user_id' => ['required', 'exists:users,id'],
             'client_id' => ['required', 'uuid'], 
-            'timestamp' => ['required', 'integer'],
+            'timestamp' => ['required'],
             'latitude' => ['required', 'numeric', 'between:-90,90'],
             'longitude' => ['required', 'numeric', 'between:-180,180'],
             'notes' => ['nullable', 'string', 'max:255'],
