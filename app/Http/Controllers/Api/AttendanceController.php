@@ -135,78 +135,75 @@ class AttendanceController extends Controller
      * )
      */
     public function store(StoreAttendanceRequest $request)
-    {
-        $data = $request->validated();
+{
+    $data = $request->validated();
 
-        $existing = Attendance::with(['user', 'image'])
-            ->where('user_id', $data['user_id'])
-            ->where('client_id', $data['client_id'])
-            ->first();
+    $existing = Attendance::with(['user', 'image'])
+        ->where('user_id', $data['user_id'])
+        ->where('client_id', $data['client_id'])
+        ->first();
 
-        if ($existing) {
-            return new AttendanceResource($existing);
-        }
-
-        DB::beginTransaction();
-
-        try {
-            $attendance = Attendance::create(
-                collect($data)->except('photo')->toArray()
-            );
-
-            if ($request->hasFile('photo')) {
-                $disk = config('filesystems.default_disk', 'public');
-                $path = $request->file('photo')->store('attendance_photos', $disk);
-                $attendance->image()->create(['path' => $path]);
-            }
-
-            $punchTime = Carbon::createFromTimestampMs($data['timestamp'], 'America/Lima')
-                ->format('Y-m-d H:i:s.v O');
-
-
-            try {
-                DB::connection('pgsql_external')->table('iclock_transaction')->insert([
-                    'emp_code'      => '70994384',
-                    'punch_time'    => $punchTime,
-                    'punch_state'   => 0,
-                    'verify_type'   => 101,
-                    'terminal_sn'   => 'App',
-                    'latitude'      => $data['latitude'],
-                    'longitude'     => $data['longitude'],
-                    'gps_location'  => $data['address'] ?? null,
-                    'mobile'        => 2,
-                    'source'        => 3,
-                    'purpose'       => 1,
-                    'is_attendance' => true,
-                    'upload_time'   => now(),
-                    'sync_status'   => 0,
-                    'emp_id'        => $data['user_id'],
-                    'is_mask'       => 255,
-                    'temperature'   => 255,
-                    'identificador' => $data['client_id'] ?? (string) Str::uuid(),
-                ]);
-            } catch (Throwable $e) {
-                Log::error('Error al insertar en PostgreSQL externo', [
-                    'error' => $e->getMessage(),
-                ]);
-            }
-
-            DB::commit();
-            $attendance->loadMissing(['user:id,name', 'image:id,attendance_id,path']);
-            return (new AttendanceResource($attendance))
-                ->response()
-                ->setStatusCode(201);
-        } catch (Throwable $e) {
-            DB::rollBack();
-            Log::error('Error creando asistencia', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            return response()->json([
-                'message' => 'Error al registrar asistencia',
-            ], 500);
-        }
+    if ($existing) {
+        return new AttendanceResource($existing);
     }
+
+    DB::beginTransaction();
+
+    try {
+        $attendance = Attendance::create(collect($data)->except('photo')->toArray());
+
+        if ($request->hasFile('photo')) {
+            $disk = config('filesystems.default_disk', 'public');
+            $path = $request->file('photo')->store('attendance_photos', $disk);
+            $attendance->image()->create(['path' => $path]);
+        }
+
+        $punchTime = Carbon::createFromTimestampMs($data['timestamp'], 'America/Lima')
+            ->format('Y-m-d H:i:s.v O');
+
+        DB::connection('pgsql_external')->table('iclock_transaction')->insert([
+            'emp_code'      => '70994384',
+            'punch_time'    => $punchTime,
+            'punch_state'   => 0,
+            'verify_type'   => 101,
+            'terminal_sn'   => 'App',
+            'latitude'      => $data['latitude'],
+            'longitude'     => $data['longitude'],
+            'gps_location'  => $data['address'] ?? null,
+            'mobile'        => 2,
+            'source'        => 3,
+            'purpose'       => 1,
+            'is_attendance' => true,
+            'upload_time'   => now(),
+            'sync_status'   => 0,
+            'emp_id'        => $data['user_id'],
+            'is_mask'       => 255,
+            'temperature'   => 255,
+            'identificador' => $data['client_id'] ?? (string) Str::uuid(),
+        ]);
+
+        DB::commit();
+
+        $attendance->loadMissing(['user:id,name', 'image:id,attendance_id,path']);
+
+        return (new AttendanceResource($attendance))
+            ->response()
+            ->setStatusCode(201);
+
+    } catch (Throwable $e) {
+        DB::rollBack();
+
+        Log::error('Error creando asistencia', [
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString(),
+        ]);
+
+        return response()->json([
+            'message' => 'Error al registrar asistencia: ' . $e->getMessage(),
+        ], 500);
+    }
+}
+
 
 
     public function show(Attendance $attendance)
