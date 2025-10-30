@@ -29,7 +29,8 @@ class StoreAttendanceRequest extends FormRequest
             'network_type' => ['required', 'string', 'max:50'],
             'is_internet_available' => ['required', 'boolean'],
             'type' => ['required', 'string'],
-            'photo' => ['nullable', 'image', 'max:5120'], 
+            'photo' => ['nullable'],
+            'imagen_url' => ['nullable', 'url'], 
         ];
     }
 

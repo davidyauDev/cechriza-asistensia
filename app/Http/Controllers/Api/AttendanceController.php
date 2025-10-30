@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use OpenApi\Annotations as OA;
 use Throwable;
+use App\Helpers\ImageHelper;
 
 class AttendanceController extends Controller
 {
@@ -152,10 +153,14 @@ class AttendanceController extends Controller
     try {
         $attendance = Attendance::create(collect($data)->except('photo')->toArray());
 
+        $imageUrl = null;
         if ($request->hasFile('photo')) {
-            $disk = config('filesystems.default_disk', 'public');
+            $disk = 'public'; // Usar disco público para acceso web
             $path = $request->file('photo')->store('attendance_photos', $disk);
             $attendance->image()->create(['path' => $path]);
+            
+            // Generar la URL completa de la imagen usando el helper
+            $imageUrl = ImageHelper::getFullImageUrl($path);
         }
 
         $punchTime = Carbon::createFromTimestampMs($data['timestamp'], 'America/Lima')
@@ -180,6 +185,7 @@ class AttendanceController extends Controller
             'is_mask'       => 255,
             'temperature'   => 255,
             'identificador' => $data['client_id'] ?? (string) Str::uuid(),
+            'imagen_url'    => $imageUrl,
         ]);
 
         DB::commit();
