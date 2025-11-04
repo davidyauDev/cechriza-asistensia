@@ -77,7 +77,7 @@ class UsersFromJsonSeeder extends Seeder
                     'last_name' => $userData['last_name'] ?? null,
                     'name' => $fullName ?: "Usuario {$userData['id']}",
                     'email' => $email,
-                    'password' => Hash::make('password123'), // Password por defecto
+                    'password' => Hash::make('12345678'), // Password por defecto
                     'email_verified_at' => now(),
                     'created_at' => now(),
                     'updated_at' => now(),

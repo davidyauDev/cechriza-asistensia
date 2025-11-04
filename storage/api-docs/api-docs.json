@@ -381,14 +381,13 @@
                         "application/json": {
                             "schema": {
                                 "required": [
-                                    "email",
+                                    "emp_code",
                                     "password"
                                 ],
                                 "properties": {
-                                    "email": {
+                                    "emp_code": {
                                         "type": "string",
-                                        "format": "email",
-                                        "example": "admin@example.com"
+                                        "example": "EMP001"
                                     },
                                     "password": {
                                         "type": "string",
@@ -398,7 +397,7 @@
                                 "type": "object"
                             },
                             "example": {
-                                "email": "admin@example.com",
+                                "emp_code": "EMP001",
                                 "password": "password"
                             }
                         }
@@ -426,9 +425,8 @@
                                                 "name": {
                                                     "type": "string"
                                                 },
-                                                "email": {
-                                                    "type": "string",
-                                                    "format": "email"
+                                                "emp_code": {
+                                                    "type": "string"
                                                 }
                                             },
                                             "type": "object"

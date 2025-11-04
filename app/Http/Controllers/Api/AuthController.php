@@ -20,16 +20,16 @@ class AuthController extends Controller
      *     @OA\RequestBody(
      *         required=true,
      *         @OA\JsonContent(
-     *             required={"email","password"},
-     *             @OA\Property(property="email", type="string", format="email", example="admin@example.com"),
+     *             required={"emp_code","password"},
+     *             @OA\Property(property="emp_code", type="string", example="EMP001"),
      *             @OA\Property(property="password", type="string", example="password"),
-     *             example={"email":"admin@example.com","password":"password"}
+     *             example={"emp_code":"EMP001","password":"password"}
      *         )
      *     ),
      *     @OA\Response(response=200, description="OK", @OA\JsonContent(
      *         required={"access_token","user"},
      *         @OA\Property(property="access_token", type="string"),
-     *         @OA\Property(property="user", type="object", @OA\Property(property="id", type="integer"), @OA\Property(property="name", type="string"), @OA\Property(property="email", type="string", format="email"))
+     *         @OA\Property(property="user", type="object", @OA\Property(property="id", type="integer"), @OA\Property(property="name", type="string"), @OA\Property(property="emp_code", type="string"))
      *     )),
      *     @OA\Response(response=401, description="Unauthorized")
      * )
@@ -37,11 +37,11 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         $credentials = $request->validate([
-            'email' => ['required', 'email'],
+            'emp_code' => ['required', 'string'],
             'password' => ['required'],
         ]);
 
-        $user = User::where('email', $credentials['email'])->first();
+        $user = User::where('emp_code', $credentials['emp_code'])->first();
 
         if (!$user  || !Hash::check($credentials['password'], $user->password)) {
             return response()->json(['message' => 'The provided credentials are incorrect.'], 401);
