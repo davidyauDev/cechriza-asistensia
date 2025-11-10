@@ -18,6 +18,11 @@ class UserService implements UserServiceInterface
         return $this->repository->paginate($perPage);
     }
 
+    public function getUsers(array $filters): LengthAwarePaginator
+    {
+        return $this->repository->getFilteredUsers($filters);
+    }
+
     public function create(UserData $dto): User
     {
         $data = $dto->toArray();
@@ -53,12 +58,14 @@ class UserService implements UserServiceInterface
         return $this->repository->update($user, $data);
     }
 
-    public function delete(int $id): void
+    public function delete(int $id): bool
     {
         $user = $this->repository->find($id);
         if ($user) {
             $this->repository->delete($user);
+            return true;
         }
+        return false;
     }
 
     public function restore(int $id): ?User

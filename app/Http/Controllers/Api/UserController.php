@@ -7,24 +7,9 @@ use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
 use App\Http\Resources\UserResource;
 use App\DataTransferObjects\UserData;
+use App\Models\User;
 use App\Services\UserServiceInterface;
 use Illuminate\Http\Request;
-use OpenApi\Annotations as OA;
-
-/**
- * @OA\Schema(
- *   schema="User",
- *   @OA\Property(property="id", type="integer", example=1),
- *   @OA\Property(property="name", type="string", example="Juan Perez"),
- *   @OA\Property(property="email", type="string", format="email", example="juan@example.com")
- * )
- *
- * @OA\Schema(
- *   schema="UserCollection",
- *   type="array",
- *   @OA\Items(ref="#/components/schemas/User")
- * )
- */
 
 class UserController extends Controller
 {
@@ -32,141 +17,171 @@ class UserController extends Controller
     {
     }
 
+    /**
+     * Lista usuarios con paginación, búsqueda y ordenamiento
+     */
     public function index(Request $request)
     {
-        $perPage = min((int) $request->input('per_page', 10), 100);
-        $users  = $this->service->list($perPage);
-        return UserResource::collection($users);
+        try {
+            $filters = [
+                'search' => $request->string('search')->trim(),
+                'sort_by' => $this->getSortField($request->input('sort_by')),
+                'sort_order' => $this->getSortOrder($request->input('sort_order')),
+                'per_page' => $this->getPerPage($request->input('per_page'))
+            ];
+
+            $users = $this->service->getUsers($filters);
+
+            return UserResource::collection($users)
+                ->additional([
+                    'meta' => [
+                        'filters' => $filters,
+                        'pagination' => [
+                            'total' => $users->total(),
+                            'per_page' => $users->perPage(),
+                            'current_page' => $users->currentPage(),
+                            'last_page' => $users->lastPage(),
+                        ]
+                    ]
+                ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener usuarios: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
-     * @OA\Get(
-     *     path="/api/users",
-     *     tags={"Users"},
-     *     summary="List users",
-     *     security={{"bearerAuth":{}}},
-     *     @OA\Parameter(name="per_page", in="query", @OA\Schema(type="integer")),
-     *     @OA\Response(response=200, description="OK", @OA\JsonContent(type="array", @OA\Items(
-     *         type="object",
-     *         @OA\Property(property="id", type="integer"),
-     *         @OA\Property(property="name", type="string"),
-     *         @OA\Property(property="email", type="string", format="email")
-     *     )))
-     * )
+     * Crear un nuevo usuario
      */
-
 
     public function store(StoreUserRequest $request)
     {
-        $dto = UserData::fromArray($request->validated());
-        $user = $this->service->create($dto);
+        try {
+            $dto = UserData::fromArray($request->validated());
+            $user = $this->service->create($dto);
 
-        return (new UserResource($user))->response()->setStatusCode(201);
+            return (new UserResource($user))->response()->setStatusCode(201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al crear usuario: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
-     * @OA\Post(
-     *     path="/api/users",
-     *     tags={"Users"},
-     *     summary="Create user",
-     *     security={{"bearerAuth":{}}},
-     *     @OA\RequestBody(@OA\JsonContent(required={"name","email","password"},
-     *         @OA\Property(property="name", type="string"),
-     *         @OA\Property(property="email", type="string", format="email"),
-     *         @OA\Property(property="password", type="string")
-     *     )),
-     *     @OA\Response(response=201, description="Created", @OA\JsonContent(@OA\Property(property="id", type="integer")))
-     * )
+     * Mostrar un usuario específico
      */
-
     public function show(int $id)
     {
-        $user = $this->service->get($id);
-        if (!$user) {
-            return response()->json(['message' => 'User not found.'], 404);
+        try {
+            $user = $this->service->get($id);
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no encontrado'
+                ], 404);
+            }
+            return new UserResource($user);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener usuario: ' . $e->getMessage()
+            ], 500);
         }
-        return new UserResource($user);
     }
 
     /**
-     * @OA\Get(
-     *     path="/api/users/{user}",
-     *     tags={"Users"},
-     *     summary="Get user",
-     *     security={{"bearerAuth":{}}},
-     *     @OA\Parameter(name="user", in="path", required=true, @OA\Schema(type="integer")),
-     *     @OA\Response(response=200, description="OK", @OA\JsonContent(
-     *         type="object",
-     *         @OA\Property(property="id", type="integer"),
-     *         @OA\Property(property="name", type="string"),
-     *         @OA\Property(property="email", type="string", format="email")
-     *     ))
-     * )
+     * Actualizar un usuario existente
      */
-
     public function update(UpdateUserRequest $request, int $id)
     {
-        $dto = UserData::fromArray(array_merge(['id' => $id], $request->validated()));
-        $updated = $this->service->update($id, $dto);
-        if (!$updated) {
-            return response()->json(['message' => 'User not found.'], 404);
-        }
+        try {
+            $dto = UserData::fromArray(array_merge(['id' => $id], $request->validated()));
+            $updated = $this->service->update($id, $dto);
+            if (!$updated) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no encontrado'
+                ], 404);
+            }
 
-        return new UserResource($updated);
+            return new UserResource($updated);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al actualizar usuario: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
-     * @OA\Put(
-     *     path="/api/users/{user}",
-     *     tags={"Users"},
-     *     summary="Update user",
-     *     security={{"bearerAuth":{}}},
-     *     @OA\Parameter(name="user", in="path", required=true, @OA\Schema(type="integer")),
-     *     @OA\RequestBody(@OA\JsonContent(
-     *         @OA\Property(property="name", type="string"),
-     *         @OA\Property(property="email", type="string", format="email"),
-     *         @OA\Property(property="password", type="string")
-     *     )),
-     *     @OA\Response(response=200, description="OK")
-     * )
+     * Eliminar un usuario
      */
-
     public function destroy(int $id)
     {
-        $this->service->delete($id);
-        return response()->json(null, 204);
+        try {
+            $deleted = $this->service->delete($id);
+            if (!$deleted) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no encontrado'
+                ], 404);
+            }
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Usuario eliminado exitosamente'
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al eliminar usuario: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
-     * @OA\Delete(
-     *     path="/api/users/{user}",
-     *     tags={"Users"},
-     *     summary="Delete user",
-     *     security={{"bearerAuth":{}}},
-     *     @OA\Parameter(name="user", in="path", required=true, @OA\Schema(type="integer")),
-     *     @OA\Response(response=204, description="No Content")
-     * )
+     * Restaurar un usuario eliminado
      */
-
     public function restore($id)
     {
-        $restored = $this->service->restore((int) $id);
-        if (!$restored) {
-            return response()->json(['message' => 'User not found or not deleted.'], 400);
-        }
+        try {
+            $restored = $this->service->restore((int) $id);
+            if (!$restored) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no encontrado o no fue eliminado'
+                ], 400);
+            }
 
-        return new UserResource($restored->fresh());
+            return new UserResource($restored->fresh());
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al restaurar usuario: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
-     * @OA\Post(
-     *     path="/api/users/{id}/restore",
-     *     tags={"Users"},
-     *     summary="Restore deleted user",
-     *     security={{"bearerAuth":{}}},
-     *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer")),
-     *     @OA\Response(response=200, description="OK"),
-     *     @OA\Response(response=400, description="Bad Request")
-     * )
+     * Métodos helper privados para validar parámetros
      */
+    private function getSortField(?string $sortBy): string
+    {
+        $allowedSorts = ['id', 'name', 'email', 'created_at'];
+        return in_array($sortBy, $allowedSorts) ? $sortBy : 'id'; 
+    }
+
+    private function getSortOrder(?string $sortOrder): string
+    {
+        return $sortOrder === 'asc' ? 'asc' : 'desc';
+    }
+
+    private function getPerPage(?string $perPage): int
+    {
+        return max(1, min((int) $perPage ?: 10, 50));
+    }
 }

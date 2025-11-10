@@ -5,8 +5,12 @@ namespace App\Providers;
 use Illuminate\Support\ServiceProvider;
 use App\Repositories\UserRepositoryInterface;
 use App\Repositories\EloquentUserRepository;
+use App\Repositories\TechnicianRepositoryInterface;
+use App\Repositories\DbTechnicianRepository;
 use App\Services\UserServiceInterface;
 use App\Services\UserService;
+use App\Services\TechnicianServiceInterface;
+use App\Services\TechnicianService;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -17,8 +21,11 @@ class AppServiceProvider extends ServiceProvider
     {
         // Bind repository interfaces to implementations
         $this->app->bind(UserRepositoryInterface::class, EloquentUserRepository::class);
+        $this->app->bind(TechnicianRepositoryInterface::class, DbTechnicianRepository::class);
+        
         // Bind service interfaces
         $this->app->bind(UserServiceInterface::class, UserService::class);
+        $this->app->bind(TechnicianServiceInterface::class, TechnicianService::class);
     }
 
     /**

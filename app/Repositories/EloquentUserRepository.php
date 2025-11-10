@@ -12,6 +12,40 @@ class EloquentUserRepository implements UserRepositoryInterface
         return User::paginate($perPage);
     }
 
+    public function getFilteredUsers(array $filters): LengthAwarePaginator
+    {
+        $query = User::query();
+
+        if (!empty($filters['search'])) {
+            $search = trim($filters['search']);
+            
+            if (filter_var($search, FILTER_VALIDATE_EMAIL)) {
+                $query->where('email', $search);
+            } 
+            elseif (str_contains($search, '@')) {
+                $query->where('email', 'like', $search . '%');
+            }
+            else {
+                $query->where(function ($q) use ($search) {
+                    $q->where('name', 'like', $search . '%') 
+                      ->orWhere('name', 'like', '% ' . $search . '%') 
+                      ->orWhere('email', 'like', $search . '%');
+                });
+            }
+        }
+
+        $sortBy = $filters['sort_by'] ?? 'id';
+        $sortOrder = $filters['sort_order'] ?? 'desc';
+        
+        $query->select(['id', 'name', 'email', 'created_at', 'updated_at']);
+        
+        $query->orderBy($sortBy, $sortOrder);
+
+        $perPage = min($filters['per_page'] ?? 10, 50); 
+        
+        return $query->paginate($perPage)->appends(request()->query());
+    }
+
     public function create(array $data): User
     {
         return User::create($data);

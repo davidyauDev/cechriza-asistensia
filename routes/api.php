@@ -3,7 +3,8 @@
 use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\UserController;
-use App\Http\Controllers\Api\BannerController;
+use App\Http\Controllers\Api\EventoController;
+use App\Http\Controllers\Api\TechnicianController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
@@ -24,12 +25,28 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/attendances', [AttendanceController::class, 'store']);
     Route::get('/attendances', [AttendanceController::class, 'index']);
+    Route::get('/attendances/{attendance}', [AttendanceController::class, 'show']);
+    Route::put('/attendances/{attendance}', [AttendanceController::class, 'update']);
+    Route::delete('/attendances/{attendance}', [AttendanceController::class, 'destroy']);
+    
+    // Rutas específicas para asistencias por usuario
+    Route::get('/users/{user}/attendances', [AttendanceController::class, 'forUser']);
+    Route::get('/users/{user}/attendance-stats', [AttendanceController::class, 'userStats']);
+
+    Route::prefix('eventos')->group(function () {
+        Route::get('/', [EventoController::class, 'index']);
+        Route::post('/', [EventoController::class, 'store']);
+        Route::get('/{id}', [EventoController::class, 'show']);
+        Route::put('/{id}', [EventoController::class, 'update']);
+        Route::delete('/{id}', [EventoController::class, 'destroy']);
+
+        Route::get('/fecha/{fecha}', [EventoController::class, 'porFecha']); 
+        Route::get('/mes/{anio}/{mes}', [EventoController::class, 'eventosDelMes']);
+        Route::get('/dia/{fecha}', [EventoController::class, 'eventosDelDia']);
 
 
-    Route::get('/banners', [BannerController::class, 'index']);
-    Route::post('/banners', [BannerController::class, 'store']);
-    Route::get('/banners/{banner}', [BannerController::class, 'show']);
-    Route::put('/banners/{banner}', [BannerController::class, 'update']);
-    Route::patch('/banners/{banner}', [BannerController::class, 'update']);
-    Route::delete('/banners/{banner}', [BannerController::class, 'destroy']);
+    });
+
+    // Rutas para técnicos (Base de datos externa)
+    Route::get('/technicians/rutas-dia', [TechnicianController::class, 'getRutasTecnicosDia']);
 });
