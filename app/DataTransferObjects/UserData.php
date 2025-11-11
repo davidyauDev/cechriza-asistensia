@@ -8,7 +8,8 @@ class UserData
         public ?int $id,
         public ?string $name,
         public ?string $email,
-        public ?string $password
+        public ?string $password,
+        public ?string $emp_code = null
     ) {
     }
 
@@ -19,6 +20,7 @@ class UserData
             $data['name'] ?? null,
             $data['email'] ?? null,
             $data['password'] ?? null,
+            $data['emp_code'] ?? null,
         );
     }
 
@@ -29,6 +31,7 @@ class UserData
             'name' => $this->name,
             'email' => $this->email,
             'password' => $this->password,
+            'emp_code' => $this->emp_code,
         ], function ($v) {
             return $v !== null;
         });

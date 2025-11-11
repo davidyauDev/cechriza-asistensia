@@ -37,7 +37,7 @@ class EloquentUserRepository implements UserRepositoryInterface
         $sortBy = $filters['sort_by'] ?? 'id';
         $sortOrder = $filters['sort_order'] ?? 'desc';
         
-        $query->select(['id', 'name', 'email', 'created_at', 'updated_at']);
+        $query->select(['id', 'name', 'email', 'emp_code', 'created_at', 'updated_at']);
         
         $query->orderBy($sortBy, $sortOrder);
 

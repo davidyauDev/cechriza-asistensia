@@ -10,6 +10,7 @@ use App\DataTransferObjects\UserData;
 use App\Models\User;
 use App\Services\UserServiceInterface;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class UserController extends Controller
 {
@@ -44,6 +45,31 @@ class UserController extends Controller
                         ]
                     ]
                 ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener usuarios: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtener todos los usuarios para filtros en frontend
+     * Devuelve lista completa sin paginación (optimizado para dropdowns/filtros)
+     */
+    public function listAll()
+    {
+        try {
+            $users = Cache::remember('all_users_simple', 3600, function () {
+                return User::select('id', 'name')
+                    ->orderBy('name', 'asc')
+                    ->get();
+            });
+
+            return response()->json([
+                'data' => $users,
+                'total' => $users->count()
+            ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,

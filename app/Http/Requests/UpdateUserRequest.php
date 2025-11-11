@@ -26,6 +26,12 @@ class UpdateUserRequest extends FormRequest
                 Rule::unique('users')->ignore($userId),
             ],
             'password' => ['nullable', 'string', 'min:8'],
+            'emp_code' => [
+                'nullable',
+                'string',
+                'max:255',
+                Rule::unique('users')->ignore($userId),
+            ],
         ];
     }
 }
