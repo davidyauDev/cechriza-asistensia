@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Storage;
+use App\Helpers\ImageHelper;
 
 class AttendanceResource extends JsonResource
 {
@@ -30,7 +31,11 @@ class AttendanceResource extends JsonResource
             'is_internet_available' => (bool) $this->is_internet_available,
             'type' => $this->type,
             'image' => $this->whenLoaded('image', function () {
-                return $this->image ? Storage::url($this->image->path) : null;
+                if (! $this->image || empty($this->image->path)) {
+                    return null;
+                }
+
+                return ImageHelper::getFullImageUrl($this->image->path);
             }),
             'created_at' => optional($this->created_at)->toDateTimeString(),
             'updated_at' => optional($this->updated_at)->toDateTimeString(),
