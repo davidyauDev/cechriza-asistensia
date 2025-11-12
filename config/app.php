@@ -65,7 +65,17 @@ return [
     |
     */
 
-    'timezone' => 'UTC',
+    /*
+    |--------------------------------------------------------------------------
+    | Application Timezone
+    |--------------------------------------------------------------------------
+    |
+    | Set the default timezone for your application. You can override this
+    | value from your environment (.env) by setting APP_TIMEZONE. Defaults
+    | to UTC when not provided.
+    |
+    */
+    'timezone' => env('APP_TIMEZONE', 'UTC'),
 
     /*
     |--------------------------------------------------------------------------
