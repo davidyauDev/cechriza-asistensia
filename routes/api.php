@@ -12,11 +12,11 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/register', [UserController::class, 'store']);
-
     Route::post('/logout', [AuthController::class, 'logout']);
 
+
     Route::post('/users', [UserController::class, 'store']);
-    Route::get('/users/all', [UserController::class, 'listAll']); // Lista completa para filtros
+    Route::get('/users/all', [UserController::class, 'listAll']); 
     Route::get('/users', [UserController::class, 'index']);
     Route::get('/users/{user}', [UserController::class, 'show']);
     Route::put('/users/{user}', [UserController::class, 'update']);
@@ -37,15 +37,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('eventos')->group(function () {
         Route::get('/', [EventoController::class, 'index']);
         Route::post('/', [EventoController::class, 'store']);
-        Route::get('/{id}', [EventoController::class, 'show']);
-        Route::put('/{id}', [EventoController::class, 'update']);
-        Route::delete('/{id}', [EventoController::class, 'destroy']);
-
+        Route::get('/hoy', [EventoController::class, 'eventosHoy']); // Eventos activos de hoy
         Route::get('/fecha/{fecha}', [EventoController::class, 'porFecha']); 
         Route::get('/mes/{anio}/{mes}', [EventoController::class, 'eventosDelMes']);
         Route::get('/dia/{fecha}', [EventoController::class, 'eventosDelDia']);
-
-
+        Route::get('/{id}', [EventoController::class, 'show']);
+        Route::put('/{id}', [EventoController::class, 'update']);
+        Route::delete('/{id}', [EventoController::class, 'destroy']);
     });
 
     // Rutas para técnicos (Base de datos externa)

@@ -10,6 +10,7 @@ use App\Helpers\ImageHelper;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -169,6 +170,36 @@ class EventoController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Error al obtener eventos por fecha: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtener eventos activos para hoy
+     */
+    public function eventosHoy(): JsonResponse
+    {
+        try {
+            $hoy = Carbon::now()->format('Y-m-d');
+            Log::info('Fecha de hoy para eventos', ['hoy' => $hoy]);
+            $eventos = Evento::with('imagenes')
+                ->activoEnFecha($hoy)
+                ->get();
+            Log::info('Eventos hoy', ['eventos' => $eventos]);
+
+            return response()->json([
+                'success' => true,
+                'data' => $eventos,
+                'message' => $eventos->isEmpty() 
+                    ? 'No hay eventos activos para hoy'
+                    : 'Eventos activos de hoy obtenidos exitosamente',
+                'fecha' => $hoy
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener eventos de hoy: ' . $e->getMessage()
             ], 500);
         }
     }

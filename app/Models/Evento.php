@@ -34,11 +34,12 @@ class Evento extends Model
 
     /**
      * Scope para eventos activos en una fecha específica
+     * Compara solo la parte de fecha ignorando la hora
      */
     public function scopeActivoEnFecha($query, $fecha)
     {
-        return $query->where('fecha_inicio', '<=', $fecha)
-                    ->where('fecha_fin', '>=', $fecha)
+        return $query->whereDate('fecha_inicio', '<=', $fecha)
+                    ->whereDate('fecha_fin', '>=', $fecha)
                     ->where('estado', 'activo');
     }
 
