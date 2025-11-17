@@ -56,6 +56,16 @@ class UserController extends Controller
 
     }
 
+
+    public function listByEntryAndExit()
+    {
+        return $this->successResponse(
+            $this->service->getUsersOrderedByCheckInAndOut(),
+            'Users with attendances retrieved successfully'
+        );
+
+    }
+
     /**
      * Crear un nuevo usuario
      */

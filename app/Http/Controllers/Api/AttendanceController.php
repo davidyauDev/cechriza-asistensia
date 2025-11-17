@@ -134,8 +134,9 @@ class AttendanceController extends Controller
     public function store(StoreAttendanceRequest $request)
     {
         $data = $request->validated();
+        ds($data);
         return $this->successResponse(
-            $this->attendanceService->store($data),
+            $this->attendanceService->store($request),
             'Attendance record created successfully'
         );
     }

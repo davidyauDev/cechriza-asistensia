@@ -12,6 +12,8 @@ interface UserServiceInterface
 
     public function getUsers(array $filters): AnonymousResourceCollection;
 
+    public function getUsersOrderedByCheckInAndOut(): AnonymousResourceCollection;
+
     public function create(UserData $dto): UserResource;
 
     public function get(int $id): UserResource;

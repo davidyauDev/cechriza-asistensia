@@ -18,6 +18,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('users')->group(function () {
         Route::post('/', [UserController::class, 'store']);
         Route::get('/all', [UserController::class, 'listAll']);
+        Route::get('/entry-exit', [UserController::class, 'listByEntryAndExit']);
         Route::get('/', [UserController::class, 'index']);
         Route::get('/{id}', [UserController::class, 'show']);
         Route::put('/{user}', [UserController::class, 'update']);

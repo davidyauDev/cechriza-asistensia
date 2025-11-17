@@ -47,6 +47,13 @@ class UserService implements UserServiceInterface
             ]);
     }
 
+    public function getUsersOrderedByCheckInAndOut(): AnonymousResourceCollection
+    {
+        $users = $this->repository->getUsersOrderedByCheckInAndOut();
+
+        return UserResource::collection($users);
+    }
+
     public function create(UserData $dto): UserResource
     {
         $data = $dto->toArray();

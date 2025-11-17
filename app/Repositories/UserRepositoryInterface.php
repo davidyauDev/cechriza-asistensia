@@ -4,12 +4,15 @@ namespace App\Repositories;
 
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Collection;
 
 interface UserRepositoryInterface
 {
     public function paginate(int $perPage = 10): LengthAwarePaginator;
 
     public function getFilteredUsers(array $filters): LengthAwarePaginator;
+
+    public function getUsersOrderedByCheckInAndOut(): Collection;
 
     public function create(array $data): User;
 
