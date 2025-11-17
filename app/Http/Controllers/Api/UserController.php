@@ -5,52 +5,42 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
-use App\Http\Resources\UserResource;
 use App\DataTransferObjects\UserData;
-use App\Models\User;
 use App\Services\UserServiceInterface;
+use App\Traits\ApiResponseTrait;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
+
+
 
 class UserController extends Controller
 {
+
+    use ApiResponseTrait;
+
     public function __construct(private UserServiceInterface $service)
     {
     }
+
 
     /**
      * Lista usuarios con paginación, búsqueda y ordenamiento
      */
     public function index(Request $request)
     {
-        try {
-            $filters = [
-                'search' => $request->string('search')->trim(),
-                'sort_by' => $this->getSortField($request->input('sort_by')),
-                'sort_order' => $this->getSortOrder($request->input('sort_order')),
-                'per_page' => $this->getPerPage($request->input('per_page'))
-            ];
+        // try {
+        $filters = [
+            'search' => $request->string('search')->trim(),
+            'sort_by' => $this->getSortField($request->input('sort_by')),
+            'sort_order' => $this->getSortOrder($request->input('sort_order')),
+            'per_page' => $this->getPerPage($request->input('per_page'))
+        ];
 
-            $users = $this->service->getUsers($filters);
+        return $this->successResponse(
+            $this->service->getUsers($filters),
+            'Users retrieved successfully'
+        );
 
-            return UserResource::collection($users)
-                ->additional([
-                    'meta' => [
-                        'filters' => $filters,
-                        'pagination' => [
-                            'total' => $users->total(),
-                            'per_page' => $users->perPage(),
-                            'current_page' => $users->currentPage(),
-                            'last_page' => $users->lastPage(),
-                        ]
-                    ]
-                ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error al obtener usuarios: ' . $e->getMessage()
-            ], 500);
-        }
+
     }
 
     /**
@@ -59,23 +49,11 @@ class UserController extends Controller
      */
     public function listAll()
     {
-        try {
-            $users = Cache::remember('all_users_simple', 3600, function () {
-                return User::select('id', 'name')
-                    ->orderBy('name', 'asc')
-                    ->get();
-            });
+        return $this->successResponse(
+            $this->service->getAll(),
+            'All users retrieved successfully'
+        );
 
-            return response()->json([
-                'data' => $users,
-                'total' => $users->count()
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error al obtener usuarios: ' . $e->getMessage()
-            ], 500);
-        }
     }
 
     /**
@@ -84,17 +62,15 @@ class UserController extends Controller
 
     public function store(StoreUserRequest $request)
     {
-        try {
-            $dto = UserData::fromArray($request->validated());
-            $user = $this->service->create($dto);
+        // try {
+        $dto = UserData::fromArray($request->validated());
+        // $user = $this->service->create($dto);
+        return $this->successResponse(
+            $this->service->create($dto),
+            'User created successfully'
+        );
 
-            return (new UserResource($user))->response()->setStatusCode(201);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error al crear usuario: ' . $e->getMessage()
-            ], 500);
-        }
+
     }
 
     /**
@@ -102,21 +78,12 @@ class UserController extends Controller
      */
     public function show(int $id)
     {
-        try {
-            $user = $this->service->get($id);
-            if (!$user) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Usuario no encontrado'
-                ], 404);
-            }
-            return new UserResource($user);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error al obtener usuario: ' . $e->getMessage()
-            ], 500);
-        }
+
+        return $this->successResponse(
+            $this->service->get($id),
+            'User retrieved successfully'
+        );
+
     }
 
     /**
@@ -124,23 +91,13 @@ class UserController extends Controller
      */
     public function update(UpdateUserRequest $request, int $id)
     {
-        try {
-            $dto = UserData::fromArray(array_merge(['id' => $id], $request->validated()));
-            $updated = $this->service->update($id, $dto);
-            if (!$updated) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Usuario no encontrado'
-                ], 404);
-            }
 
-            return new UserResource($updated);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error al actualizar usuario: ' . $e->getMessage()
-            ], 500);
-        }
+
+        $dto = UserData::fromArray(array_merge(['id' => $id], $request->validated()));
+        return $this->successResponse(
+            $this->service->update($id, $dto),
+            'User updated successfully'
+        );
     }
 
     /**
@@ -148,25 +105,13 @@ class UserController extends Controller
      */
     public function destroy(int $id)
     {
-        try {
-            $deleted = $this->service->delete($id);
-            if (!$deleted) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Usuario no encontrado'
-                ], 404);
-            }
-            
-            return response()->json([
-                'success' => true,
-                'message' => 'Usuario eliminado exitosamente'
-            ], 200);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error al eliminar usuario: ' . $e->getMessage()
-            ], 500);
-        }
+
+        return $this->successResponse(
+            $this->service->delete($id),
+            'User deleted successfully'
+        );
+
+
     }
 
     /**
@@ -174,22 +119,11 @@ class UserController extends Controller
      */
     public function restore($id)
     {
-        try {
-            $restored = $this->service->restore((int) $id);
-            if (!$restored) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Usuario no encontrado o no fue eliminado'
-                ], 400);
-            }
 
-            return new UserResource($restored->fresh());
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error al restaurar usuario: ' . $e->getMessage()
-            ], 500);
-        }
+        return $this->successResponse(
+            $this->service->restore(intval($id)),
+            'User restored successfully'
+        );
     }
 
     /**
@@ -198,7 +132,7 @@ class UserController extends Controller
     private function getSortField(?string $sortBy): string
     {
         $allowedSorts = ['id', 'name', 'email', 'created_at'];
-        return in_array($sortBy, $allowedSorts) ? $sortBy : 'id'; 
+        return in_array($sortBy, $allowedSorts) ? $sortBy : 'id';
     }
 
     private function getSortOrder(?string $sortOrder): string

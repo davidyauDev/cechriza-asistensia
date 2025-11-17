@@ -6,11 +6,15 @@ use Illuminate\Http\JsonResponse;
 
 trait ApiResponseTrait
 {
-    protected function successResponse(mixed $data, int $status = 200): JsonResponse
-    {
+    protected function successResponse(
+        mixed $data,
+        string $message,
+        int $status = 200
+    ): JsonResponse {
         return response()->json([
             'success' => true,
-            'data' => $data
+            'data' => $data,
+            'message' => $message,
         ], $status);
     }
 
@@ -18,7 +22,8 @@ trait ApiResponseTrait
     {
         return response()->json([
             'success' => false,
-            'message' => $message
+            'message' => $message,
+            'data' => null,
         ], $status);
     }
 
@@ -26,7 +31,7 @@ trait ApiResponseTrait
     {
         return response()->json([
             'success' => true,
-            'message' => $message
+            'message' => $message,
         ], $status);
     }
 }

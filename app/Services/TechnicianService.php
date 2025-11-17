@@ -18,8 +18,17 @@ class TechnicianService implements TechnicianServiceInterface
      * @param string $empCode Código del empleado
      * @return Collection
      */
-    public function getRutasTecnicosDia(string $empCode): Collection
+    public function getRutasTecnicosDia(string $empCode): array
     {
-        return $this->repository->getRutasTecnicosDia($empCode);
+        $rutas = $this->repository->getRutasTecnicosDia($empCode);
+        return [
+            'rutas' => $rutas,
+            'meta' => [
+                'emp_code' => $empCode,
+                'total_rutas' => $rutas->count(),
+                'fecha_consulta' => now()->toDateTimeString(),
+            ]
+        ];
+
     }
 }

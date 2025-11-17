@@ -3,22 +3,22 @@
 namespace App\Services;
 
 use App\DataTransferObjects\UserData;
-use Illuminate\Contracts\Pagination\LengthAwarePaginator;
-use App\Models\User;
+use App\Http\Resources\UserResource;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 interface UserServiceInterface
 {
-    public function list(int $perPage = 10): LengthAwarePaginator;
+    public function getAll(): array;
 
-    public function getUsers(array $filters): LengthAwarePaginator;
+    public function getUsers(array $filters): AnonymousResourceCollection;
 
-    public function create(UserData $dto): User;
+    public function create(UserData $dto): UserResource;
 
-    public function get(int $id): ?User;
+    public function get(int $id): UserResource;
 
-    public function update(int $id, UserData $dto): ?User;
+    public function update(int $id, UserData $dto): UserResource;
 
-    public function delete(int $id): bool;
+    public function delete(int $id): void;
 
-    public function restore(int $id): ?User;
+    public function restore(int $id): UserResource;
 }

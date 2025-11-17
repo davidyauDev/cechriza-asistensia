@@ -3,9 +3,12 @@
 namespace App\Services;
 
 use App\DataTransferObjects\UserData;
+use App\Http\Resources\UserResource;
 use App\Repositories\UserRepositoryInterface;
-use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Cache;
 use App\Models\User;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class UserService implements UserServiceInterface
 {
@@ -13,37 +16,65 @@ class UserService implements UserServiceInterface
     {
     }
 
-    public function list(int $perPage = 10): LengthAwarePaginator
+    public function getAll(): array
     {
-        return $this->repository->paginate($perPage);
+        $users = Cache::remember('all_users_simple', 3600, function () {
+            return User::select('id', 'name')
+                ->orderBy('name', 'asc')
+                ->get();
+        });
+
+        return [
+            'users' => $users,
+            'total' => $users->count()
+        ];
+    }
+    public function getUsers(array $filters): AnonymousResourceCollection
+    {
+        $users = $this->repository->getFilteredUsers($filters);
+
+        return UserResource::collection($users)
+            ->additional([
+                'meta' => [
+                    'filters' => $filters,
+                    'pagination' => [
+                        'total' => $users->total(),
+                        'per_page' => $users->perPage(),
+                        'current_page' => $users->currentPage(),
+                        'last_page' => $users->lastPage(),
+                    ]
+                ]
+            ]);
     }
 
-    public function getUsers(array $filters): LengthAwarePaginator
-    {
-        return $this->repository->getFilteredUsers($filters);
-    }
-
-    public function create(UserData $dto): User
+    public function create(UserData $dto): UserResource
     {
         $data = $dto->toArray();
         if (isset($data['password']) && !empty($data['password'])) {
             $data['password'] = bcrypt($data['password']);
         }
 
-        return $this->repository->create($data);
+        $user = $this->repository->create($data);
+
+        return new UserResource($user);
     }
 
-    public function get(int $id): ?User
-    {
-        return $this->repository->find($id);
-    }
-
-    public function update(int $id, UserData $dto): ?User
+    public function get(int $id): UserResource
     {
         $user = $this->repository->find($id);
         if (!$user) {
-            return null;
+            throw new NotFoundHttpException('User not found');
         }
+        ;
+        return new UserResource($user);
+    }
+
+    public function update(int $id, UserData $dto): UserResource
+    {
+        $user = $this->repository->find($id);
+        if (!$user)
+            throw new NotFoundHttpException('User not found');
+
 
         $data = $dto->toArray();
 
@@ -55,31 +86,32 @@ class UserService implements UserServiceInterface
             }
         }
 
-        return $this->repository->update($user, $data);
+        $user = $this->repository->update($user, $data);
+        return new UserResource($user);
     }
 
-    public function delete(int $id): bool
+
+    public function delete(int $id): void
     {
         $user = $this->repository->find($id);
-        if ($user) {
-            $this->repository->delete($user);
-            return true;
-        }
-        return false;
+        if (!$user) throw new NotFoundHttpException('User not found');
+
+        $this->repository->delete($user);
     }
 
-    public function restore(int $id): ?User
+    public function restore(int $id): UserResource
     {
         $user = $this->repository->withTrashedFind($id);
         if (!$user) {
-            return null;
+            // return null;
+            throw new NotFoundHttpException('Usuario no encontrado o no fue eliminado');
         }
 
         if ($user->trashed()) {
             $user->restore();
-            return $user;
+            return new UserResource($user->fresh());
         }
 
-        return null;
+        throw new NotFoundHttpException('Usuario no encontrado o no fue eliminado');
     }
 }

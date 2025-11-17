@@ -12,5 +12,5 @@ interface TechnicianServiceInterface
      * @param string $empCode Código del empleado
      * @return Collection
      */
-    public function getRutasTecnicosDia(string $empCode): Collection;
+    public function getRutasTecnicosDia(string $empCode): array;
 }

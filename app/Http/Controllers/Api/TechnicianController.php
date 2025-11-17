@@ -4,11 +4,15 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Services\TechnicianServiceInterface;
+use App\Traits\ApiResponseTrait;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class TechnicianController extends Controller
 {
+
+    use ApiResponseTrait;
+
     public function __construct(
         private TechnicianServiceInterface $service
     ) {
@@ -26,24 +30,11 @@ class TechnicianController extends Controller
             'emp_code' => 'required|string'
         ]);
 
-        try {
-            $rutas = $this->service->getRutasTecnicosDia($request->emp_code);
+        return $this->successResponse(
+            $this->service->getRutasTecnicosDia($request->emp_code),
+            'Rutas de técnicos retrieved successfully'
+        );
 
-            return response()->json([
-                'success' => true,
-                'data' => $rutas,
-                'meta' => [
-                    'emp_code' => $request->emp_code,
-                    'total_rutas' => $rutas->count(),
-                    'fecha_consulta' => now()->toDateTimeString(),
-                ]
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error al obtener rutas de técnicos: ' . $e->getMessage(),
-                'data' => null
-            ], 500);
-        }
+
     }
 }
