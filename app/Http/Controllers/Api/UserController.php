@@ -57,7 +57,7 @@ class UserController extends Controller
     }
 
 
-    public function listByEntryAndExit()
+    public function listByCheckInAndOut()
     {
         return $this->successResponse(
             $this->service->getUsersOrderedByCheckInAndOut(),
