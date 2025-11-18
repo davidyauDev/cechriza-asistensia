@@ -122,6 +122,19 @@ class UserService implements UserServiceInterface
         $this->repository->delete($user);
     }
 
+    public function switchActiveStatus(int $id): UserResource
+    {
+        $user = $this->repository->find($id);
+        if (!$user) {
+            throw new NotFoundHttpException('User not found');
+        }
+
+        $user->active = !$user->active;
+        $user->save();
+
+        return new UserResource($user);
+    }
+
     public function restore(int $id): UserResource
     {
         $user = $this->repository->withTrashedFind($id);

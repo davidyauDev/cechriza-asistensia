@@ -139,6 +139,19 @@ class UserController extends Controller
 
     }
 
+
+    /**
+     * Alternar el estado activo/inactivo de un usuario
+     */
+
+    public function switchActiveStatus(int $id)
+    {
+        return $this->successResponse(
+            $this->service->switchActiveStatus($id),
+            'User active status switched successfully'
+        );
+    }
+
     /**
      * Restaurar un usuario eliminado
      */

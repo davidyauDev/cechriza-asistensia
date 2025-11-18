@@ -12,7 +12,7 @@ use App\Repositories\AttendanceServiceRepositoryInterface;
 use Carbon\Carbon;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
-use Log;
+use Illuminate\Support\Facades\Log;
 use Str;
 use Symfony\Component\CssSelector\Exception\InternalErrorException;
 class AttendanceServiceRepository implements AttendanceServiceRepositoryInterface

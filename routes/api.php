@@ -25,6 +25,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::put('/{user}', [UserController::class, 'update']);
         Route::patch('/{user}', [UserController::class, 'update']);
         Route::delete('/{user}', [UserController::class, 'destroy']);
+        Route::post('/{id}/switch-active-status', [UserController::class, 'switchActiveStatus']);
         Route::post('/{id}/restore', [UserController::class, 'restore']);   
     });
 
