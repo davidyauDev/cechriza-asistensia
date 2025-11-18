@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
 
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum'])->group(function () {
 
     Route::post('/register', [UserController::class, 'store']);
     Route::post('/logout', [AuthController::class, 'logout']);
@@ -17,7 +17,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::prefix('users')->group(function () {
         Route::post('/', [UserController::class, 'store']);
-        Route::get('/all', [UserController::class, 'listAll']);
+        Route::get('/all', [UserController::class, 'listAll'])->middleware('role:ADMIN');
         Route::get('/check-in-out', [UserController::class, 'listByCheckInAndOut']);
         Route::get('/', [UserController::class, 'index']);
         Route::get('/{id}', [UserController::class, 'show']);

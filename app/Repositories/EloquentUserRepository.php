@@ -56,22 +56,36 @@ class EloquentUserRepository implements UserRepositoryInterface
 
     public function getUsersOrderedByCheckInAndOut(
         array $filters
-    ): Collection
-    {
+    ): Collection {
         $user_id = $filters['user_id'] ?? null;
-        
+
         $currentDate = date('Y-m-d');
         return User::with([
             'attendances' => function ($query) use ($currentDate) {
-                $query->orderByRaw("
+                
+                $query
+                ->select([
+                            'id',
+                            'user_id',           // Siempre incluye la clave primaria
+                            'client_id',
+                            'timestamp',
+                            'latitude',
+                            'longitude',
+                            'device_model',
+                            'battery_percentage',
+                            'signal_strength',
+                            'network_type',
+                            'type',
+                        ])
+                 ->whereDate('created_at', $currentDate)
+                    ->orderByRaw("
             CASE 
                 WHEN type = 'check_in' THEN 1
                 WHEN type = 'check_out' THEN 2
                 ELSE 3
             END
         ")
-            ->whereDate('created_at', $currentDate)
-            ->orderBy('created_at', 'asc');
+                    ->orderBy('created_at', 'asc');
             }
         ])->when($user_id, function ($query) use ($user_id) {
             $query->where('id', $user_id);
@@ -105,3 +119,9 @@ class EloquentUserRepository implements UserRepositoryInterface
         return User::withTrashed()->find($id);
     }
 }
+
+
+// roles
+// SUPER_ADMIN
+// ADMIN
+// TECHNICIAN

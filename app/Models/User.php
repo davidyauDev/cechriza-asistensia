@@ -10,6 +10,13 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
+enum UserRole: string
+{
+    case SUPER_ADMIN = 'SUPER_ADMIN';
+    case ADMIN = 'ADMIN';
+    case TECHNICIAN = 'TECHNICIAN';
+}
+
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
@@ -27,6 +34,7 @@ class User extends Authenticatable
         'emp_code',
         'first_name',
         'last_name',
+        'role',
     ];
 
     /**
@@ -47,6 +55,7 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        // 'role' => UserRole::class,
     ];
 
 
