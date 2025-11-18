@@ -57,10 +57,14 @@ class UserController extends Controller
     }
 
 
-    public function listByCheckInAndOut()
+    public function listByCheckInAndOut(Request $request)
     {
+        $filters = [
+            'user_id' => $request->input('user_id'),
+        ];
+
         return $this->successResponse(
-            $this->service->getUsersOrderedByCheckInAndOut(),
+            $this->service->getUsersOrderedByCheckInAndOut($filters),
             'Users with attendances retrieved successfully'
         );
 

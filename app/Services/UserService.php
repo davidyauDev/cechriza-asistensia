@@ -47,9 +47,18 @@ class UserService implements UserServiceInterface
             ]);
     }
 
-    public function getUsersOrderedByCheckInAndOut(): AnonymousResourceCollection
+    public function getUsersOrderedByCheckInAndOut(
+        array $filters
+    ): AnonymousResourceCollection
     {
-        $users = $this->repository->getUsersOrderedByCheckInAndOut();
+        $user_id = $filters['user_id'] ?? null;
+        if ($user_id) {
+            User::find($user_id) ?? throw new NotFoundHttpException('El usuario no existe');
+        }
+
+        $users = $this->repository->getUsersOrderedByCheckInAndOut(
+            $filters
+        );
 
         return UserResource::collection($users);
     }

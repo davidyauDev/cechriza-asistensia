@@ -12,7 +12,9 @@ interface UserRepositoryInterface
 
     public function getFilteredUsers(array $filters): LengthAwarePaginator;
 
-    public function getUsersOrderedByCheckInAndOut(): Collection;
+    public function getUsersOrderedByCheckInAndOut(
+        array $filters
+    ): Collection;
 
     public function create(array $data): User;
 
