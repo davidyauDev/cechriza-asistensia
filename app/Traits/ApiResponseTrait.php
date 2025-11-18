@@ -11,6 +11,15 @@ trait ApiResponseTrait
         string $message,
         int $status = 200
     ): JsonResponse {
+        if (is_object($data) && method_exists($data, 'response')) {
+            $resourcePayload = $data->response()->getData(true);
+            $payload = array_merge([
+                'success' => true,
+                'message' => $message,
+            ], $resourcePayload);
+            return response()->json($payload, $status);
+        }
+
         return response()->json([
             'success' => true,
             'data' => $data,
