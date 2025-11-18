@@ -20,11 +20,12 @@ class DatabaseSeeder extends Seeder
         }
 
         $admin = User::firstOrCreate(
-            ['email' => 'admin2@example.com'],
+            ['email' => 'admin10@example.com'],
             [
-                'emp_code' => '1234567',
+                'emp_code' => '1234667',
                 'name' => 'Administrador',
                 'password' => bcrypt('password'),
+                'role' => 'ADMIN',
             ]
         );
 

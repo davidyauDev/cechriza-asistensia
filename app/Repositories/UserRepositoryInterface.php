@@ -16,6 +16,8 @@ interface UserRepositoryInterface
         array $filters
     ): Collection;
 
+    public function getUsersNotCheckedOut(): Collection;
+
     public function create(array $data): User;
 
     public function find(int $id): ?User;
@@ -25,4 +27,5 @@ interface UserRepositoryInterface
     public function delete(User $user): void;
 
     public function withTrashedFind(int $id): ?User;
+
 }

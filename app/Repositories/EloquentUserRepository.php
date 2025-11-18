@@ -92,6 +92,18 @@ class EloquentUserRepository implements UserRepositoryInterface
         })->get();
     }
 
+    public function getUsersNotCheckedOut(): Collection
+    {
+        
+        // Lógica para obtener usuarios que no han registrado su salida
+        $users = User::whereDoesntHave('attendances', function ($query) {
+            // $query->whereDate('created_at', date('Y-m-d'));
+            $query->where('type', 'check_out')->whereDate('created_at', date('Y-m-d'));
+        })->get();
+
+        return $users;
+    }
+
 
     public function create(array $data): User
     {

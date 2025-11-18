@@ -16,6 +16,8 @@ interface UserServiceInterface
         array $filters
     ): AnonymousResourceCollection;
 
+    public function getUsersNotCheckedOut(): AnonymousResourceCollection;
+
     public function create(UserData $dto): UserResource;
 
     public function get(int $id): UserResource;

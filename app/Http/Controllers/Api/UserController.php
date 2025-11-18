@@ -70,6 +70,17 @@ class UserController extends Controller
 
     }
 
+
+    public function listNotCheckedOut()
+    {
+        return $this->successResponse(
+            $this->service->getUsersNotCheckedOut(),
+            'Users not checked out retrieved successfully'
+        );
+
+    }
+
+
     /**
      * Crear un nuevo usuario
      */

@@ -63,6 +63,13 @@ class UserService implements UserServiceInterface
         return UserResource::collection($users);
     }
 
+    public function getUsersNotCheckedOut(): AnonymousResourceCollection
+    {
+        $users = $this->repository->getUsersNotCheckedOut();
+
+        return UserResource::collection($users);
+    }
+
     public function create(UserData $dto): UserResource
     {
         $data = $dto->toArray();
