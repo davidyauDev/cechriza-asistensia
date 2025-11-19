@@ -5,16 +5,15 @@ namespace App\Repositories;
 use App\Helpers\ImageHelper;
 use App\Http\Requests\AttendanceIndexRequest;
 use App\Http\Requests\StoreAttendanceRequest;
-use App\Http\Resources\AttendanceResource;
 use App\Models\Attendance;
-use App\Models\User;
 use App\Repositories\AttendanceServiceRepositoryInterface;
 use Carbon\Carbon;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
-use Log;
-use Str;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Symfony\Component\CssSelector\Exception\InternalErrorException;
+
 class AttendanceServiceRepository implements AttendanceServiceRepositoryInterface
 {
     public function getFilteredAttendances(AttendanceIndexRequest $filters): LengthAwarePaginator
@@ -26,12 +25,14 @@ class AttendanceServiceRepository implements AttendanceServiceRepositoryInterfac
         }
 
         if (!empty($filters['start_date'])) {
-            $query->whereDate('timestamp', '>=', $filters['start_date']);
+            $startMs = Carbon::parse($filters['start_date'])->timestamp * 1000;
+            $query->where('timestamp', '>=', $startMs);
+        }
+        if (!empty($filters['end_date'])) {
+            $endMs = Carbon::parse($filters['end_date'])->timestamp * 1000;
+            $query->where('timestamp', '<=', $endMs);
         }
 
-        if (!empty($filters['end_date'])) {
-            $query->whereDate('timestamp', '<=', $filters['end_date']);
-        }
 
         if (!empty($filters['type'])) {
             $query->where('type', $filters['type']);
@@ -178,7 +179,4 @@ class AttendanceServiceRepository implements AttendanceServiceRepositoryInterfac
             throw new InternalErrorException('Error al insertar asistencia externa: ' . $e->getMessage());
         }
     }
-
-
-
 }

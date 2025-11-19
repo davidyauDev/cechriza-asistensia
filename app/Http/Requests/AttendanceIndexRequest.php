@@ -23,8 +23,8 @@ class AttendanceIndexRequest extends FormRequest
     {
         return [
             'user_id' => 'nullable|exists:users,id',
-            'start_date' => 'nullable|date',
-            'end_date' => 'nullable|date|after_or_equal:start_date',
+            'start_date' => 'nullable|date_format:Y-m-d',
+            'end_date' => 'nullable|date_format:Y-m-d|after_or_equal:start_date',
             'type' => 'nullable|in:check_in,check_out',
             'search' => 'nullable|string|max:255',
             'sort_by' => 'nullable|string|in:timestamp,created_at,user_id,type',
