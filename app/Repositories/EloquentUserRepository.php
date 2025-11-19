@@ -16,7 +16,8 @@ class EloquentUserRepository implements UserRepositoryInterface
 
     public function getFilteredUsers(array $filters): LengthAwarePaginator
     {
-        $query = User::query();
+        // $query = User::query();
+        $query = User::query()->withTrashed();
 
         if (!empty($filters['search'])) {
             $search = trim($filters['search']);
@@ -37,7 +38,7 @@ class EloquentUserRepository implements UserRepositoryInterface
         $sortBy = $filters['sort_by'] ?? 'id';
         $sortOrder = $filters['sort_order'] ?? 'desc';
 
-        $query->select(['id', 'name', 'email', 'emp_code', 'created_at', 'updated_at']);
+        $query->select(['id', 'name', 'email', 'emp_code','role', 'created_at', 'active', 'updated_at', 'deleted_at']);
 
         $query->orderBy($sortBy, $sortOrder);
 
@@ -123,6 +124,11 @@ class EloquentUserRepository implements UserRepositoryInterface
     public function find(int $id): ?User
     {
         return User::find($id);
+    }
+
+    public function findByEmail(string $email): ?User
+    {
+        return User::where('email', $email)->first();
     }
 
     public function update(User $user, array $data): User

@@ -116,7 +116,7 @@ class UserController extends Controller
      */
     public function update(UpdateUserRequest $request, int $id)
     {
-
+        ds($request, $id);
 
         $dto = UserData::fromArray(array_merge(['id' => $id], $request->validated()));
         return $this->successResponse(
@@ -138,6 +138,22 @@ class UserController extends Controller
 
 
     }
+
+
+    /**
+     * Alternar el estado activo/inactivo de un usuario
+     */
+
+    public function toggleActiveStatus(int $id)
+    {
+        return $this->successResponse(
+            $this->service->toggleActiveStatus($id),
+            'User active status switched successfully'
+        );
+    }
+
+
+    
 
     /**
      * Restaurar un usuario eliminado
