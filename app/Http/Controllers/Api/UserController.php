@@ -9,8 +9,7 @@ use App\DataTransferObjects\UserData;
 use App\Services\UserServiceInterface;
 use App\Traits\ApiResponseTrait;
 use Illuminate\Http\Request;
-
-
+use Symfony\Component\Console\Input\Input;
 
 class UserController extends Controller
 {
@@ -61,6 +60,7 @@ class UserController extends Controller
     {
         $filters = [
             'user_id' => $request->input('user_id'),
+            'date' => $request->input('date')
         ];
 
         return $this->successResponse(
@@ -116,7 +116,7 @@ class UserController extends Controller
      */
     public function update(UpdateUserRequest $request, int $id)
     {
-
+        ds($request, $id);
 
         $dto = UserData::fromArray(array_merge(['id' => $id], $request->validated()));
         return $this->successResponse(
@@ -138,6 +138,22 @@ class UserController extends Controller
 
 
     }
+
+
+    /**
+     * Alternar el estado activo/inactivo de un usuario
+     */
+
+    public function toggleActiveStatus(int $id)
+    {
+        return $this->successResponse(
+            $this->service->toggleActiveStatus($id),
+            'User active status switched successfully'
+        );
+    }
+
+
+    
 
     /**
      * Restaurar un usuario eliminado

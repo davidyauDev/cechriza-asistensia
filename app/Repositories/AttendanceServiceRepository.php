@@ -11,7 +11,7 @@ use Carbon\Carbon;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
+use Str;
 use Symfony\Component\CssSelector\Exception\InternalErrorException;
 
 class AttendanceServiceRepository implements AttendanceServiceRepositoryInterface

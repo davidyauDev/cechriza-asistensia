@@ -5,6 +5,7 @@ namespace App\Repositories;
 use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Log;
 
 class EloquentUserRepository implements UserRepositoryInterface
 {
@@ -15,7 +16,8 @@ class EloquentUserRepository implements UserRepositoryInterface
 
     public function getFilteredUsers(array $filters): LengthAwarePaginator
     {
-        $query = User::query();
+        // $query = User::query();
+        $query = User::query()->withTrashed();
 
         if (!empty($filters['search'])) {
             $search = trim($filters['search']);
@@ -36,7 +38,7 @@ class EloquentUserRepository implements UserRepositoryInterface
         $sortBy = $filters['sort_by'] ?? 'id';
         $sortOrder = $filters['sort_order'] ?? 'desc';
 
-        $query->select(['id', 'name', 'email', 'emp_code', 'created_at', 'updated_at']);
+        $query->select(['id', 'name', 'email', 'emp_code','role', 'created_at', 'active', 'updated_at', 'deleted_at']);
 
         $query->orderBy($sortBy, $sortOrder);
 
@@ -54,19 +56,22 @@ class EloquentUserRepository implements UserRepositoryInterface
     // }
 
 
-    public function getUsersOrderedByCheckInAndOut(
-        array $filters
-    ): Collection {
+    public function getUsersOrderedByCheckInAndOut(array $filters): Collection
+    {
         $user_id = $filters['user_id'] ?? null;
 
-        $currentDate = date('Y-m-d');
-        return User::with([
-            'attendances' => function ($query) use ($currentDate) {
-                
-                $query
-                ->select([
+        // 👉 Si el usuario envía una fecha, usarla. Si no, usar hoy.
+        $currentDate = $filters['date'] ?? date('Y-m-d');
+        Log::info($filters);
+        return User::whereHas('attendances', function ($query) use ($currentDate) {
+            $query->whereDate('created_at', $currentDate);
+        })
+            ->with([
+                'attendances' => function ($query) use ($currentDate) {
+                    $query
+                        ->select([
                             'id',
-                            'user_id',           // Siempre incluye la clave primaria
+                            'user_id',
                             'client_id',
                             'timestamp',
                             'latitude',
@@ -76,25 +81,31 @@ class EloquentUserRepository implements UserRepositoryInterface
                             'signal_strength',
                             'network_type',
                             'type',
+                            'created_at',
                         ])
-                 ->whereDate('created_at', $currentDate)
-                    ->orderByRaw("
-            CASE 
-                WHEN type = 'check_in' THEN 1
-                WHEN type = 'check_out' THEN 2
-                ELSE 3
-            END
-        ")
-                    ->orderBy('created_at', 'asc');
-            }
-        ])->when($user_id, function ($query) use ($user_id) {
-            $query->where('id', $user_id);
-        })->get();
+                        ->whereDate('created_at', $currentDate)
+                        ->orderByRaw("
+                        CASE 
+                            WHEN type = 'check_in' THEN 1
+                            WHEN type = 'check_out' THEN 2
+                            ELSE 3
+                        END
+                    ")
+                        ->orderBy('created_at', 'asc');
+                }
+            ])
+            ->when($user_id, function ($query) use ($user_id) {
+                $query->where('id', $user_id);
+            })
+            ->get();
     }
+
+
+
 
     public function getUsersNotCheckedOut(): Collection
     {
-        
+
         // Lógica para obtener usuarios que no han registrado su salida
         $users = User::whereDoesntHave('attendances', function ($query) {
             // $query->whereDate('created_at', date('Y-m-d'));
@@ -113,6 +124,11 @@ class EloquentUserRepository implements UserRepositoryInterface
     public function find(int $id): ?User
     {
         return User::find($id);
+    }
+
+    public function findByEmail(string $email): ?User
+    {
+        return User::where('email', $email)->first();
     }
 
     public function update(User $user, array $data): User

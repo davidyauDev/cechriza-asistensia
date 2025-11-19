@@ -8,6 +8,7 @@ use App\Repositories\UserRepositoryInterface;
 use Cache;
 use App\Models\User;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Symfony\Component\HttpFoundation\Exception\BadRequestException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class UserService implements UserServiceInterface
@@ -98,7 +99,6 @@ class UserService implements UserServiceInterface
         if (!$user)
             throw new NotFoundHttpException('User not found');
 
-
         $data = $dto->toArray();
 
         if (array_key_exists('password', $data)) {
@@ -121,6 +121,21 @@ class UserService implements UserServiceInterface
 
         $this->repository->delete($user);
     }
+
+    public function toggleActiveStatus(int $id): void
+    {
+        $user = $this->repository->find($id);
+        if (!$user) {
+            throw new NotFoundHttpException('User not found');
+        }
+
+        $user->active = !$user->active;
+        $user->save();
+
+       
+    }
+
+   
 
     public function restore(int $id): UserResource
     {
