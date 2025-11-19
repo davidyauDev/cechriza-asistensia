@@ -9,8 +9,7 @@ use App\DataTransferObjects\UserData;
 use App\Services\UserServiceInterface;
 use App\Traits\ApiResponseTrait;
 use Illuminate\Http\Request;
-
-
+use Symfony\Component\Console\Input\Input;
 
 class UserController extends Controller
 {
@@ -61,6 +60,7 @@ class UserController extends Controller
     {
         $filters = [
             'user_id' => $request->input('user_id'),
+            'date' => $request->input('date')
         ];
 
         return $this->successResponse(
