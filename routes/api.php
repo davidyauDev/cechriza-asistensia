@@ -22,10 +22,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/not-checked-out', [UserController::class, 'listNotCheckedOut']);
         Route::get('/', [UserController::class, 'index']);
         Route::get('/{id}', [UserController::class, 'show']);
-        Route::put('/{user}', [UserController::class, 'update']);
-        Route::patch('/{user}', [UserController::class, 'update']);
-        Route::delete('/{user}', [UserController::class, 'destroy']);
-        Route::post('/{id}/switch-active-status', [UserController::class, 'switchActiveStatus']);
+        Route::put('/{id}', [UserController::class, 'update']);
+        Route::patch('/{id}', [UserController::class, 'update']);
+        Route::delete('/{id}', [UserController::class, 'destroy']);
+        Route::post('/{id}/toggle-active', [UserController::class, 'toggleActiveStatus']);
         Route::post('/{id}/restore', [UserController::class, 'restore']);   
     });
 

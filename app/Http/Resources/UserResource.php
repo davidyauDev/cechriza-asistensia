@@ -19,8 +19,10 @@ class UserResource extends JsonResource
             'name' => $this->name,
             'email' => $this->email,
             'emp_code' => $this->emp_code,
-            'active' => $this->active,
+            'role' => $this->role,
+            'active' => Boolval($this->active),
             'attendances' => AttendanceResource::collection($this->whenLoaded('attendances')),
+            'deleted_at' => $this->deleted_at,
         ];
     }
 }

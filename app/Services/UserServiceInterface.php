@@ -26,7 +26,8 @@ interface UserServiceInterface
 
     public function delete(int $id): void;
 
-    public function switchActiveStatus(int $id): UserResource;
+    public function toggleActiveStatus(int $id): void;
 
+   
     public function restore(int $id): UserResource;
 }
