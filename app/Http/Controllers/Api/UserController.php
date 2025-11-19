@@ -88,10 +88,11 @@ class UserController extends Controller
     public function store(StoreUserRequest $request)
     {
         // try {
-        $dto = UserData::fromArray($request->validated());
+        // $dto = UserData::fromArray($request->validated());
         // $user = $this->service->create($dto);
+        // ds($dto);
         return $this->successResponse(
-            $this->service->create($dto),
+            $this->service->create($request),
             'User created successfully'
         );
 
@@ -116,11 +117,11 @@ class UserController extends Controller
      */
     public function update(UpdateUserRequest $request, int $id)
     {
-        ds($request, $id);
+        // ds($request, $id);
 
-        $dto = UserData::fromArray(array_merge(['id' => $id], $request->validated()));
+        // $dto = UserData::fromArray(array_merge(['id' => $id], $request->validated()));
         return $this->successResponse(
-            $this->service->update($id, $dto),
+            $this->service->update($id, $request),
             'User updated successfully'
         );
     }

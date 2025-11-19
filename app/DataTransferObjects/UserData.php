@@ -6,6 +6,7 @@ class UserData
 {
     public function __construct(
         public ?int $id,
+        public ?string $role,
         public ?string $name,
         public ?string $email,
         public ?string $password,
@@ -20,6 +21,8 @@ class UserData
             $data['name'] ?? null,
             $data['email'] ?? null,
             $data['password'] ?? null,
+            $data['role'] ?? null,
+               
             $data['emp_code'] ?? null,
         );
     }
@@ -32,6 +35,7 @@ class UserData
             'email' => $this->email,
             'password' => $this->password,
             'emp_code' => $this->emp_code,
+            'role' => $this->role,
         ], function ($v) {
             return $v !== null;
         });

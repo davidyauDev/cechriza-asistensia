@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\DataTransferObjects\UserData;
+use App\Http\Requests\StoreUserRequest;
+use App\Http\Requests\UpdateUserRequest;
 use App\Http\Resources\UserResource;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
@@ -18,11 +20,11 @@ interface UserServiceInterface
 
     public function getUsersNotCheckedOut(): AnonymousResourceCollection;
 
-    public function create(UserData $dto): UserResource;
+    public function create(StoreUserRequest $dto): UserResource;
 
     public function get(int $id): UserResource;
 
-    public function update(int $id, UserData $dto): UserResource;
+    public function update(int $id, UpdateUserRequest $dto): UserResource;
 
     public function delete(int $id): void;
 

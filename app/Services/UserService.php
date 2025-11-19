@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\DataTransferObjects\UserData;
+use App\Http\Requests\StoreUserRequest;
+use App\Http\Requests\UpdateUserRequest;
 use App\Http\Resources\UserResource;
 use App\Repositories\UserRepositoryInterface;
 use Cache;
@@ -71,12 +73,14 @@ class UserService implements UserServiceInterface
         return UserResource::collection($users);
     }
 
-    public function create(UserData $dto): UserResource
+    public function create(StoreUserRequest $dto): UserResource
     {
         $data = $dto->toArray();
         if (isset($data['password']) && !empty($data['password'])) {
             $data['password'] = bcrypt($data['password']);
         }
+
+        ds($data);
 
         $user = $this->repository->create($data);
 
@@ -93,7 +97,7 @@ class UserService implements UserServiceInterface
         return new UserResource($user);
     }
 
-    public function update(int $id, UserData $dto): UserResource
+    public function update(int $id, UpdateUserRequest $dto): UserResource
     {
         $user = $this->repository->find($id);
         if (!$user)

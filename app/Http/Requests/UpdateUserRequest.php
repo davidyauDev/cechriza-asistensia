@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Models\UserRole;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -15,7 +16,8 @@ class UpdateUserRequest extends FormRequest
     public function rules(): array
     {
         $userId = $this->route('user')?->id ?? $this->route('id');
-  
+  $roles = array_column(UserRole::cases(), 'value');
+      
         return [
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'email' => [
@@ -27,6 +29,13 @@ class UpdateUserRequest extends FormRequest
                 Rule::unique('users')->ignore($userId),
             ],
             'password' => ['nullable', 'string', 'min:8'],
+            'role' => [
+                'sometimes',
+                'required',
+                'string',
+                'in:' . implode(',', $roles),
+            ],
+            'active' => ['sometimes', 'boolean'],
             'emp_code' => [
                 'nullable',
                 'string',
