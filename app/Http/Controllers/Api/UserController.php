@@ -9,6 +9,7 @@ use App\DataTransferObjects\UserData;
 use App\Services\UserServiceInterface;
 use App\Traits\ApiResponseTrait;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\Console\Input\Input;
 
 class UserController extends Controller
@@ -56,19 +57,34 @@ class UserController extends Controller
     }
 
 
-    public function listByCheckInAndOut(Request $request)
-    {
+      public function listByCheckInAndOut(Request $request)
+{
+    try {
+
         $filters = [
             'user_id' => $request->input('user_id'),
             'date' => $request->input('date')
         ];
 
+        $users = $this->service->getUsersOrderedByCheckInAndOut($filters);
+
         return $this->successResponse(
-            $this->service->getUsersOrderedByCheckInAndOut($filters),
+            $users,
             'Users with attendances retrieved successfully'
         );
 
+    } catch (\Exception $e) {
+
+        // Registramos el error para depuración
+        Log::error('Error retrieving users by check in/out: ' . $e->getMessage());
+
+        return $this->errorResponse(
+            'Error retrieving users with attendances',
+            500,
+            $e->getMessage() // opcional, puedes quitarlo si no quieres mostrar detalles en producción
+        );
     }
+}
 
 
     public function listNotCheckedOut()
