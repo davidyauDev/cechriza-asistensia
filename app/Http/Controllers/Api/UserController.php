@@ -17,9 +17,7 @@ class UserController extends Controller
 
     use ApiResponseTrait;
 
-    public function __construct(private UserServiceInterface $service)
-    {
-    }
+    public function __construct(private UserServiceInterface $service) {}
 
 
     /**
@@ -39,8 +37,6 @@ class UserController extends Controller
             $this->service->getUsers($filters),
             'Users retrieved successfully'
         );
-
-
     }
 
     /**
@@ -53,38 +49,36 @@ class UserController extends Controller
             $this->service->getAll(),
             'All users retrieved successfully'
         );
-
     }
 
 
-      public function listByCheckInAndOut(Request $request)
-{
-    try {
+    public function listByCheckInAndOut(Request $request)
+    {
+        try {
 
-        $filters = [
-            'user_id' => $request->input('user_id'),
-            'date' => $request->input('date')
-        ];
+            $filters = [
+                'user_id' => $request->input('user_id'),
+                'date' => $request->input('date')
+            ];
 
-        $users = $this->service->getUsersOrderedByCheckInAndOut($filters);
+            $users = $this->service->getUsersOrderedByCheckInAndOut($filters);
 
-        return $this->successResponse(
-            $users,
-            'Users with attendances retrieved successfully'
-        );
+            return $this->successResponse(
+                $users,
+                'Users with attendances retrieved successfully'
+            );
+        } catch (\Exception $e) {
 
-    } catch (\Exception $e) {
+            // Registramos el error para depuración
+            Log::error('Error retrieving users by check in/out: ' . $e->getMessage());
 
-        // Registramos el error para depuración
-        Log::error('Error retrieving users by check in/out: ' . $e->getMessage());
-
-        return $this->errorResponse(
-            'Error retrieving users with attendances',
-            500,
-            $e->getMessage() // opcional, puedes quitarlo si no quieres mostrar detalles en producción
-        );
+            return $this->errorResponse(
+                'Error retrieving users with attendances',
+                500,
+                $e->getMessage() // opcional, puedes quitarlo si no quieres mostrar detalles en producción
+            );
+        }
     }
-}
 
 
     public function listNotCheckedOut()
@@ -93,7 +87,6 @@ class UserController extends Controller
             $this->service->getUsersNotCheckedOut(),
             'Users not checked out retrieved successfully'
         );
-
     }
 
 
@@ -110,8 +103,6 @@ class UserController extends Controller
             $this->service->create($dto),
             'User created successfully'
         );
-
-
     }
 
     /**
@@ -124,7 +115,6 @@ class UserController extends Controller
             $this->service->get($id),
             'User retrieved successfully'
         );
-
     }
 
     /**
@@ -151,8 +141,6 @@ class UserController extends Controller
             $this->service->delete($id),
             'User deleted successfully'
         );
-
-
     }
 
 
@@ -169,7 +157,7 @@ class UserController extends Controller
     }
 
 
-    
+
 
     /**
      * Restaurar un usuario eliminado

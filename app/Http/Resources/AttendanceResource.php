@@ -5,6 +5,7 @@ namespace App\Http\Resources;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Storage;
 use App\Helpers\ImageHelper;
+use Illuminate\Support\Carbon;
 
 class AttendanceResource extends JsonResource
 {
@@ -20,7 +21,7 @@ class AttendanceResource extends JsonResource
             'id' => $this->id,
             'user' => new UserResource($this->whenLoaded('user')),
             'client_id' => $this->client_id,
-            'timestamp' => $this->timestamp,
+              'timestamp' => $this->formatTimestamp($this->timestamp),
             'latitude' => $this->latitude,
             'longitude' => $this->longitude,
             'notes' => $this->notes,
@@ -41,4 +42,19 @@ class AttendanceResource extends JsonResource
             'updated_at' => optional($this->updated_at)->toDateTimeString(),
         ];
     }
+
+    private function formatTimestamp($value)
+{
+    if (!$value) {
+        return null;
+    }
+
+    try {
+        return Carbon::createFromTimestampMs($value)
+            ->setTimezone('America/Lima') 
+            ->toIso8601String();
+    } catch (\Exception $e) {
+        return null; 
+    }
+}
 }
