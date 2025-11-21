@@ -59,8 +59,6 @@ class EloquentUserRepository implements UserRepositoryInterface
     public function getUsersOrderedByCheckInAndOut(array $filters): Collection
     {
         $user_id = $filters['user_id'] ?? null;
-
-        // 👉 Si el usuario envía una fecha, usarla. Si no, usar hoy.
         $currentDate = $filters['date'] ?? date('Y-m-d');
         Log::info($filters);
         return User::whereHas('attendances', function ($query) use ($currentDate) {

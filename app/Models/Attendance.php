@@ -23,7 +23,7 @@ class Attendance extends Model
 
     protected $casts = [
         'is_internet_available' => 'boolean',
-        'timestamp' => 'datetime',
+        'timestamp' => 'integer',
     ];
 
     public function user()
