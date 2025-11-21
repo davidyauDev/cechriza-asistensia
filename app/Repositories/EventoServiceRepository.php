@@ -185,7 +185,7 @@ class EventoServiceRepository implements EventoServiceRepositoryInterface
 
 
                 // Eliminar registros de la base de datos
-                $imagenesActuales->delete();
+                $evento->imagenes()->whereIn('id', $request->images_delete)->delete();
 
 
                 // Eliminar archivos físicos del storage (solo los que están en nuestro storage)
