@@ -9,6 +9,7 @@ use App\DataTransferObjects\UserData;
 use App\Services\UserServiceInterface;
 use App\Traits\ApiResponseTrait;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\Console\Input\Input;
 
 class UserController extends Controller
@@ -16,9 +17,7 @@ class UserController extends Controller
 
     use ApiResponseTrait;
 
-    public function __construct(private UserServiceInterface $service)
-    {
-    }
+    public function __construct(private UserServiceInterface $service) {}
 
 
     /**
@@ -38,8 +37,6 @@ class UserController extends Controller
             $this->service->getUsers($filters),
             'Users retrieved successfully'
         );
-
-
     }
 
     /**
@@ -52,22 +49,35 @@ class UserController extends Controller
             $this->service->getAll(),
             'All users retrieved successfully'
         );
-
     }
 
 
     public function listByCheckInAndOut(Request $request)
     {
-        $filters = [
-            'user_id' => $request->input('user_id'),
-            'date' => $request->input('date')
-        ];
+        try {
 
-        return $this->successResponse(
-            $this->service->getUsersOrderedByCheckInAndOut($filters),
-            'Users with attendances retrieved successfully'
-        );
+            $filters = [
+                'user_id' => $request->input('user_id'),
+                'date' => $request->input('date')
+            ];
 
+            $users = $this->service->getUsersOrderedByCheckInAndOut($filters);
+
+            return $this->successResponse(
+                $users,
+                'Users with attendances retrieved successfully'
+            );
+        } catch (\Exception $e) {
+
+            // Registramos el error para depuración
+            Log::error('Error retrieving users by check in/out: ' . $e->getMessage());
+
+            return $this->errorResponse(
+                'Error retrieving users with attendances',
+                500,
+                $e->getMessage() // opcional, puedes quitarlo si no quieres mostrar detalles en producción
+            );
+        }
     }
 
 
@@ -77,7 +87,6 @@ class UserController extends Controller
             $this->service->getUsersNotCheckedOut(),
             'Users not checked out retrieved successfully'
         );
-
     }
 
 
@@ -95,8 +104,6 @@ class UserController extends Controller
             $this->service->create($request),
             'User created successfully'
         );
-
-
     }
 
     /**
@@ -109,7 +116,6 @@ class UserController extends Controller
             $this->service->get($id),
             'User retrieved successfully'
         );
-
     }
 
     /**
@@ -136,8 +142,6 @@ class UserController extends Controller
             $this->service->delete($id),
             'User deleted successfully'
         );
-
-
     }
 
 
@@ -154,7 +158,7 @@ class UserController extends Controller
     }
 
 
-    
+
 
     /**
      * Restaurar un usuario eliminado
