@@ -14,14 +14,14 @@ class Evento extends Model
     protected $fillable = [
         'titulo',
         'descripcion',
-        'fecha_inicio',
-        'fecha_fin',
+        'fecha',
+        // 'fecha_fin',
         'active'
     ];
 
     protected $casts = [
-        'fecha_inicio' => 'date',
-        'fecha_fin' => 'date',
+        // 'fecha' => 'date',
+        // 'fecha_fin' => 'date',
     ];
 
     /**
@@ -48,7 +48,7 @@ class Evento extends Model
      */
     public function scopeProgramados($query)
     {
-        return $query->where('estado', 'programado');
+        return $query->where('active', 1);
     }
 
     /**
@@ -56,7 +56,7 @@ class Evento extends Model
      */
     public function scopeActivos($query)
     {
-        return $query->where('estado', 'activo');
+        return $query->where('active', 1);
     }
 
     /**
@@ -64,6 +64,6 @@ class Evento extends Model
      */
     public function scopeFinalizados($query)
     {
-        return $query->where('estado', 'finalizado');
+        return $query->where('active', 0);
     }
 }
