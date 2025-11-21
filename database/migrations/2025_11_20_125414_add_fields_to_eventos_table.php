@@ -13,7 +13,7 @@ return new class extends Migration {
     {
         Schema::table('eventos', function (Blueprint $table) {
             //
-            $table->addColumn('tinyInteger', 'active')->after('descripcion')->default(1);
+            //$table->addColumn('tinyInteger', 'active')->after('descripcion')->default(1);
             $table->addColumn('date', 'fecha')->after('active')->default(DB::raw('CURRENT_DATE'));
         });
     }
