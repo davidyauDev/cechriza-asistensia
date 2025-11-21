@@ -171,6 +171,8 @@ class EventoServiceRepository implements EventoServiceRepositoryInterface
             'active' => $request->active ?? $evento->active,
         ];
 
+        ds($serialized);
+
         try {
 
             // Actualizar el evento
