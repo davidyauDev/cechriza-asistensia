@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\EventoRequest;
+use App\Http\Requests\UpdateEventoRequest;
 use App\Services\EventoServiceInterface;
 use App\Traits\ApiResponseTrait;
 use Illuminate\Http\JsonResponse;
@@ -84,7 +85,7 @@ class EventoController extends Controller
     /**
      * Actualizar un evento existente
      */
-    public function update(EventoRequest $request, $id): JsonResponse
+    public function update(UpdateEventoRequest $request, $id): JsonResponse
     {
 
         return $this->successResponse(

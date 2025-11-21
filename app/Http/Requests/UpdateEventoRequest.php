@@ -9,7 +9,7 @@ use Symfony\Component\HttpKernel\Exception\UnprocessableEntityHttpException;
 
 use Illuminate\Contracts\Validation\Validator;
 
-class EventoRequest extends FormRequest
+class UpdateEventoRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -30,12 +30,13 @@ class EventoRequest extends FormRequest
             'titulo' => 'required|string|max:255',
             'descripcion' => 'required|string',
             'fecha_inicio' => 'required|date|after_or_equal:today',
-            'fecha_fin' => 'required|date|after_or_equal:fecha_inicio',
+            'fecha_fin' => 'required|date|same:fecha_inicio',
 
 
             'active' => 'sometimes|boolean',
 
-        
+            'imagenes_delete' => 'sometimes|array',
+            'imagenes_delete.*' => 'integer',
 
             // Validaciones para archivos de imagen subidos
             'imagenes_archivos' => 'sometimes|array|max:10',
@@ -70,7 +71,7 @@ class EventoRequest extends FormRequest
             'fecha_inicio.after_or_equal' => 'La fecha de inicio no puede ser anterior a hoy',
             'fecha_fin.required' => 'La fecha de fin es obligatoria',
             'fecha_fin.date' => 'La fecha de fin debe ser una fecha válida',
-            'fecha_fin.after_or_equal' => 'La fecha de fin debe ser posterior o igual a la fecha de inicio',
+            'fecha_fin.same' => 'La fecha de fin debe ser igual a la fecha de inicio',
 
             'active.boolean' => 'El campo activo debe ser verdadero o falso',
 
@@ -80,6 +81,10 @@ class EventoRequest extends FormRequest
             'imagenes_archivos.*.image' => 'El archivo debe ser una imagen',
             'imagenes_archivos.*.mimes' => 'La imagen debe ser de tipo: jpeg, png, jpg, gif o webp',
             'imagenes_archivos.*.max' => 'La imagen no puede ser mayor a 5MB',
+
+            'images_delete.array' => 'La lista de imágenes a eliminar debe ser un array',
+            'images_delete.*.integer' => 'Cada ID de imagen a eliminar debe ser un número entero',
+          
 
             // Mensajes para imágenes por URL
             'imagenes.array' => 'Las imágenes deben ser un array',

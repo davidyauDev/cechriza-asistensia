@@ -16,7 +16,7 @@ class Evento extends Model
         'descripcion',
         'fecha_inicio',
         'fecha_fin',
-        'estado',
+        'active'
     ];
 
     protected $casts = [
@@ -38,9 +38,9 @@ class Evento extends Model
      */
     public function scopeActivoEnFecha($query, $fecha)
     {
-        return $query->whereDate('fecha_inicio', '<=', $fecha)
-                    ->whereDate('fecha_fin', '>=', $fecha)
-                    ->where('estado', 'activo');
+        return $query->whereDate('fecha', '=', $fecha)
+            // ->whereDate('fecha_fin', '>=', $fecha)
+            ->where('active', true);
     }
 
     /**

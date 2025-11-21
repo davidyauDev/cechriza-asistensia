@@ -32,6 +32,8 @@ return Application::configure(basePath: dirname(__DIR__))
 
                 $mode = env('MODE', 'production');
 
+               
+
                 if ($mode === 'environment') {
                     return response()->json([
                         'success' => false,

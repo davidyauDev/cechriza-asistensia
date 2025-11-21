@@ -5,6 +5,7 @@ namespace App\Services;
 
 
 use App\Http\Requests\EventoRequest;
+use App\Http\Requests\UpdateEventoRequest;
 use App\Models\Evento;
 
 use App\Repositories\EventoServiceRepositoryInterface;
@@ -43,10 +44,10 @@ class EventoService implements EventoServiceInterface
 
     }
 
-    public function store(EventoRequest $request): Evento
+    public function store(EventoRequest $request): Collection    
     {
-        $evento = $this->eventoRepository->createEvent($request);
-        return $evento;
+        $eventos = $this->eventoRepository->createEvent($request);
+        return $eventos;
     }
 
     public function getByDate(string $date): array
@@ -76,7 +77,7 @@ class EventoService implements EventoServiceInterface
         ];
     }
 
-    public function updateEvent(EventoRequest $request, $id): Evento
+    public function updateEvent(UpdateEventoRequest $request, $id): Evento
     {
         $evento = Evento::find($id);
         if (!$evento) {
@@ -120,14 +121,16 @@ class EventoService implements EventoServiceInterface
 
         $eventos = Evento::with('imagenes')
             ->where(function ($q) use ($inicio, $fin) {
-                $q->whereBetween('fecha_inicio', [$inicio, $fin])
-                    ->orWhereBetween('fecha_fin', [$inicio, $fin])
-                    ->orWhere(function ($q2) use ($inicio, $fin) {
-                        $q2->where('fecha_inicio', '<', $inicio)
-                            ->where('fecha_fin', '>', $fin);
-                    });
+                $q->where('fecha', '>=', $inicio)
+                  ->orWhere('fecha', '<=', $fin);
+                // $q->whereBetween('fecha', [$inicio, $fin])
+                //     ->orWhereBetween('fecha_fin', [$inicio, $fin])
+                //     ->orWhere(function ($q2) use ($inicio, $fin) {
+                //         $q2->where('fecha_inicio', '<', $inicio)
+                //             ->where('fecha_fin', '>', $fin);
+                //     });
             })
-            ->orderBy('fecha_inicio')
+            ->orderBy('fecha')
             ->get();
 
         $totalEventos = $eventos->count();

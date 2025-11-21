@@ -17,7 +17,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     Route::prefix('users')->group(function () {
         Route::post('/', [UserController::class, 'store']);
-        Route::get('/all', [UserController::class, 'listAll']);
+        Route::get('/all', [UserController::class, 'listAll'])->middleware('role:SUPER_ADMIN');
         Route::get('/check-in-out', [UserController::class, 'listByCheckInAndOut']);
         Route::get('/not-checked-out', [UserController::class, 'listNotCheckedOut']);
         Route::get('/', [UserController::class, 'index']);
