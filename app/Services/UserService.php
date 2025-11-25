@@ -21,11 +21,14 @@ class UserService implements UserServiceInterface
 
     public function getAll(): array
     {
+        // Cache::forget('all_users_simple');
         $users = Cache::remember('all_users_simple', 3600, function () {
-            return User::select('id', 'name')
+            return User::select('id', 'name', 'emp_code')
                 ->orderBy('name', 'asc')
                 ->get();
         });
+
+        ds($users->toArray());
 
         return [
             'users' => $users,
@@ -83,6 +86,8 @@ class UserService implements UserServiceInterface
         ds($data);
 
         $user = $this->repository->create($data);
+
+        Cache::forget('all_users_simple');
 
         return new UserResource($user);
     }
