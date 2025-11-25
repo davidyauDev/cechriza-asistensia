@@ -16,7 +16,7 @@ class StoreAttendanceRequest extends FormRequest
     {
         return [
             'user_id' => ['required', 'exists:users,id'],
-            'emp_code' => ['required', 'string'],
+            'emp_code' => ['required', 'string'],            
             'address' => ['required', 'string'],
             'client_id' => ['required', 'uuid'], 
             'timestamp' => ['required'],
