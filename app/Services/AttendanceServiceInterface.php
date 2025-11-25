@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Http\Requests\AttendanceIndexRequest;
 use App\Http\Requests\StoreAttendanceRequest;
+use App\Http\Requests\UpdateAttendanceRequest;
 use App\Http\Resources\AttendanceResource;
 use App\Models\Attendance;
 use App\Models\User;
@@ -19,6 +20,5 @@ interface AttendanceServiceInterface
     public function statsByUser(array $request, User $user): array;
 
     public function store(StoreAttendanceRequest $request): AttendanceResource;
-
     public function delete(Attendance $attendance): void;
 }

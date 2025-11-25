@@ -5,6 +5,7 @@ namespace App\Repositories;
 use App\Helpers\ImageHelper;
 use App\Http\Requests\AttendanceIndexRequest;
 use App\Http\Requests\StoreAttendanceRequest;
+use App\Http\Requests\UpdateAttendanceRequest;
 use App\Models\Attendance;
 use App\Repositories\AttendanceServiceRepositoryInterface;
 use Carbon\Carbon;
@@ -179,4 +180,6 @@ class AttendanceServiceRepository implements AttendanceServiceRepositoryInterfac
             throw new InternalErrorException('Error al insertar asistencia externa: ' . $e->getMessage());
         }
     }
+
+  
 }

@@ -3,7 +3,6 @@
 
 namespace App\Services;
 
-use App\Helpers\ImageHelper;
 use App\Http\Requests\AttendanceIndexRequest;
 use App\Http\Requests\StoreAttendanceRequest;
 use App\Http\Resources\AttendanceResource;
@@ -11,7 +10,6 @@ use App\Models\Attendance;
 use App\Models\User;
 use App\Services\AttendanceServiceInterface;
 use App\Repositories\AttendanceServiceRepositoryInterface;
-use DB;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Storage;
 
@@ -75,6 +73,8 @@ class AttendanceService implements AttendanceServiceInterface
 
 
     }
+
+   
 
     public function delete(Attendance $attendance): void
     {
