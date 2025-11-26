@@ -135,7 +135,6 @@ class AttendanceController extends Controller
     public function store(StoreAttendanceRequest $request)
     {
         $data = $request->validated();
-        ds($data);
         return $this->successResponse(
             $this->attendanceService->store($request),
             'Attendance record created successfully'
@@ -164,9 +163,12 @@ class AttendanceController extends Controller
             //     'signal_strength' => ['nullable', 'integer', 'min:0', 'max:4'],
             //     'network_type' => ['nullable', 'string', 'max:50'],
             // ]);
-        $attendance->update($request->validated());
+        // $attendance->update($request->validated());
+        $request->validated();
+
+     
         return $this->successResponse(
-            new AttendanceResource($attendance->load(['user', 'image'])),
+            $this->attendanceService->update($attendance, $request),
             'Attendance record updated successfully'
         );
     }

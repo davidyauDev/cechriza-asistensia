@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\DataTransferObjects\UserData;
 use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
 use App\Http\Resources\UserResource;
@@ -10,7 +9,6 @@ use App\Repositories\UserRepositoryInterface;
 use Cache;
 use App\Models\User;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
-use Symfony\Component\HttpFoundation\Exception\BadRequestException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class UserService implements UserServiceInterface
@@ -27,8 +25,6 @@ class UserService implements UserServiceInterface
                 ->orderBy('name', 'asc')
                 ->get();
         });
-
-        ds($users->toArray());
 
         return [
             'users' => $users,
@@ -72,6 +68,13 @@ class UserService implements UserServiceInterface
     public function getUsersNotCheckedOut(): AnonymousResourceCollection
     {
         $users = $this->repository->getUsersNotCheckedOut();
+
+        return UserResource::collection($users);
+    }
+
+    public function getUsersNotCheckedInOutByCurrentDate(): AnonymousResourceCollection
+    {
+        $users = $this->repository->getUsersNotCheckedInOutByCurrentDate();
 
         return UserResource::collection($users);
     }

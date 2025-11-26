@@ -20,6 +20,8 @@ interface UserServiceInterface
 
     public function getUsersNotCheckedOut(): AnonymousResourceCollection;
 
+    public function getUsersNotCheckedInOutByCurrentDate(): AnonymousResourceCollection;
+
     public function create(StoreUserRequest $dto): UserResource;
 
     public function get(int $id): UserResource;

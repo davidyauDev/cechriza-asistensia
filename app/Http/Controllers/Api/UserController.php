@@ -75,7 +75,7 @@ class UserController extends Controller
             return $this->errorResponse(
                 'Error retrieving users with attendances',
                 500,
-                $e->getMessage() // opcional, puedes quitarlo si no quieres mostrar detalles en producción
+                // $e->getMessage() // opcional, puedes quitarlo si no quieres mostrar detalles en producción
             );
         }
     }
@@ -86,6 +86,14 @@ class UserController extends Controller
         return $this->successResponse(
             $this->service->getUsersNotCheckedOut(),
             'Users not checked out retrieved successfully'
+        );
+    }
+
+    public function listNotCheckedInOutByCurrentDate()
+    {
+        return $this->successResponse(
+            $this->service->getUsersNotCheckedInOutByCurrentDate(),
+            'Users not checked in/out by current date retrieved successfully'
         );
     }
 
