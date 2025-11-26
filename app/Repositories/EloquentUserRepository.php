@@ -60,7 +60,7 @@ class EloquentUserRepository implements UserRepositoryInterface
     {
         $user_id = $filters['user_id'] ?? null;
         $currentDate = $filters['date'] ?? date('Y-m-d');
-        Log::info($filters);
+       
         return User::whereHas('attendances', function ($query) use ($currentDate) {
             $query->whereDate('created_at', $currentDate);
         })
@@ -131,6 +131,7 @@ class EloquentUserRepository implements UserRepositoryInterface
                     }
                 ])
             ->having('attendances_today_count', '<', 2)
+            ->orderBy('created_at', 'desc')
             ->get();
 
         return $users;
