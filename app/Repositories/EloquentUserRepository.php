@@ -38,7 +38,7 @@ class EloquentUserRepository implements UserRepositoryInterface
         $sortBy = $filters['sort_by'] ?? 'id';
         $sortOrder = $filters['sort_order'] ?? 'desc';
 
-        $query->select(['id', 'name', 'email', 'emp_code','role', 'created_at', 'active', 'updated_at', 'deleted_at']);
+        $query->select(['id', 'name', 'email', 'emp_code', 'role', 'created_at', 'active', 'updated_at', 'deleted_at']);
 
         $query->orderBy($sortBy, $sortOrder);
 
@@ -113,6 +113,28 @@ class EloquentUserRepository implements UserRepositoryInterface
         return $users;
     }
 
+
+    public function getUsersNotCheckedInOutByCurrentDate(): Collection
+    {
+        $today = date('Y-m-d');
+        $users = User::with([
+            'attendances' => function ($query) use ($today) {
+                $query->whereDate('created_at', $today)->select([
+                    'id',
+                    'user_id',
+                    'type',
+                ]);
+            }
+        ])->withCount([
+                    'attendances as attendances_today_count' => function ($query) use ($today) {
+                        $query->whereDate('created_at', $today);
+                    }
+                ])
+            ->having('attendances_today_count', '<', 2)
+            ->get();
+
+        return $users;
+    }
 
     public function create(array $data): User
     {

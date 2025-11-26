@@ -20,6 +20,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/all', [UserController::class, 'listAll']);
         Route::get('/check-in-out', [UserController::class, 'listByCheckInAndOut']);
         Route::get('/not-checked-out', [UserController::class, 'listNotCheckedOut']);
+        Route::get('/not-checked-in-out-today', [UserController::class, 'listNotCheckedInOutByCurrentDate']);
         Route::get('/', [UserController::class, 'index']);
         Route::get('/{id}', [UserController::class, 'show']);
         Route::put('/{id}', [UserController::class, 'update']);

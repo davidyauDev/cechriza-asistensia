@@ -18,7 +18,7 @@ use Symfony\Component\CssSelector\Exception\InternalErrorException;
 class AttendanceServiceRepository implements AttendanceServiceRepositoryInterface
 {
 
-   
+
     public function getFilteredAttendances(AttendanceIndexRequest $filters): LengthAwarePaginator
     {
         $query = Attendance::with(['user:id,name,emp_code', 'image:id,attendance_id,path']);
@@ -166,7 +166,7 @@ class AttendanceServiceRepository implements AttendanceServiceRepositoryInterfac
             //     'imagen_url' => $imageUrl,
             // ]);
 
-            // DB::commit();
+            DB::commit();
 
             $attendance->loadMissing(['user:id,name', 'image:id,attendance_id,path']);
 
@@ -183,5 +183,69 @@ class AttendanceServiceRepository implements AttendanceServiceRepositoryInterfac
         }
     }
 
-  
+    public function updateAttendance(Attendance $attendance, UpdateAttendanceRequest $data): Attendance
+    {
+        ds($data);
+
+
+        DB::beginTransaction();
+
+
+        $attendance->update(collect($data)->except('photo')->toArray());
+
+        if ($data->hasFile('photo')) {
+
+            // Eliminar la imagen anterior si existe
+            if ($attendance->image) {
+                try {
+                    \Storage::disk(config('filesystems.default_disk', 'public'))->delete($attendance->image->path);
+                } catch (\Exception $e) {
+                    report($e);
+                }
+                $attendance->image()->delete();
+            }
+
+            // Almacenar la nueva imagen
+            $disk = 'public'; // Usar disco público para acceso web
+            $path = $data->file('photo')->store('attendance_photos', $disk);
+            $attendance->image()->create(['path' => $path]);
+
+            // Generar la URL completa de la imagen usando el helper
+            $imageUrl = ImageHelper::getFullImageUrl($path);
+            $attendance->update(['imagen_url' => $imageUrl]);
+
+        }
+
+        try {
+            // DB::connection('pgsql_external')->table('iclock_transaction')
+            //     ->where('id', $attendance->external_id)
+            //     ->update([
+            //         'punch_time' => Carbon::createFromTimestampMs($data['timestamp'], 'America/Lima')
+            //             ->format('Y-m-d H:i:s.v O'),
+            //         'latitude' => $data['latitude'],
+            //         'longitude' => $data['longitude'],
+            //         'gps_location' => $data['address'] ?? null,
+            //         'imagen_url' => $imageUrl ?? $attendance->imagen_url,
+            //         // 'client_id' => $data['client_id'] ?? $attendance->client_id,
+            //     ]);
+
+            $attendance->loadMissing(['user:id,name', 'image:id,attendance_id,path']);
+
+            DB::commit();
+
+            return $attendance;
+
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            Log::error('Error actualizando asistencia', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            throw new InternalErrorException('Error al actualizar asistencia: ' . $e->getMessage());
+        }
+
+      
+    }
 }

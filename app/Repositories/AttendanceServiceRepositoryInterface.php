@@ -17,5 +17,7 @@ interface AttendanceServiceRepositoryInterface
 
             public function createAttendance(StoreAttendanceRequest $data): Attendance;
 
+            public function updateAttendance(Attendance $attendance, UpdateAttendanceRequest $data): Attendance;
+
 
 }

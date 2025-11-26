@@ -14,10 +14,11 @@ class UpdateAttendanceRequest extends FormRequest
 
     public function rules()
     {
+
         return [
             'user_id' => ['sometimes', 'exists:users,id'],
-            // 'emp_code' => ['sometimes', 'string'],            
-            // 'address' => ['sometimes', 'string'],
+            'emp_code' => ['sometimes', 'string'],            
+            'address' => ['sometimes', 'nullable', 'string'],
             'client_id' => ['sometimes', 'uuid'], 
             'timestamp' => ['sometimes'],
             'latitude' => ['sometimes', 'numeric', 'between:-90,90'],

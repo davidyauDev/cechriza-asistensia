@@ -5,6 +5,7 @@ namespace App\Services;
 
 use App\Http\Requests\AttendanceIndexRequest;
 use App\Http\Requests\StoreAttendanceRequest;
+use App\Http\Requests\UpdateAttendanceRequest;
 use App\Http\Resources\AttendanceResource;
 use App\Models\Attendance;
 use App\Models\User;
@@ -72,6 +73,14 @@ class AttendanceService implements AttendanceServiceInterface
         return new AttendanceResource($attendance);
 
 
+    }
+
+    public function update(Attendance $attendance, UpdateAttendanceRequest $data): AttendanceResource
+    {
+     
+        $updatedAttendance = $this->attendanceRepository->updateAttendance($attendance, $data);
+
+        return new AttendanceResource($updatedAttendance);
     }
 
    

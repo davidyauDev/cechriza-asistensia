@@ -18,6 +18,8 @@ interface UserRepositoryInterface
 
     public function getUsersNotCheckedOut(): Collection;
 
+    public function getUsersNotCheckedInOutByCurrentDate(): Collection;
+
     public function create(array $data): User;
 
     public function find(int $id): ?User;
