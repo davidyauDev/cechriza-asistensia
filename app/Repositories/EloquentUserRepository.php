@@ -60,6 +60,8 @@ class EloquentUserRepository implements UserRepositoryInterface
     {
         $user_id = $filters['user_id'] ?? null;
         $currentDate = $filters['date'] ?? date('Y-m-d');
+
+        ds($currentDate);
        
         return User::whereHas('attendances', function ($query) use ($currentDate) {
             $query->whereDate('created_at', $currentDate);
@@ -79,6 +81,7 @@ class EloquentUserRepository implements UserRepositoryInterface
                             'signal_strength',
                             'network_type',
                             'type',
+                            'address',
                             'created_at',
                         ])
                         ->whereDate('created_at', $currentDate)
