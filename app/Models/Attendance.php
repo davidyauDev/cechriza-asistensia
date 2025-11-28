@@ -18,6 +18,7 @@ class Attendance extends Model
         'signal_strength',
         'network_type',
         'is_internet_available',
+        'address',
         'type',
     ];
 
