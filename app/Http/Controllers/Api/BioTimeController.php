@@ -38,7 +38,7 @@ class BioTimeController extends Controller
 
     public function empleadosPorDepartamento(Request $request)
     {
-        $departamentoIds = $request->input('department_id');
+        $departamentoIds = $request->input('department_ids');
 
         $query = "
         SELECT id, emp_code, first_name, last_name

@@ -92,16 +92,22 @@ class ReporteAsistenciaController extends Controller
 
     public function resumenAsistencia(Request $request)
     {
-        $empresaIds = $request->input('empresas_id', [2]);
+        $empresaIds = $request->input('empresa_ids', [2]);
         if (!is_array($empresaIds)) {
             $empresaIds = [$empresaIds];
         }
         $empresaIdsStr = implode(',', $empresaIds);
 
-        $departamentoIds = $request->input('departamentos_id', [8]);
+        $departamentoIds = $request->input('departamento_ids', [8]);
         if (!is_array($departamentoIds)) {
             $departamentoIds = [$departamentoIds];
         }
+
+        
+        ds($departamentoIds);
+
+
+
         $departamentoIdsStr = implode(',', $departamentoIds);
 
         $usuarios = $request->input('usuarios', []);
