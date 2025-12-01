@@ -12,10 +12,9 @@ return new class extends Migration {
     public function up(): void
     {
         Schema::table('eventos', function (Blueprint $table) {
-            //
-            // //$table->addColumn('tinyInteger', 'active')->after('descripcion')->default(1);
-            // $currentDate = date('Y-m-d');
-            // $table->addColumn('date', 'fecha')->after('active')->default($currentDate);
+            $table->addColumn('tinyInteger', 'active')->after('descripcion')->default(1);
+             $currentDate = date('Y-m-d');
+             $table->addColumn('date', 'fecha')->after('active')->default($currentDate);
 
         });
     }
