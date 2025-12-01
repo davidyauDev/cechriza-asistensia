@@ -60,5 +60,5 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     Route::get('/biotime/departamentos', [BioTimeController::class, 'departamentos']);
     Route::get('/biotime/empresas', [BioTimeController::class, 'empresas']);
-    Route::get('/biotime/empleados-por-departamento', [BioTimeController::class, 'empleadosPorDepartamento']);
+    Route::post('/biotime/empleados-por-departamento', [BioTimeController::class, 'empleadosPorDepartamento']);
 });

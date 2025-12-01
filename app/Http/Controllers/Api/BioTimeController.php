@@ -38,19 +38,31 @@ class BioTimeController extends Controller
 
     public function empleadosPorDepartamento(Request $request)
     {
-        $departamentoId = $request->input('department_id');
+        $departamentoIds = $request->input('department_id');
+
         $query = "
         SELECT id, emp_code, first_name, last_name
         FROM personnel_employee
+        WHERE status = 0
     ";
 
         $params = [];
 
-        if ($departamentoId) {
-            $query .= " WHERE department_id = ? ";
-            $params[] = $departamentoId;
+        if ($departamentoIds) {
+            if (!is_array($departamentoIds)) {
+                $departamentoIds = [$departamentoIds];
+            }
+
+            $placeholders = implode(',', array_fill(0, count($departamentoIds), '?'));
+
+            $query .= " AND department_id IN ($placeholders) ";
+            foreach ($departamentoIds as $d) {
+                $params[] = $d;
+            }
         }
+
         $query .= " ORDER BY last_name, first_name ";
+
         $result = DB::connection('pgsql_external')->select($query, $params);
 
         return response()->json([
