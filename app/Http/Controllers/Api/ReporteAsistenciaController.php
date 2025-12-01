@@ -13,60 +13,108 @@ class ReporteAsistenciaController extends Controller
     {
         $fechaInicio = $request->input('fecha_inicio', '2025-11-01');
         $fechaFin = $request->input('fecha_fin', '2025-11-25');
-        $empresaIds = $request->input('empresa_ids', [2]);
-        $departamentoIds = $request->input('departamento_ids', [8]);
 
-        // Convertir arrays PHP a arrays PostgreSQL
+        $empresaIds = $request->input('empresa_ids', [2]);
+        if (!is_array($empresaIds)) $empresaIds = [$empresaIds];
         $empresaIdsPG = '{' . implode(',', $empresaIds) . '}';
+
+        $departamentoIds = $request->input('departamento_ids', [8]);
+        if (!is_array($departamentoIds)) $departamentoIds = [$departamentoIds];
         $departamentoIdsPG = '{' . implode(',', $departamentoIds) . '}';
 
-        $result = DB::connection('pgsql_external')->select(<<<SQL
-        select
-            pe.emp_code as dni,
-            pe.last_name as apellidos,
-            pe.first_name as nombres,
-            pd.dept_name as departamento,
-            pc.company_name as empresa,
-            ap.att_date as fecha,
-            cast(ap.check_in as time) as h_ingreso,
-            cast(ap.check_out as time) as h_salida,
-            cast(ap.clock_in as time) as m_ingreso,
-            cast(ap.clock_out as time) as m_salida,
-            TO_CHAR(make_interval(secs => nullif(ap.late, 0)), 'HH24:MI:SS') as tardanza,
-            TO_CHAR(make_interval(secs => case
-                when ap.weekday = 5 and ap.clock_out > ap.check_out then ap.actual_worked + (extract(EPOCH from ap.clock_out) - extract(EPOCH from ap.check_out))
-                when ap.weekday = 5 and ap.clock_out < ap.check_out then ap.actual_worked
-                when ap.clock_out > ap.check_out then ap.actual_worked + (extract(EPOCH from ap.clock_out) - extract(EPOCH from ap.check_out))
-                else ap.actual_worked + ap.early_leave end), 'HH24:MI:SS') as total_trabajado
-        from
-            personnel_employee pe
-        inner join att_payloadbase ap on pe.id = ap.emp_id
-        inner join personnel_department pd on pe.department_id = pd.id
-        inner join personnel_company pc on pd.company_id = pc.id
-        where
-            pe.status = 0
-            and pc.id = any(?)
-            and pd.id = any(?)
-            and cast(ap.clock_in as date) between ? and ?
-        order by
+        $usuarioIds = $request->input('usuarios', []);
+        $whereUsuarios = '';
+
+        if (!empty($usuarioIds)) {
+            if (!is_array($usuarioIds)) $usuarioIds = [$usuarioIds];
+
+            $usuariosPG = '{' . implode(',', $usuarioIds) . '}';
+            $whereUsuarios = " AND pe.id = ANY(?) ";
+        }
+
+        $sql = "
+        SELECT
+            pe.emp_code AS dni,
+            pe.last_name AS apellidos,
+            pe.first_name AS nombres,
+            pd.dept_name AS departamento,
+            pc.company_name AS empresa,
+            ap.att_date AS fecha,
+            CAST(ap.check_in AS time) AS h_ingreso,
+            CAST(ap.check_out AS time) AS h_salida,
+            CAST(ap.clock_in AS time) AS m_ingreso,
+            CAST(ap.clock_out AS time) AS m_salida,
+            TO_CHAR(make_interval(secs => NULLIF(ap.late, 0)), 'HH24:MI:SS') AS tardanza,
+            TO_CHAR(
+                make_interval(secs =>
+                    CASE
+                        WHEN ap.weekday = 5 AND ap.clock_out > ap.check_out
+                            THEN ap.actual_worked + (EXTRACT(EPOCH FROM ap.clock_out) - EXTRACT(EPOCH FROM ap.check_out))
+                        WHEN ap.weekday = 5 AND ap.clock_out < ap.check_out
+                            THEN ap.actual_worked
+                        WHEN ap.clock_out > ap.check_out
+                            THEN ap.actual_worked + (EXTRACT(EPOCH FROM ap.clock_out) - EXTRACT(EPOCH FROM ap.check_out))
+                        ELSE ap.actual_worked + ap.early_leave
+                    END
+                ),
+                'HH24:MI:SS'
+            ) AS total_trabajado
+        FROM personnel_employee pe
+        INNER JOIN att_payloadbase ap ON pe.id = ap.emp_id
+        INNER JOIN personnel_department pd ON pe.department_id = pd.id
+        INNER JOIN personnel_company pc ON pd.company_id = pc.id
+        WHERE pe.status = 0
+            AND pc.id = ANY(?)
+            AND pd.id = ANY(?)
+            $whereUsuarios
+            AND CAST(ap.clock_in AS date) BETWEEN ? AND ?
+        ORDER BY
             pd.dept_name,
             pe.last_name,
             ap.att_date
-    SQL, [
-            $empresaIdsPG,
-            $departamentoIdsPG,
-            $fechaInicio,
-            $fechaFin
-        ]);
+    ";
+
+        $params = [$empresaIdsPG, $departamentoIdsPG];
+
+        if (!empty($usuarioIds)) {
+            $params[] = $usuariosPG;
+        }
+
+        $params[] = $fechaInicio;
+        $params[] = $fechaFin;
+
+        $result = DB::connection('pgsql_external')->select($sql, $params);
 
         return response()->json($result);
     }
 
 
+
     public function resumenAsistencia(Request $request)
     {
-        $empresaId = $request->input('empresa_id', 2);
-        $departamentoId = $request->input('departamento_id', 8);
+        $empresaIds = $request->input('empresas_id', [2]);
+        if (!is_array($empresaIds)) {
+            $empresaIds = [$empresaIds];
+        }
+        $empresaIdsStr = implode(',', $empresaIds);
+
+        $departamentoIds = $request->input('departamentos_id', [8]);
+        if (!is_array($departamentoIds)) {
+            $departamentoIds = [$departamentoIds];
+        }
+        $departamentoIdsStr = implode(',', $departamentoIds);
+
+        $usuarios = $request->input('usuarios', []);
+        $whereUsuarios = '';
+
+        if (!empty($usuarios)) {
+            if (!is_array($usuarios)) {
+                $usuarios = [$usuarios];
+            }
+            $ids = implode(',', $usuarios);
+            $whereUsuarios = " AND pe.id IN ({$ids}) ";
+        }
+
         $fechaInicio = $request->input('fecha_inicio');
 
         if (!$fechaInicio) {
@@ -79,7 +127,7 @@ class ReporteAsistenciaController extends Controller
         $s1_inicio = new \DateTime($fechaInicio);
         $s1_fin = (clone $s1_inicio)->modify('+9 days');
 
-        $s2_inicio = (clone $s1_fin)->modify('+1 day'); 
+        $s2_inicio = (clone $s1_fin)->modify('+1 day');
         $s2_fin = (clone $s2_inicio)->modify('+6 days');
 
         $s3_inicio = (clone $s2_fin)->modify('+1 day');
@@ -212,8 +260,9 @@ class ReporteAsistenciaController extends Controller
         INNER JOIN personnel_department pd ON pe.department_id = pd.id
         INNER JOIN personnel_company pc ON pd.company_id = pc.id
         WHERE pe.status = 0
-          AND pc.id = {$empresaId}
-          AND pd.id = {$departamentoId}
+          AND pc.id IN ({$empresaIdsStr})
+          AND pd.id IN ({$departamentoIdsStr})
+          {$whereUsuarios}
         GROUP BY pe.id, pe.emp_code, pe.last_name, pe.first_name, pd.dept_name, pc.company_name
         ORDER BY pd.dept_name, pe.last_name;
     ";
@@ -222,6 +271,24 @@ class ReporteAsistenciaController extends Controller
 
         return response()->json([
             'success' => true,
+            'semanas' => [
+                's1' => [
+                    'inicio' => $S1_IN,
+                    'fin'    => $S1_END,
+                ],
+                's2' => [
+                    'inicio' => $S2_IN,
+                    'fin'    => $S2_END,
+                ],
+                's3' => [
+                    'inicio' => $S3_IN,
+                    'fin'    => $S3_END,
+                ],
+                's4' => [
+                    'inicio' => $S4_IN,
+                    'fin'    => $S4_END,
+                ],
+            ],
             'data' => $result
         ]);
     }
