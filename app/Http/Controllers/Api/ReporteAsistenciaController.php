@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Exports\DetalleAsistenciaExport;
+use App\Exports\ResumenAsistenciaExport;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Maatwebsite\Excel\Facades\Excel;;
 
 class ReporteAsistenciaController extends Controller
 {
@@ -85,6 +88,18 @@ class ReporteAsistenciaController extends Controller
 
         $result = DB::connection('pgsql_external')->select($sql, $params);
 
+        
+        if ($request->get('export') === 'excel') {
+            return Excel::download(
+                new DetalleAsistenciaExport([
+                    'sql' => $sql,
+                    'bindings' => $params
+                ]),
+                'detalle_asistencia.xlsx'
+            );
+        }
+
+
         return response()->json($result);
     }
 
@@ -103,7 +118,7 @@ class ReporteAsistenciaController extends Controller
             $departamentoIds = [$departamentoIds];
         }
 
-        
+
         ds($departamentoIds);
 
 
@@ -274,6 +289,15 @@ class ReporteAsistenciaController extends Controller
     ";
 
         $result = DB::connection('pgsql_external')->select($sql);
+
+        if ($request->get('export') === 'excel') {
+    return Excel::download(
+        new ResumenAsistenciaExport([
+            'sql' => $sql
+        ]),
+        'resumen_asistencia.xlsx'
+    );
+}
 
         return response()->json([
             'success' => true,
