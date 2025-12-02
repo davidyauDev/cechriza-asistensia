@@ -144,27 +144,27 @@ class AttendanceServiceRepository implements AttendanceServiceRepositoryInterfac
             ->format('Y-m-d H:i:s.v O');
 
         try {
-             DB::connection('pgsql_external')->table('iclock_transaction')->insert([
-                 'emp_code' => $data['emp_code'],
-                 'punch_time' => $punchTime,
-                 'punch_state' => $data['type'] === 'check_in' ? 0 : 1,
-                 'verify_type' => 101,
-                 'terminal_sn' => 'App',
-                 'latitude' => $data['latitude'],
-                 'longitude' => $data['longitude'],
-                 'gps_location' => $data['address'] ?? null,
-                 'mobile' => 2,
-                 'source' => 3,
-                 'purpose' => 1,
-                 'is_attendance' => true,
-                 'upload_time' => now(),
-                 'sync_status' => 0,
-                 'emp_id' => $data['user_id'],
-                 'is_mask' => 255,
-                 'temperature' => 255,
-                 'identificador' => $data['client_id'] ?? (string) Str::uuid(),
-                 'imagen_url' => $imageUrl,
-             ]);
+            //  DB::connection('pgsql_external')->table('iclock_transaction')->insert([
+            //      'emp_code' => $data['emp_code'],
+            //      'punch_time' => $punchTime,
+            //      'punch_state' => $data['type'] === 'check_in' ? 0 : 1,
+            //      'verify_type' => 101,
+            //      'terminal_sn' => 'App',
+            //      'latitude' => $data['latitude'],
+            //      'longitude' => $data['longitude'],
+            //      'gps_location' => $data['address'] ?? null,
+            //      'mobile' => 2,
+            //      'source' => 3,
+            //      'purpose' => 1,
+            //      'is_attendance' => true,
+            //      'upload_time' => now(),
+            //      'sync_status' => 0,
+            //      'emp_id' => $data['user_id'],
+            //      'is_mask' => 255,
+            //      'temperature' => 255,
+            //      'identificador' => $data['client_id'] ?? (string) Str::uuid(),
+            //      'imagen_url' => $imageUrl,
+            //  ]);
 
             DB::commit();
 
