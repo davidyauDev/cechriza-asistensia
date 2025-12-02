@@ -20,7 +20,7 @@ class ReporteAsistenciaController extends Controller
         $fechaInicio = $request->input('fecha_inicio', Carbon::now()->startOfMonth()->format('Y-m-d'));
     $fechaFin = $request->input('fecha_fin', Carbon::now()->endOfMonth()->format('Y-m-d'));
 
-        $empresaIds = $request->input('empresa_ids', [2]);
+        $empresaIds = $request->input('empresa_ids', [1,2]);
         if (!is_array($empresaIds)) $empresaIds = [$empresaIds];
         $empresaIdsPG = '{' . implode(',', $empresaIds) . '}';
 
@@ -114,11 +114,11 @@ class ReporteAsistenciaController extends Controller
 
     public function resumenAsistencia(Request $request)
     {
-        $empresaIds = $request->input('empresa_ids', [2]);
-        if (!is_array($empresaIds)) {
-            $empresaIds = [$empresaIds];
-        }
-        $empresaIdsStr = implode(',', $empresaIds);
+        // $empresaIds = $request->input('empresa_ids', [2]);
+        // if (!is_array($empresaIds)) {
+        //     $empresaIds = [$empresaIds];
+        // }
+        // $empresaIdsStr = implode(',', $empresaIds);
 
         $departamentoIds = $request->input('departamento_ids', [8]);
         if (!is_array($departamentoIds)) {
@@ -288,12 +288,12 @@ class ReporteAsistenciaController extends Controller
         INNER JOIN personnel_department pd ON pe.department_id = pd.id
         INNER JOIN personnel_company pc ON pd.company_id = pc.id
         WHERE pe.status = 0
-          AND pc.id IN ({$empresaIdsStr})
-          AND pd.id IN ({$departamentoIdsStr})
-          {$whereUsuarios}
+        AND pd.id IN ({$departamentoIdsStr})
+        {$whereUsuarios}
         GROUP BY pe.id, pe.emp_code, pe.last_name, pe.first_name, pd.dept_name, pc.company_name
         ORDER BY pd.dept_name, pe.last_name;
-    ";
+        ";
+        // AND pc.id IN ({$empresaIdsStr})
 
         $result = DB::connection('pgsql_external')->select($sql);
 
