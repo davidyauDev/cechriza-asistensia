@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Exports\DetalleAsistenciaExport;
 use App\Exports\ResumenAsistenciaExport;
 use App\Http\Controllers\Controller;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;;
@@ -14,8 +15,10 @@ class ReporteAsistenciaController extends Controller
 
     public function detalleAsist(Request $request)
     {
-        $fechaInicio = $request->input('fecha_inicio', '2025-11-01');
-        $fechaFin = $request->input('fecha_fin', '2025-11-25');
+
+        
+        $fechaInicio = $request->input('fecha_inicio', Carbon::now()->startOfMonth()->format('Y-m-d'));
+    $fechaFin = $request->input('fecha_fin', Carbon::now()->endOfMonth()->format('Y-m-d'));
 
         $empresaIds = $request->input('empresa_ids', [2]);
         if (!is_array($empresaIds)) $empresaIds = [$empresaIds];
@@ -34,6 +37,10 @@ class ReporteAsistenciaController extends Controller
             $usuariosPG = '{' . implode(',', $usuarioIds) . '}';
             $whereUsuarios = " AND pe.id = ANY(?) ";
         }
+
+
+        ds($fechaInicio);
+        ds($fechaFin);
 
         $sql = "
         SELECT
