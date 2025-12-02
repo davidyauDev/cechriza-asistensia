@@ -25,7 +25,7 @@ class BioTimeController extends Controller
     public function departamentos()
     {
         $result = DB::connection('pgsql_external')->select("
-            SELECT id, dept_name 
+            SELECT id, dept_name , company_id
             FROM personnel_department
             ORDER BY dept_name
         ");
