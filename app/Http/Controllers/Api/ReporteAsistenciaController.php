@@ -19,6 +19,7 @@ class ReporteAsistenciaController extends Controller
         $excluir = $request->input('excluir', ['6638042', '7791208']);
         $departmentId = $request->input('department_id');
         $empleadoId = $request->input('empleado_id');
+        $companyId = $request->input('company_id');
 
         // WHERE dinámico por departamento
         $whereDept = "";
@@ -34,6 +35,14 @@ class ReporteAsistenciaController extends Controller
         if (!empty($empleadoId)) {
             $whereUsuario = " AND pe.id = ? ";
             $paramsUsuario[] = $empleadoId;
+        }
+
+        // WHERE dinámico por empresa
+        $whereCompany = "";
+        $paramsCompany = [];
+        if (!empty($companyId)) {
+            $whereCompany = " AND pc.id = ? ";
+            $paramsCompany[] = $companyId;
         }
 
         $sql = '
@@ -104,6 +113,7 @@ class ReporteAsistenciaController extends Controller
           AND pe.emp_code NOT IN (' . implode(',', array_fill(0, count($excluir), '?')) . ')
           ' . $whereDept . '
           ' . $whereUsuario . '
+           ' . $whereCompany . '
 
         ORDER BY pc.company_name, pd.dept_name, pe.last_name, pe.first_name
     ';
@@ -122,6 +132,10 @@ class ReporteAsistenciaController extends Controller
         if (!empty($empleadoId)) {
             $params = array_merge($params, $paramsUsuario);
         }
+
+        if (!empty($companyId)) {
+        $params = array_merge($params, $paramsCompany);
+    }
 
         $data = DB::connection('pgsql_external')->select($sql, $params);
 
