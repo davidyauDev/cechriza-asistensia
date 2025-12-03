@@ -13,12 +13,131 @@ use Maatwebsite\Excel\Facades\Excel;;
 class ReporteAsistenciaController extends Controller
 {
 
+    public function detalleMarcacion(Request $request)
+    {
+        $fecha = $request->input('fecha', date('Y-m-d'));
+        $excluir = $request->input('excluir', ['6638042', '7791208']);
+        $departmentId = $request->input('department_id');
+        $empleadoId = $request->input('empleado_id');
+
+        $whereDept = "";
+        $paramsDept = [];
+        if (!empty($departmentId)) {
+            $whereDept = " AND pe.department_id = ? ";
+            $paramsDept[] = $departmentId;
+        }
+
+        $whereUsuario = "";
+        $paramsUsuario = [];
+        if (!empty($empleadoId)) {
+            $whereUsuario = " AND pe.id = ? ";
+            $paramsUsuario[] = $empleadoId;
+        }
+
+        $sql = '
+        WITH horarios AS (
+            SELECT 
+                aa.employee_id,
+                ati.in_time AS horario
+            FROM att_attschedule aa
+            INNER JOIN att_attshift ash ON ash.id = aa.shift_id
+            INNER JOIN att_shiftdetail ashd ON ashd.shift_id = ash.id
+            INNER JOIN att_timeinterval ati ON ati.id = ashd.time_interval_id
+            WHERE ashd.day_index + 1 = cast(to_char(?::date, \'D\') AS INT)
+        ),
+        marcaciones AS (
+            SELECT
+                it.emp_code,
+                MIN(CAST(it.punch_time AS time)) AS ingreso,
+                CASE 
+                    WHEN MIN(CAST(it.punch_time AS time)) = MAX(CAST(it.punch_time AS time))
+                    THEN NULL
+                    ELSE MAX(CAST(it.punch_time AS time))
+                END AS salida
+            FROM iclock_transaction it
+            WHERE date(it.punch_time) = ?
+            GROUP BY it.emp_code
+        )
+
+        SELECT 
+            pe.emp_code AS "DNI",
+            pe.last_name AS "Apellidos",
+            pe.first_name AS "Nombres",
+            pd.dept_name AS "Departamento",
+            pc.company_name AS "Empresa",
+            h.horario AS "Horario",
+            m.ingreso AS "Ingreso",
+            m.salida AS "Salida",
+
+            -- TARDANZA
+            CASE 
+                WHEN m.ingreso IS NOT NULL AND h.horario IS NOT NULL AND m.ingreso > h.horario 
+                    THEN 1 
+                ELSE 0 
+            END AS "Tardanza",
+
+            -- AUSENCIA
+            CASE 
+                WHEN m.ingreso IS NULL THEN 1 ELSE 0
+            END AS "Ausencia"
+
+        FROM personnel_employee pe
+        INNER JOIN personnel_department pd ON pe.department_id = pd.id
+        INNER JOIN personnel_company pc ON pd.company_id = pc.id
+
+        LEFT JOIN horarios h ON h.employee_id = pe.id
+        LEFT JOIN marcaciones m ON m.emp_code = pe.emp_code
+
+        WHERE pe.status = 0
+          AND pe.emp_code NOT IN (' . implode(',', array_fill(0, count($excluir), '?')) . ')
+          ' . $whereDept . '
+          ' . $whereUsuario . '
+
+        ORDER BY pc.company_name, pd.dept_name, pe.last_name, pe.first_name
+    ';
+
+        $params = [
+            $fecha, // horarios 
+            $fecha, // marcaciones 
+        ];
+
+        $params = array_merge($params, $excluir);
+
+        if (!empty($departmentId)) {
+            $params = array_merge($params, $paramsDept);
+        }
+
+        if (!empty($empleadoId)) {
+            $params = array_merge($params, $paramsUsuario);
+        }
+
+        $data = DB::connection('pgsql_external')->select($sql, $params);
+        $asistencias = 0;
+        $ausencias = 0;
+        $tardanzas = 0;
+
+        foreach ($data as $row) {
+            if ($row->Ingreso !== null) $asistencias++;
+            if ($row->Ausencia == 1) $ausencias++;
+            if ($row->Tardanza == 1) $tardanzas++;
+        }
+        return response()->json([
+            "data" => $data,
+            "resumen" => [
+                "asistencias" => $asistencias,
+                "ausencias" => $ausencias,
+                "tardanzas" => $tardanzas,
+            ]
+        ]);
+    }
+
+
+
     public function detalleAsist(Request $request)
     {
 
-        
         $fechaInicio = $request->input('fecha_inicio', Carbon::now()->startOfMonth()->format('Y-m-d'));
-    $fechaFin = $request->input('fecha_fin', Carbon::now()->endOfMonth()->format('Y-m-d'));
+        $fechaFin = $request->input('fecha_fin', Carbon::now()->endOfMonth()->format('Y-m-d'));
 
         $empresaIds = $request->input('empresa_ids', [2]);
         if (!is_array($empresaIds)) $empresaIds = [$empresaIds];
@@ -95,7 +214,7 @@ class ReporteAsistenciaController extends Controller
 
         $result = DB::connection('pgsql_external')->select($sql, $params);
 
-        
+
         if ($request->get('export') === 'excel') {
             return Excel::download(
                 new DetalleAsistenciaExport([
@@ -298,13 +417,13 @@ class ReporteAsistenciaController extends Controller
         $result = DB::connection('pgsql_external')->select($sql);
 
         if ($request->get('export') === 'excel') {
-    return Excel::download(
-        new ResumenAsistenciaExport([
-            'sql' => $sql
-        ]),
-        'resumen_asistencia.xlsx'
-    );
-}
+            return Excel::download(
+                new ResumenAsistenciaExport([
+                    'sql' => $sql
+                ]),
+                'resumen_asistencia.xlsx'
+            );
+        }
 
         return response()->json([
             'success' => true,
