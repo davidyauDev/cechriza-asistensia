@@ -20,6 +20,7 @@ class ReporteAsistenciaController extends Controller
         $departmentId = $request->input('department_id');
         $empleadoId = $request->input('empleado_id');
 
+        // WHERE dinámico por departamento
         $whereDept = "";
         $paramsDept = [];
         if (!empty($departmentId)) {
@@ -27,6 +28,7 @@ class ReporteAsistenciaController extends Controller
             $paramsDept[] = $departmentId;
         }
 
+        // WHERE dinámico por empleado ID
         $whereUsuario = "";
         $paramsUsuario = [];
         if (!empty($empleadoId)) {
@@ -53,13 +55,21 @@ class ReporteAsistenciaController extends Controller
                     WHEN MIN(CAST(it.punch_time AS time)) = MAX(CAST(it.punch_time AS time))
                     THEN NULL
                     ELSE MAX(CAST(it.punch_time AS time))
-                END AS salida
+                END AS salida,
+                MIN(it.gps_location) AS gps_location,
+                MIN(it.imagen_url) AS imagen,
+                MIN(it.latitude) AS latitude,
+                MIN(it.longitude) AS longitude,
+                \'https://www.google.com/maps?q=\' || MIN(it.latitude) || \',\' || MIN(it.longitude) AS map_url
             FROM iclock_transaction it
             WHERE date(it.punch_time) = ?
             GROUP BY it.emp_code
         )
 
         SELECT 
+            m.gps_location AS "Ubicacion",
+            m.imagen AS "Imagen",
+            m.map_url,
             pe.emp_code AS "DNI",
             pe.last_name AS "Apellidos",
             pe.first_name AS "Nombres",
@@ -71,7 +81,9 @@ class ReporteAsistenciaController extends Controller
 
             -- TARDANZA
             CASE 
-                WHEN m.ingreso IS NOT NULL AND h.horario IS NOT NULL AND m.ingreso > h.horario 
+                WHEN m.ingreso IS NOT NULL 
+                     AND h.horario IS NOT NULL 
+                     AND m.ingreso > h.horario 
                     THEN 1 
                 ELSE 0 
             END AS "Tardanza",
@@ -112,24 +124,33 @@ class ReporteAsistenciaController extends Controller
         }
 
         $data = DB::connection('pgsql_external')->select($sql, $params);
+
         $asistencias = 0;
-        $ausencias = 0;
-        $tardanzas = 0;
+        $ausencias   = 0;
+        $tardanzas   = 0;
 
         foreach ($data as $row) {
-            if ($row->Ingreso !== null) $asistencias++;
-            if ($row->Ausencia == 1) $ausencias++;
-            if ($row->Tardanza == 1) $tardanzas++;
+            if ($row->Ingreso !== null) {
+                $asistencias++;
+            }
+            if ($row->Ausencia == 1) {
+                $ausencias++;
+            }
+            if ($row->Tardanza == 1) {
+                $tardanzas++;
+            }
         }
+
         return response()->json([
             "data" => $data,
             "resumen" => [
                 "asistencias" => $asistencias,
-                "ausencias" => $ausencias,
-                "tardanzas" => $tardanzas,
+                "ausencias"   => $ausencias,
+                "tardanzas"   => $tardanzas,
             ]
         ]);
     }
+
 
 
 
@@ -139,7 +160,7 @@ class ReporteAsistenciaController extends Controller
         $fechaInicio = $request->input('fecha_inicio', Carbon::now()->startOfMonth()->format('Y-m-d'));
         $fechaFin = $request->input('fecha_fin', Carbon::now()->endOfMonth()->format('Y-m-d'));
 
-        $empresaIds = $request->input('empresa_ids', [1,2]);
+        $empresaIds = $request->input('empresa_ids', [1, 2]);
         if (!is_array($empresaIds)) $empresaIds = [$empresaIds];
         $empresaIdsPG = '{' . implode(',', $empresaIds) . '}';
 
