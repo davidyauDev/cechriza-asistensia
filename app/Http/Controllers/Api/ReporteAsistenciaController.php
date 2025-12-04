@@ -84,6 +84,12 @@ class ReporteAsistenciaController extends Controller
             pe.first_name AS "Nombres",
             pd.dept_name AS "Departamento",
             pc.company_name AS "Empresa",
+
+            CASE 
+            WHEN pe.department_id IN (9,7,2,10,5) THEN TRUE
+            ELSE FALSE
+            END AS "Tecnico",
+
             h.horario AS "Horario",
             m.ingreso AS "Ingreso",
             m.salida AS "Salida",
