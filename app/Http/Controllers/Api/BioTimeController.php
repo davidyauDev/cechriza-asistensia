@@ -41,9 +41,17 @@ class BioTimeController extends Controller
         $departamentoIds = $request->input('department_ids');
 
         $query = "
-        SELECT id, emp_code, first_name, last_name
-        FROM personnel_employee
-        WHERE status = 0
+        SELECT 
+            pe.id, 
+            pe.emp_code, 
+            pe.first_name, 
+            pe.last_name,
+            pe.department_id,
+            pd.company_id
+        FROM personnel_employee pe
+        JOIN personnel_department pd
+            ON pd.id = pe.department_id
+        WHERE pe.status = 0
     ";
 
         $params = [];
@@ -55,13 +63,14 @@ class BioTimeController extends Controller
 
             $placeholders = implode(',', array_fill(0, count($departamentoIds), '?'));
 
-            $query .= " AND department_id IN ($placeholders) ";
+            $query .= " AND pe.department_id IN ($placeholders) ";
+
             foreach ($departamentoIds as $d) {
                 $params[] = $d;
             }
         }
 
-        $query .= " ORDER BY last_name, first_name ";
+        $query .= " ORDER BY pe.last_name, pe.first_name ";
 
         $result = DB::connection('pgsql_external')->select($query, $params);
 
