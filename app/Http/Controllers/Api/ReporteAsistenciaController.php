@@ -82,8 +82,11 @@ class ReporteAsistenciaController extends Controller
             pe.emp_code AS "DNI",
             pe.last_name AS "Apellidos",
             pe.first_name AS "Nombres",
+            pe.id as "Empleado_id",
             pd.dept_name AS "Departamento",
+            pd.id as "Departamento_id",
             pc.company_name AS "Empresa",
+            pc.id as "Empresa_id",
 
             CASE 
             WHEN pe.department_id IN (9,7,2,10,5) THEN TRUE
@@ -123,6 +126,8 @@ class ReporteAsistenciaController extends Controller
 
         ORDER BY pc.company_name, pd.dept_name, pe.last_name, pe.first_name
     ';
+
+    ds($fecha);
 
         $params = [
             $fecha, // horarios 
