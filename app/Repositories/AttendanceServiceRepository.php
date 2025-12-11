@@ -18,8 +18,6 @@ use Symfony\Component\CssSelector\Exception\InternalErrorException;
 
 class AttendanceServiceRepository implements AttendanceServiceRepositoryInterface
 {
-
-
     public function getFilteredAttendances(AttendanceIndexRequest $filters): LengthAwarePaginator
     {
         $query = Attendance::with(['user:id,name,emp_code', 'image:id,attendance_id,path']);
@@ -27,7 +25,6 @@ class AttendanceServiceRepository implements AttendanceServiceRepositoryInterfac
         if (!empty($filters['user_id'])) {
             $query->where('user_id', $filters['user_id']);
         }
-
         if (!empty($filters['start_date'])) {
             $startMs = Carbon::parse($filters['start_date'])->timestamp * 1000;
             $query->where('timestamp', '>=', $startMs);
@@ -36,19 +33,15 @@ class AttendanceServiceRepository implements AttendanceServiceRepositoryInterfac
             $endMs = Carbon::parse($filters['end_date'])->timestamp * 1000;
             $query->where('timestamp', '<=', $endMs);
         }
-
-
         if (!empty($filters['type'])) {
             $query->where('type', $filters['type']);
         }
-
         if (!empty($filters['search'])) {
             $query->whereHas('user', function ($q) use ($filters) {
                 $q->where('name', 'like', '%' . $filters['search'] . '%')
                     ->orWhere('emp_code', 'like', '%' . $filters['search'] . '%');
             });
         }
-
         $sortBy = $filters['sort_by'] ?? 'timestamp';
         $sortOrder = $filters['sort_order'] ?? 'desc';
 
@@ -58,23 +51,22 @@ class AttendanceServiceRepository implements AttendanceServiceRepositoryInterfac
         } else {
             $query->orderBy('timestamp', 'desc');
         }
-
         $perPage = min($filters['per_page'] ?? 15, 100);
         return $query->paginate($perPage);
     }
 
 
-    public function getFilteredAttendancesForUser(AttendanceIndexRequest $filters, int $userId): LengthAwarePaginator
+    public function getFilteredAttendancesForUser(AttendanceIndexRequest $filters): LengthAwarePaginator
     {
         $query = Attendance::with(['image:id,attendance_id,path'])
-            ->where('user_id', $userId);
-
+            ->where('user_id', $filters['user_id']);
         if (!empty($filters['start_date'])) {
-            $query->whereDate('timestamp', '>=', $filters['start_date']);
+            $startMs = Carbon::parse($filters['start_date'])->timestamp * 1000;
+            $query->where('timestamp', '>=', $startMs);
         }
-
         if (!empty($filters['end_date'])) {
-            $query->whereDate('timestamp', '<=', $filters['end_date']);
+            $endMs = Carbon::parse($filters['end_date'])->timestamp * 1000;
+            $query->where('timestamp', '<=', $endMs);
         }
 
         if (!empty($filters['type'])) {
@@ -136,8 +128,6 @@ class AttendanceServiceRepository implements AttendanceServiceRepositoryInterfac
             $disk = 'public'; // Usar disco público para acceso web
             $path = $data->file('photo')->store('attendance_photos', $disk);
             $attendance->image()->create(['path' => $path]);
-
-            // Generar la URL completa de la imagen usando el helper
             $imageUrl = ImageHelper::getFullImageUrl($path);
         }
 
@@ -145,27 +135,48 @@ class AttendanceServiceRepository implements AttendanceServiceRepositoryInterfac
             ->format('Y-m-d H:i:s.v O');
 
         try {
-              DB::connection('pgsql_external')->table('iclock_transaction')->insert([
-                  'emp_code' => $data['emp_code'],
-                  'punch_time' => $punchTime,
-                  'punch_state' => $data['type'] === 'check_in' ? 0 : 1,
-                  'verify_type' => 101,
-                  'terminal_sn' => 'App',
-                  'latitude' => $data['latitude'],
-                  'longitude' => $data['longitude'],
-                  'gps_location' => $data['address'] ?? null,
-                  'mobile' => 2,
-                  'source' => 3,
-                  'purpose' => 1,
-                  'is_attendance' => true,
-                  'upload_time' => now(),
-                  'sync_status' => 0,
-                  'emp_id' => $data['user_id'],
-                  'is_mask' => 255,
-                  'temperature' => 255,
-                  'identificador' => $data['client_id'] ??    (string) Str::uuid(),
-                  'imagen_url' => $imageUrl,
-              ]);
+            DB::connection('pgsql_external')->table('iclock_transaction')->insert([
+                'emp_code' => $data['emp_code'],
+                'punch_time' => $punchTime,
+                'punch_state' => $data['type'] === 'check_in' ? 0 : 1,
+                'verify_type' => 101,
+                'terminal_sn' => 'App',
+                'latitude' => $data['latitude'],
+                'longitude' => $data['longitude'],
+                'gps_location' => $data['address'] ?? null,
+                'mobile' => 2,
+                'source' => 3,
+                'purpose' => 1,
+                'is_attendance' => true,
+                'upload_time' => now(),
+                'sync_status' => 0,
+                'emp_id' => $data['user_id'],
+                'is_mask' => 255,
+                'temperature' => 255,
+                'identificador' => $data['client_id'] ??    (string) Str::uuid(),
+                'imagen_url' => $imageUrl,
+            ]);
+            $dayDate = Carbon::createFromTimestampMs($data['timestamp'], 'America/Lima')->format('Y-m-d');
+            DB::connection('pgsql_external')
+                ->table('daily_records')
+                ->updateOrInsert(
+                    [
+                        'employee_id' => $data['user_id'],
+                        'date'        => $dayDate,
+                    ],
+                    [
+                        'emp_code'          => $data['emp_code'], // DNI
+                        'concept_id'        => 1,
+                        'day_code'          => 1, // V, DM, NM, SR, 1...
+                        'mobility_eligible' => true,
+                        'source'            => 'employee_concepts',
+                        'notes'             => 'asuistencia registrada desde app',
+                        'processed'         => false,
+                        'created_at'        => now(),
+                        'updated_at'        => now(),
+                    ]
+                );
+
 
             DB::commit();
 
@@ -214,7 +225,6 @@ class AttendanceServiceRepository implements AttendanceServiceRepositoryInterfac
             // Generar la URL completa de la imagen usando el helper
             $imageUrl = ImageHelper::getFullImageUrl($path);
             $attendance->update(['imagen_url' => $imageUrl]);
-
         }
 
         try {
@@ -235,7 +245,6 @@ class AttendanceServiceRepository implements AttendanceServiceRepositoryInterfac
             DB::commit();
 
             return $attendance;
-
         } catch (\Throwable $e) {
             DB::rollBack();
 
@@ -246,7 +255,5 @@ class AttendanceServiceRepository implements AttendanceServiceRepositoryInterfac
 
             throw new InternalErrorException('Error al actualizar asistencia: ' . $e->getMessage());
         }
-
-      
     }
 }
