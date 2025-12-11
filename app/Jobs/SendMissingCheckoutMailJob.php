@@ -3,7 +3,6 @@
 namespace App\Jobs;
 
 use App\Mail\MissingCheckoutMail;
-use App\Models\User;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Foundation\Queue\Queueable;
@@ -15,12 +14,12 @@ class SendMissingCheckoutMailJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public User $user;
+    public $user;
 
     /**
      * Create a new job instance.
      */
-    public function __construct(User $user)
+    public function __construct($user)
     {
         $this->user = $user;
     }
