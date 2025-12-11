@@ -15,7 +15,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 interface AttendanceServiceInterface
 {
     public function index(AttendanceIndexRequest $request): AnonymousResourceCollection;
-    public function forUser(AttendanceIndexRequest $request, int $userId): AnonymousResourceCollection;
+    public function forUser(AttendanceIndexRequest $request): AnonymousResourceCollection;
 
     public function statsByUser(array $request, User $user): array;
 

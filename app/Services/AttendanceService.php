@@ -31,9 +31,9 @@ class AttendanceService implements AttendanceServiceInterface
 
     }
 
-    public function forUser(AttendanceIndexRequest $request, int $userId): AnonymousResourceCollection
+    public function forUser(AttendanceIndexRequest $request): AnonymousResourceCollection
     {
-        $attendances = $this->attendanceRepository->getFilteredAttendancesForUser($request, $userId);
+        $attendances = $this->attendanceRepository->getFilteredAttendancesForUser($request);
         return AttendanceResource::collection($attendances);
     }
 

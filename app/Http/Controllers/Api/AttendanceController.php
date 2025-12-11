@@ -30,10 +30,10 @@ class AttendanceController extends Controller
         );
     }
 
-    public function forUser(AttendanceIndexRequest $request, User $user)
+    public function forUser(AttendanceIndexRequest $request)
     {
         return $this->successResponse(
-            $this->attendanceService->forUser($request, $user->id),
+            $this->attendanceService->forUser($request),
             'User attendance records retrieved successfully'
         );
     }

@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BioTimeController;
+use App\Http\Controllers\Api\EmployeeConceptController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\EventoController;
 use App\Http\Controllers\Api\TechnicianController;
@@ -14,7 +15,6 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/register', [UserController::class, 'store']);
     Route::post('/logout', [AuthController::class, 'logout']);
-
     Route::prefix('users')->group(function () {
         Route::post('/', [UserController::class, 'store']);
         Route::get('/all', [UserController::class, 'listAll']);
@@ -38,7 +38,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::delete('/{attendance}', [AttendanceController::class, 'destroy']);
     });
 
-    Route::get('/users/{user}/attendances', [AttendanceController::class, 'forUser']);
+    Route::post('/users/attendances/for-user', [AttendanceController::class, 'forUser']);
     Route::get('/users/{user}/attendance-stats', [AttendanceController::class, 'userStats']);
 
     Route::prefix('eventos')->group(function () {
@@ -63,4 +63,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/biotime/departamentos', [BioTimeController::class, 'departamentos']);
     Route::get('/biotime/empresas', [BioTimeController::class, 'empresas']);
     Route::post('/biotime/empleados-por-departamento', [BioTimeController::class, 'empleadosPorDepartamento']);
+    
+    //storeConcept
+    Route::post('/employee-concepts', [EmployeeConceptController::class, 'storeConcept']);
+    Route::post('daily-records/monthly-summary', [EmployeeConceptController::class, 'getMonthlySummary']);
+
 });

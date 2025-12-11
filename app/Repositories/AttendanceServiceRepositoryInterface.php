@@ -11,7 +11,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
 interface AttendanceServiceRepositoryInterface
         {
             public function getFilteredAttendances(AttendanceIndexRequest $request): LengthAwarePaginator;
-            public function getFilteredAttendancesForUser(AttendanceIndexRequest $request, int $userId): LengthAwarePaginator;
+            public function getFilteredAttendancesForUser(AttendanceIndexRequest $request): LengthAwarePaginator;
 
             public function statsByUser(array $request, int $userId): array;
 
