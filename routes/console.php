@@ -1,6 +1,7 @@
 <?php
 
 use App\Console\Commands\DailyAttendanceReport;
+use App\Console\Commands\Birthday;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
@@ -17,4 +18,14 @@ Schedule::command(DailyAttendanceReport::class)
     })
     ->onFailure(function () {
         Log::error('Daily attendance processing failed.');
+    });
+
+Schedule::command(Birthday::class)
+    ->dailyAt('08:30')
+    ->timezone(env('APP_TIMEZONE', 'America/Lima'))
+    ->onSuccess(function () {
+        Log::info('Birthday greetings sent successfully.');
+    })
+    ->onFailure(function () {
+        Log::error('Failed to send birthday greetings.');
     });
