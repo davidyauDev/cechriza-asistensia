@@ -113,6 +113,14 @@ class EmployeeConceptController extends Controller
     $employees = DB::connection('pgsql_external')
         ->table('personnel_employee')
         ->where('position_id', 7)
+        ->join('personnel_position', 'personnel_employee.position_id', '=', 'personnel_position.id')->select(
+            'personnel_employee.id',
+            'personnel_employee.emp_code',
+            'personnel_employee.first_name',
+            'personnel_employee.last_name',
+            'personnel_employee.position_id',
+            'personnel_position.position_name as position_name'
+        )
         ->get();
 
     // 2. Obtener registros diarios del mes
@@ -128,6 +136,7 @@ class EmployeeConceptController extends Controller
 
         $dni = $emp->emp_code;
 
+
         // Obtener días de ese empleado
         $days = $records->get($dni, collect());
 
@@ -140,6 +149,8 @@ class EmployeeConceptController extends Controller
 
         $mobilityAmount = 5;
         $totalPay = $mobilityDays * $mobilityAmount;
+
+
 
         // Debug details
         $details = $days->map(function($d) {
@@ -156,6 +167,7 @@ class EmployeeConceptController extends Controller
                 'dni'  => $dni,
                 'name' => trim($emp->first_name . ' ' . $emp->last_name),
                 'position_id' => $emp->position_id,
+                'position_name' => $emp->position_name,
             ],
             'summary' => [
                 'total_days'            => $days->count(),

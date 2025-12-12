@@ -32,9 +32,9 @@ class Birthday extends Command
     {
         // Lógica para obtener usuarios que cumplen años hoy
         // $users = User::whereRaw('DATE(birthdate) = CURDATE()')->get();
-        $date = '2005-01-08';
+        // $date = '2005-01-08';
 
-        // $date = date('Y-m-d');
+        $date = date('Y-m-d');
 
         $where = "TO_CHAR(birthday, 'MM-DD') = TO_CHAR(?::date, 'MM-DD') AND is_active = true";
 
