@@ -36,13 +36,14 @@ class SendBirthdayGreetingJob implements ShouldQueue
     public function handle()
     {
         // Lógica para enviar el saludo de cumpleaños al usuario
-        // Por ejemplo, enviar un correo electrónico
+        // Por ejemplo, enviar un correo electrónico  
+
         if (!isset($this->user->email)) {
-            return;
+            throw new Exception('El usuario no tiene un correo electrónico válido');
         }
         $url = $this->generateBirthdayCard("{$this->user->first_name} {$this->user->last_name}", $this->user->id);
         if (!$url) {
-            return;
+            throw new Exception('No se pudo generar la tarjeta de cumpleaños');
         }
 
         Mail::to($this->user->email)->send(new BirthdayGreetingMail($url));
