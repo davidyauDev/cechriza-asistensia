@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Jobs\SendBirthdayGreetingJob;
 use DB;
+use Exception;
 use Illuminate\Console\Command;
 
 class Birthday extends Command
@@ -28,13 +29,13 @@ class Birthday extends Command
      * @return int
      */
 
-    private function getUsersWithBirthdayToday(): array 
+    private function getUsersWithBirthdayToday(): array
     {
         // Lógica para obtener usuarios que cumplen años hoy
         // $users = User::whereRaw('DATE(birthdate) = CURDATE()')->get();
-        // $date = '2005-01-08';
+        $date = '2005-01-08';
 
-        $date = date('Y-m-d');
+        // $date = date('Y-m-d');
 
         $where = "TO_CHAR(birthday, 'MM-DD') = TO_CHAR(?::date, 'MM-DD') AND is_active = true";
 
@@ -42,7 +43,7 @@ class Birthday extends Command
             ->whereRaw($where, [$date])
             ->get();
 
-            ds($users);
+        ds($users);
 
         return $users->toArray();
     }
@@ -52,10 +53,38 @@ class Birthday extends Command
 
         $users = $this->getUsersWithBirthdayToday();
 
+        $birthdayHistory = [];
+
         foreach ($users as $user) {
-            
+            try {
+                //code...
+                // throw new Exception("Hay un error al enviar el correo.");
+                SendBirthdayGreetingJob::dispatch($user);
+
+                $birthdayHistory[] = [
+                    'employee_id' => $user->id,
+                    'sent_at' => now(),
+                    'status' => 'sent',
+                    'error_message' => null,
+                ];
+
+            } catch (Exception $e) {
+                //throw $th;
+                $birthdayHistory[] = [
+                    'employee_id' => $user->id,
+                    'sent_at' => now(),
+                    'status' => 'failed',
+                    'error_message' => $e->getMessage(),
+                ];
+
+                
+            }
+
             // Dispatch job to send birthday greeting email
-        SendBirthdayGreetingJob::dispatch($user); 
+        }
+
+        if (!empty($birthdayHistory)) {
+            DB::connection('pgsql_external')->table('birthday_greetings_history')->insert(values: $birthdayHistory);
         }
 
         // Lógica para enviar saludos de cumpleaños a los usuarios

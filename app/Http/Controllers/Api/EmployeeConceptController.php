@@ -156,8 +156,11 @@ class EmployeeConceptController extends Controller
                     'employee' => [
                         'id' => $emp->id,
                         'dni' => $dni,
-                        'name' => trim($emp->first_name . ' ' . $emp->last_name),
+                        // 'name' => trim($emp->first_name . ' ' . $emp->last_name),
+                        'first_name' => $emp->first_name,
+                        'last_name' => $emp->last_name,
                         'position_id' => $emp->position_id,
+                        'position_name' => $emp->position_name,
                     ],
                     'summary' => [
                         'total_days' => $as,
