@@ -46,88 +46,115 @@ class ReporteAsistenciaController extends Controller
         }
 
         $sql = '
-        WITH horarios AS (
-            SELECT 
-                aa.employee_id,
-                ati.in_time AS horario
-            FROM att_attschedule aa
-            INNER JOIN att_attshift ash ON ash.id = aa.shift_id
-            INNER JOIN att_shiftdetail ashd ON ashd.shift_id = ash.id
-            INNER JOIN att_timeinterval ati ON ati.id = ashd.time_interval_id
-            WHERE ashd.day_index + 1 = cast(to_char(?::date, \'D\') AS INT)
-        ),
-        marcaciones AS (
-            SELECT
-                it.emp_code,
-                MIN(CAST(it.punch_time AS time)) AS ingreso,
-                CASE 
-                    WHEN MIN(CAST(it.punch_time AS time)) = MAX(CAST(it.punch_time AS time))
-                    THEN NULL
-                    ELSE MAX(CAST(it.punch_time AS time))
-                END AS salida,
-                MIN(it.gps_location) AS gps_location,
-                MIN(it.imagen_url) AS imagen,
-                MIN(it.latitude) AS latitude,
-                MIN(it.longitude) AS longitude,
-                \'https://www.google.com/maps?q=\' || MIN(it.latitude) || \',\' || MIN(it.longitude) AS map_url
-            FROM iclock_transaction it
-            WHERE date(it.punch_time) = ?
-            GROUP BY it.emp_code
-        )
+WITH horarios AS (
+    SELECT 
+        aa.employee_id,
+        ati.in_time AS horario
+    FROM att_attschedule aa
+    INNER JOIN att_attshift ash ON ash.id = aa.shift_id
+    INNER JOIN att_shiftdetail ashd ON ashd.shift_id = ash.id
+    INNER JOIN att_timeinterval ati ON ati.id = ashd.time_interval_id
+    WHERE ashd.day_index + 1 = CAST(TO_CHAR(?::date, \'D\') AS INT)
+),
+marcaciones AS (
+    SELECT
+        it.emp_code,
+        MIN(CAST(it.punch_time AS time)) AS ingreso,
+        CASE 
+            WHEN MIN(CAST(it.punch_time AS time)) = MAX(CAST(it.punch_time AS time))
+            THEN NULL
+            ELSE MAX(CAST(it.punch_time AS time))
+        END AS salida,
+        MIN(it.gps_location) AS gps_location,
+        MIN(it.imagen_url) AS imagen,
+        MIN(it.latitude) AS latitude,
+        MIN(it.longitude) AS longitude,
+        MIN(it.punch_time) AS punch_time,
+        MIN(it.punch_state) AS punch_state,
+        \'https://www.google.com/maps?q=\' || MIN(it.latitude) || \',\' || MIN(it.longitude) AS map_url
+    FROM iclock_transaction it
+    WHERE DATE(it.punch_time) = ?
+    GROUP BY it.emp_code
+)
 
-        SELECT 
-            m.gps_location AS "Ubicacion",
-            m.imagen AS "Imagen",
-            m.map_url,
-            pe.emp_code AS "DNI",
-            pe.last_name AS "Apellidos",
-            pe.first_name AS "Nombres",
-            pe.id as "Empleado_id",
-            pd.dept_name AS "Departamento",
-            pd.id as "Departamento_id",
-            pc.company_name AS "Empresa",
-            pc.id as "Empresa_id",
+SELECT 
+    m.gps_location AS "Ubicacion",
 
-            CASE 
-            WHEN pe.department_id IN (9,7,2,10,5) THEN TRUE
-            ELSE FALSE
-            END AS "Tecnico",
+    /* ========= IMAGEN (REAL O FALLBACK) ========= */
+    CASE
+    WHEN m.imagen IS NOT NULL THEN m.imagen
+    ELSE
+        \'http://172.19.0.15/files/upload/\' ||
+        TO_CHAR(m.punch_time, \'YYYYMM\') ||
+        \'/App/\' ||
+        TO_CHAR(m.punch_time, \'YYYYMMDDHH24MISS\') ||
+        \'-\' ||
+        pe.emp_code ||
+        \'.jpg\'
+END AS "Imagen",
 
-            h.horario AS "Horario",
-            m.ingreso AS "Ingreso",
-            m.salida AS "Salida",
 
-            -- TARDANZA
-            CASE 
-                WHEN m.ingreso IS NOT NULL 
-                     AND h.horario IS NOT NULL 
-                     AND m.ingreso > h.horario 
-                    THEN 1 
-                ELSE 0 
-            END AS "Tardanza",
+    m.map_url,
+    m.punch_time AS "Fecha_Hora_Marcacion",
+    m.punch_state AS "Tipo_Marcacion",
 
-            -- AUSENCIA
-            CASE 
-                WHEN m.ingreso IS NULL THEN 1 ELSE 0
-            END AS "Ausencia"
+    pe.emp_code AS "DNI",
+    pe.last_name AS "Apellidos",
+    pe.first_name AS "Nombres",
+    pe.id AS "Empleado_id",
 
-        FROM personnel_employee pe
-        INNER JOIN personnel_department pd ON pe.department_id = pd.id
-        INNER JOIN personnel_company pc ON pd.company_id = pc.id
+    pd.dept_name AS "Departamento",
+    pd.id AS "Departamento_id",
 
-        LEFT JOIN horarios h ON h.employee_id = pe.id
-        LEFT JOIN marcaciones m ON m.emp_code = pe.emp_code
+    pc.company_name AS "Empresa",
+    pc.id AS "Empresa_id",
 
-        WHERE pe.status = 0
-          AND pe.emp_code NOT IN (' . implode(',', array_fill(0, count($excluir), '?')) . ')
-          ' . $whereDept . '
-          ' . $whereUsuario . '
-           ' . $whereCompany . '
+    CASE 
+        WHEN pe.department_id IN (9,7,2,10,5) THEN TRUE
+        ELSE FALSE
+    END AS "Tecnico",
 
-        ORDER BY pc.company_name, pd.dept_name, pe.last_name, pe.first_name
-    ';
+    h.horario AS "Horario",
+    m.ingreso AS "Ingreso",
+    m.salida AS "Salida",
 
-    ds($fecha);
+    /* TARDANZA */
+    CASE 
+        WHEN m.ingreso IS NOT NULL 
+         AND h.horario IS NOT NULL 
+         AND m.ingreso > h.horario 
+        THEN 1 
+        ELSE 0 
+    END AS "Tardanza",
+
+    /* AUSENCIA */
+    CASE 
+        WHEN m.ingreso IS NULL THEN 1 
+        ELSE 0
+    END AS "Ausencia"
+
+FROM personnel_employee pe
+INNER JOIN personnel_department pd ON pe.department_id = pd.id
+INNER JOIN personnel_company pc ON pd.company_id = pc.id
+
+LEFT JOIN horarios h ON h.employee_id = pe.id
+LEFT JOIN marcaciones m ON m.emp_code = pe.emp_code
+
+WHERE pe.status = 0
+  AND pe.emp_code NOT IN (' . implode(',', array_fill(0, count($excluir), '?')) . ')
+  ' . $whereDept . '
+  ' . $whereUsuario . '
+  ' . $whereCompany . '
+
+ORDER BY 
+    pc.company_name,
+    pd.dept_name,
+    pe.last_name,
+    pe.first_name
+';
+
+
+        ds($fecha);
 
         $params = [
             $fecha, // horarios 
@@ -145,8 +172,8 @@ class ReporteAsistenciaController extends Controller
         }
 
         if (!empty($companyId)) {
-        $params = array_merge($params, $paramsCompany);
-    }
+            $params = array_merge($params, $paramsCompany);
+        }
 
         $data = DB::connection('pgsql_external')->select($sql, $params);
 
@@ -173,7 +200,7 @@ class ReporteAsistenciaController extends Controller
                 "ausencias"   => $ausencias,
                 "tardanzas"   => $tardanzas,
             ]
-        ]);
+        ], 200, [], JSON_UNESCAPED_SLASHES);
     }
 
 
