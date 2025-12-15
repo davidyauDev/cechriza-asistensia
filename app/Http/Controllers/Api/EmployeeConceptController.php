@@ -136,6 +136,7 @@ class EmployeeConceptController extends Controller
             $vac = $days->where('day_code', 'V')->count();
             $dm = $days->where('day_code', 'DM')->count();
             $nm = $days->where('day_code', 'NM')->count();
+            $as = $days->where('day_code', '1')->count();
 
             $mobilityDays = $days->where('mobility_eligible', true)->count();
 
@@ -159,7 +160,7 @@ class EmployeeConceptController extends Controller
                         'position_id' => $emp->position_id,
                     ],
                     'summary' => [
-                        'total_days' => $days->count(),
+                        'total_days' => $as,
                         'vacation_days' => $vac,
                         'medical_leave_days' => $dm,
                         'no_mark_days' => $nm,
