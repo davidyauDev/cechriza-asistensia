@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BioTimeController;
+use App\Http\Controllers\Api\BirthdayGreetingsHistoryController;
 use App\Http\Controllers\Api\EmployeeConceptController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\EventoController;
@@ -67,5 +68,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     //storeConcept
     Route::post('/employee-concepts', [EmployeeConceptController::class, 'storeConcept']);
     Route::post('daily-records/monthly-summary', [EmployeeConceptController::class, 'getMonthlySummary']);
+
+    Route::get('/birthday-greetings-history', [BirthdayGreetingsHistoryController::class, 'index']);
+    Route::post('/birthday-greetings-history/retry-failed', [BirthdayGreetingsHistoryController::class, 'retryFailedGreetings']);
 
 });
