@@ -17,7 +17,6 @@ class EventoController extends Controller
     public function __construct(
         private EventoServiceInterface $eventoService
     ) {
-        //
     }
 
     /**
