@@ -106,17 +106,31 @@ class EmployeeConceptController extends Controller
 
         // 1. Obtener empleados filtrados
         $employees = DB::connection('pgsql_external')
-            ->table('personnel_employee')
-            ->where('position_id', 7)
-            ->join('personnel_position', 'personnel_employee.position_id', '=', 'personnel_position.id')->select(
-                'personnel_employee.id',
-                'personnel_employee.emp_code',
-                'personnel_employee.first_name',
-                'personnel_employee.last_name',
-                'personnel_employee.position_id',
-                'personnel_position.position_name as position_name'
-            )
-            ->get();
+    ->table('personnel_employee')
+    ->join(
+        'personnel_position',
+        'personnel_employee.position_id',
+        '=',
+        'personnel_position.id'
+    )
+    ->join(
+        'personnel_department',
+        'personnel_employee.department_id',
+        '=',
+        'personnel_department.id'
+    )
+    ->where('personnel_employee.position_id', 7)
+    ->select(
+        'personnel_employee.id',
+        'personnel_employee.emp_code',
+        'personnel_employee.first_name',
+        'personnel_employee.last_name',
+        'personnel_employee.position_id',
+        'personnel_position.position_name as position_name',
+        'personnel_department.dept_name as department_name'
+    )
+    ->get();
+
 
         $records = DB::connection('pgsql_external')
             ->table('daily_records')
@@ -156,11 +170,11 @@ class EmployeeConceptController extends Controller
                     'employee' => [
                         'id' => $emp->id,
                         'dni' => $dni,
-                        // 'name' => trim($emp->first_name . ' ' . $emp->last_name),
                         'first_name' => $emp->first_name,
                         'last_name' => $emp->last_name,
                         'position_id' => $emp->position_id,
                         'position_name' => $emp->position_name,
+                        'department_name' => $emp->department_name,
                     ],
                     'summary' => [
                         'total_days' => $as,
