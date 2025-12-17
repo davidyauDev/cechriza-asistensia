@@ -15,29 +15,32 @@ class ReporteAsistenciaController extends Controller
 
     public function detalleMarcacion(Request $request)
     {
-        $fecha = $request->input('fecha', date('Y-m-d'));
+        $fechas = (array) $request->input('fechas', [date('Y-m-d')]);
+
         $excluir = $request->input('excluir', ['6638042', '7791208']);
-        $departmentId = $request->input('department_id');
-        $empleadoId = $request->input('empleado_id');
+        $departmentIds = (array) $request->input('departamento_ids', []);
+        $empleadoIds   = (array) $request->input('empleado_ids', []);
         $companyId = $request->input('company_id');
 
-        // WHERE dinámico por departamento
         $whereDept = "";
         $paramsDept = [];
-        if (!empty($departmentId)) {
-            $whereDept = " AND pe.department_id = ? ";
-            $paramsDept[] = $departmentId;
+
+        if (!empty($departmentIds)) {
+            $placeholders = implode(',', array_fill(0, count($departmentIds), '?'));
+            $whereDept = " AND pe.department_id IN ($placeholders) ";
+            $paramsDept = array_merge($paramsDept, $departmentIds);
         }
 
-        // WHERE dinámico por empleado ID
         $whereUsuario = "";
         $paramsUsuario = [];
-        if (!empty($empleadoId)) {
-            $whereUsuario = " AND pe.id = ? ";
-            $paramsUsuario[] = $empleadoId;
+
+        if (!empty($empleadoIds)) {
+            $placeholders = implode(',', array_fill(0, count($empleadoIds), '?'));
+            $whereUsuario = " AND pe.id IN ($placeholders) ";
+            $paramsUsuario = array_merge($paramsUsuario, $empleadoIds);
         }
 
-        // WHERE dinámico por empresa
+
         $whereCompany = "";
         $paramsCompany = [];
         if (!empty($companyId)) {
@@ -46,155 +49,156 @@ class ReporteAsistenciaController extends Controller
         }
 
         $sql = '
-WITH horarios AS (
-    SELECT 
-        aa.employee_id,
-        ati.in_time AS horario
-    FROM att_attschedule aa
-    INNER JOIN att_attshift ash ON ash.id = aa.shift_id
-    INNER JOIN att_shiftdetail ashd ON ashd.shift_id = ash.id
-    INNER JOIN att_timeinterval ati ON ati.id = ashd.time_interval_id
-    WHERE ashd.day_index + 1 = CAST(TO_CHAR(?::date, \'D\') AS INT)
-),
-marcaciones AS (
-    SELECT
-        it.emp_code,
-        MIN(CAST(it.punch_time AS time)) AS ingreso,
-        CASE 
-            WHEN MIN(CAST(it.punch_time AS time)) = MAX(CAST(it.punch_time AS time))
-            THEN NULL
-            ELSE MAX(CAST(it.punch_time AS time))
-        END AS salida,
-        MIN(it.gps_location) AS gps_location,
-        MIN(it.imagen_url) AS imagen,
-        MIN(it.latitude) AS latitude,
-        MIN(it.longitude) AS longitude,
-        MIN(it.punch_time) AS punch_time,
-        MIN(it.punch_state) AS punch_state,
-        \'https://www.google.com/maps?q=\' || MIN(it.latitude) || \',\' || MIN(it.longitude) AS map_url
-    FROM iclock_transaction it
-    WHERE DATE(it.punch_time) = ?
-    GROUP BY it.emp_code
-)
+                WITH horarios AS (
+                    SELECT 
+                        aa.employee_id,
+                        ati.in_time AS horario
+                    FROM att_attschedule aa
+                    INNER JOIN att_attshift ash ON ash.id = aa.shift_id
+                    INNER JOIN att_shiftdetail ashd ON ashd.shift_id = ash.id
+                    INNER JOIN att_timeinterval ati ON ati.id = ashd.time_interval_id
+                    WHERE ashd.day_index + 1 = CAST(TO_CHAR(?::date, \'D\') AS INT)
+                ),
+                marcaciones AS (
+                    SELECT
+                        it.emp_code,
+                        MIN(CAST(it.punch_time AS time)) AS ingreso,
+                        CASE 
+                            WHEN MIN(CAST(it.punch_time AS time)) = MAX(CAST(it.punch_time AS time))
+                            THEN NULL
+                            ELSE MAX(CAST(it.punch_time AS time))
+                        END AS salida,
+                        MIN(it.gps_location) AS gps_location,
+                        MIN(it.imagen_url) AS imagen,
+                        MIN(it.latitude) AS latitude,
+                        MIN(it.longitude) AS longitude,
+                        MIN(it.punch_time) AS punch_time,
+                        MIN(it.punch_state) AS punch_state,
+                        \'https://www.google.com/maps?q=\' || MIN(it.latitude) || \',\' || MIN(it.longitude) AS map_url
+                    FROM iclock_transaction it
+                    WHERE it.punch_time >= ?::date AND it.punch_time < (?::date + INTERVAL \'1 day\')
 
-SELECT 
-    m.gps_location AS "Ubicacion",
+                    GROUP BY it.emp_code
+                )
 
-    /* ========= IMAGEN (REAL O FALLBACK) ========= */
-    CASE
-    WHEN m.imagen IS NOT NULL THEN m.imagen
-    ELSE
-        \'http://172.19.0.15/files/upload/\' ||
-        TO_CHAR(m.punch_time, \'YYYYMM\') ||
-        \'/App/\' ||
-        TO_CHAR(m.punch_time, \'YYYYMMDDHH24MISS\') ||
-        \'-\' ||
-        pe.emp_code ||
-        \'.jpg\'
-END AS "Imagen",
+                SELECT 
+                    m.gps_location AS "Ubicacion",
 
-
-    m.map_url,
-    m.punch_time AS "Fecha_Hora_Marcacion",
-    m.punch_state AS "Tipo_Marcacion",
-
-    pe.emp_code AS "DNI",
-    pe.last_name AS "Apellidos",
-    pe.first_name AS "Nombres",
-    pe.id AS "Empleado_id",
-
-    pd.dept_name AS "Departamento",
-    pd.id AS "Departamento_id",
-
-    pc.company_name AS "Empresa",
-    pc.id AS "Empresa_id",
-
-    CASE 
-        WHEN pe.department_id IN (9,7,2,10,5) THEN TRUE
-        ELSE FALSE
-    END AS "Tecnico",
-
-    h.horario AS "Horario",
-    m.ingreso AS "Ingreso",
-    m.salida AS "Salida",
-
-    /* TARDANZA */
-    CASE 
-        WHEN m.ingreso IS NOT NULL 
-         AND h.horario IS NOT NULL 
-         AND m.ingreso > h.horario 
-        THEN 1 
-        ELSE 0 
-    END AS "Tardanza",
-
-    /* AUSENCIA */
-    CASE 
-        WHEN m.ingreso IS NULL THEN 1 
-        ELSE 0
-    END AS "Ausencia"
-
-FROM personnel_employee pe
-INNER JOIN personnel_department pd ON pe.department_id = pd.id
-INNER JOIN personnel_company pc ON pd.company_id = pc.id
-
-LEFT JOIN horarios h ON h.employee_id = pe.id
-LEFT JOIN marcaciones m ON m.emp_code = pe.emp_code
-
-WHERE pe.status = 0
-  AND pe.emp_code NOT IN (' . implode(',', array_fill(0, count($excluir), '?')) . ')
-  ' . $whereDept . '
-  ' . $whereUsuario . '
-  ' . $whereCompany . '
-
-ORDER BY 
-    pc.company_name,
-    pd.dept_name,
-    pe.last_name,
-    pe.first_name
-';
+                    /* ========= IMAGEN (REAL O FALLBACK) ========= */
+                    CASE
+                    WHEN m.imagen IS NOT NULL THEN m.imagen
+                    ELSE
+                        \'http://172.19.0.15/files/upload/\' ||
+                        TO_CHAR(m.punch_time, \'YYYYMM\') ||
+                        \'/App/\' ||
+                        TO_CHAR(m.punch_time, \'YYYYMMDDHH24MISS\') ||
+                        \'-\' ||
+                        pe.emp_code ||
+                        \'.jpg\'
+                END AS "Imagen",
 
 
-        ds($fecha);
+                    m.map_url,
+                    m.punch_time AS "Fecha_Hora_Marcacion",
+                    m.punch_state AS "Tipo_Marcacion",
 
-        $params = [
-            $fecha, // horarios 
-            $fecha, // marcaciones 
-        ];
+                    pe.emp_code AS "DNI",
+                    pe.last_name AS "Apellidos",
+                    pe.first_name AS "Nombres",
+                    pe.id AS "Empleado_id",
 
-        $params = array_merge($params, $excluir);
+                    pd.dept_name AS "Departamento",
+                    pd.id AS "Departamento_id",
 
-        if (!empty($departmentId)) {
-            $params = array_merge($params, $paramsDept);
-        }
+                    pc.company_name AS "Empresa",
+                    pc.id AS "Empresa_id",
 
-        if (!empty($empleadoId)) {
-            $params = array_merge($params, $paramsUsuario);
-        }
+                    CASE 
+                        WHEN pe.department_id IN (9,7,2,10,5) THEN TRUE
+                        ELSE FALSE
+                    END AS "Tecnico",
 
-        if (!empty($companyId)) {
-            $params = array_merge($params, $paramsCompany);
-        }
+                    h.horario AS "Horario",
+                    m.ingreso AS "Ingreso",
+                    m.salida AS "Salida",
 
-        $data = DB::connection('pgsql_external')->select($sql, $params);
+                    /* TARDANZA */
+                    CASE 
+                        WHEN m.ingreso IS NOT NULL 
+                        AND h.horario IS NOT NULL 
+                        AND m.ingreso > h.horario 
+                        THEN 1 
+                        ELSE 0 
+                    END AS "Tardanza",
 
+                    /* AUSENCIA */
+                    CASE 
+                        WHEN m.ingreso IS NULL THEN 1 
+                        ELSE 0
+                    END AS "Ausencia"
+
+                FROM personnel_employee pe
+                INNER JOIN personnel_department pd ON pe.department_id = pd.id
+                INNER JOIN personnel_company pc ON pd.company_id = pc.id
+
+                LEFT JOIN horarios h ON h.employee_id = pe.id
+                LEFT JOIN marcaciones m ON m.emp_code = pe.emp_code
+
+                WHERE pe.status = 0
+                AND pe.emp_code NOT IN (' . implode(',', array_fill(0, count($excluir), '?')) . ')
+                ' . $whereDept . '
+                ' . $whereUsuario . '
+                ' . $whereCompany . '
+
+                ORDER BY 
+                    pc.company_name,
+                    pd.dept_name,
+                    pe.last_name,
+                    pe.first_name
+                ';
+
+
+
+        $resultadoFinal = [];
         $asistencias = 0;
         $ausencias   = 0;
         $tardanzas   = 0;
 
-        foreach ($data as $row) {
-            if ($row->Ingreso !== null) {
-                $asistencias++;
-            }
-            if ($row->Ausencia == 1) {
-                $ausencias++;
-            }
-            if ($row->Tardanza == 1) {
-                $tardanzas++;
+        foreach ($fechas as $fecha) {
+
+           $params = [
+    $fecha, // horarios
+    $fecha, // punch_time >= fecha
+    $fecha, // punch_time < fecha + 1 day
+];
+$params = array_merge(
+    $params,
+    $excluir,
+    $paramsDept,
+    $paramsUsuario,
+    $paramsCompany
+);
+
+            $data = DB::connection('pgsql_external')->select($sql, $params);
+
+            foreach ($data as $row) {
+                $row->Fecha = $fecha;
+                $resultadoFinal[] = $row;
+
+                if ($row->Ingreso !== null) {
+                    $asistencias++;
+                }
+                if ($row->Ausencia == 1) {
+                    $ausencias++;
+                }
+                if ($row->Tardanza == 1) {
+                    $tardanzas++;
+                }
             }
         }
 
         return response()->json([
-            "data" => $data,
+            "data" => $resultadoFinal,
             "resumen" => [
                 "asistencias" => $asistencias,
                 "ausencias"   => $ausencias,
