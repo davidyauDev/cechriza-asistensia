@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\BirthdayGreetingsHistoryController;
 use App\Http\Controllers\Api\EmployeeConceptController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\EventoController;
+use App\Http\Controllers\Api\IncidenciaController;
 use App\Http\Controllers\Api\TechnicianController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\ReporteAsistenciaController;
@@ -71,5 +72,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     Route::get('/birthday-greetings-history', [BirthdayGreetingsHistoryController::class, 'index']);
     Route::post('/birthday-greetings-history/retry-failed', [BirthdayGreetingsHistoryController::class, 'retryFailedGreetings']);
+
+    Route::post('/incidencias', [IncidenciaController::class, 'store']);
+    Route::get('/incidencias', [IncidenciaController::class, 'index']);
 
 });
