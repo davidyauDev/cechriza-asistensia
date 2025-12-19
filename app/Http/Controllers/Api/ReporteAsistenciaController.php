@@ -12,6 +12,16 @@ use Maatwebsite\Excel\Facades\Excel;;
 
 class ReporteAsistenciaController extends Controller
 {
+    
+    public function detalleMaarcacionTecnico(Request $request)
+    {
+        $request->merge([
+            'departamento_ids' => [2,5,7,9,10],
+        ]);
+
+        return $this->detalleMarcacion($request);
+    }
+
 
     public function detalleMarcacion(Request $request)
     {
@@ -166,18 +176,18 @@ class ReporteAsistenciaController extends Controller
 
         foreach ($fechas as $fecha) {
 
-           $params = [
-    $fecha, // horarios
-    $fecha, // punch_time >= fecha
-    $fecha, // punch_time < fecha + 1 day
-];
-$params = array_merge(
-    $params,
-    $excluir,
-    $paramsDept,
-    $paramsUsuario,
-    $paramsCompany
-);
+            $params = [
+                $fecha, // horarios
+                $fecha, // punch_time >= fecha
+                $fecha, // punch_time < fecha + 1 day
+            ];
+            $params = array_merge(
+                $params,
+                $excluir,
+                $paramsDept,
+                $paramsUsuario,
+                $paramsCompany
+            );
 
             $data = DB::connection('pgsql_external')->select($sql, $params);
 
@@ -310,22 +320,10 @@ $params = array_merge(
 
     public function resumenAsistencia(Request $request)
     {
-        // $empresaIds = $request->input('empresa_ids', [2]);
-        // if (!is_array($empresaIds)) {
-        //     $empresaIds = [$empresaIds];
-        // }
-        // $empresaIdsStr = implode(',', $empresaIds);
-
         $departamentoIds = $request->input('departamento_ids', [8]);
         if (!is_array($departamentoIds)) {
             $departamentoIds = [$departamentoIds];
         }
-
-
-        ds($departamentoIds);
-
-
-
         $departamentoIdsStr = implode(',', $departamentoIds);
 
         $usuarios = $request->input('usuarios', []);
@@ -489,7 +487,6 @@ $params = array_merge(
         GROUP BY pe.id, pe.emp_code, pe.last_name, pe.first_name, pd.dept_name, pc.company_name
         ORDER BY pd.dept_name, pe.last_name;
         ";
-        // AND pc.id IN ({$empresaIdsStr})
 
         $result = DB::connection('pgsql_external')->select($sql);
 
