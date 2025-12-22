@@ -14,11 +14,20 @@ class IncidenciaController extends Controller
 
 public function index(Request $request)
 {
+    $request->validate([
+        'mes'  => 'required|integer|min:1|max:12',
+        'anio' => 'required|integer|min:2020|max:2030',
+    ]);
+
     $departments = [1, 6, 3, 16, 13, 8];
 
     $rows = DB::connection('pgsql_external')
         ->table('personnel_employee as e')
-        ->leftJoin('incidencias as i', 'i.usuario_id', '=', 'e.id')
+        ->leftJoin('incidencias as i', function ($join) use ($request) {
+            $join->on('i.usuario_id', '=', 'e.id')
+                 ->whereMonth('i.fecha', $request->mes)
+                 ->whereYear('i.fecha', $request->anio);
+        })
         ->whereIn('e.department_id', $departments)
         ->select(
             'e.id',
@@ -34,21 +43,21 @@ public function index(Request $request)
 
     $data = $rows->groupBy('id')->map(function ($items) {
         $user = $items->first();
-
         $dias = [];
 
         foreach ($items as $row) {
             if ($row->fecha && $row->minutos) {
-                // Formato: 5-Dic
+                $key = Carbon::parse($row->fecha)
+                    ->locale('es')
+                    ->translatedFormat('j-M');
+                
                 $key = preg_replace_callback(
-    '/-(\p{L}+)/u',
-    fn ($m) => '-' . ucfirst($m[1]),
-    str_replace('.', '', Carbon::parse($row->fecha)->translatedFormat('j-M'))
-);
+                    '/-(\p{L}+)/u',
+                    fn ($m) => '-' . ucfirst($m[1]),
+                    str_replace('.', '', $key)
+                );
 
-
-                // Minutos -> HH:MM
-                $horas = floor($row->minutos / 60);
+                $horas = intdiv($row->minutos, 60);
                 $mins  = $row->minutos % 60;
 
                 $dias[$key] = sprintf('%02d:%02d', $horas, $mins);
@@ -60,12 +69,13 @@ public function index(Request $request)
             'dni'       => $user->dni,
             'apellidos' => $user->apellidos,
             'nombre'    => $user->nombre,
-            'dias'      => (object) $dias // fuerza {} si está vacío
+            'dias'      => (object) $dias,
         ];
     })->values();
 
     return response()->json($data);
 }
+
 
 
 
