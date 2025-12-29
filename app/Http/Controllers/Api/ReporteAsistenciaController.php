@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Exports\DetalleAsistenciaExport;
+use App\Exports\DetalleMarcacionExport;
 use App\Exports\ResumenAsistenciaExport;
 use App\Http\Controllers\Controller;
 use Carbon\Carbon;
@@ -12,11 +13,11 @@ use Maatwebsite\Excel\Facades\Excel;;
 
 class ReporteAsistenciaController extends Controller
 {
-    
+
     public function detalleMaarcacionTecnico(Request $request)
     {
         $request->merge([
-            'departamento_ids' => [2,5,7,9,10],
+            'departamento_ids' => [2, 5, 7, 9, 10],
         ]);
 
         return $this->detalleMarcacion($request);
@@ -207,6 +208,13 @@ class ReporteAsistenciaController extends Controller
             }
         }
 
+        if ($request->input('export') === 'excel') {
+    return Excel::download(
+        new DetalleMarcacionExport($resultadoFinal),
+        'detalle_marcacion.xlsx'
+    );
+}
+
         return response()->json([
             "data" => $resultadoFinal,
             "resumen" => [
@@ -322,15 +330,15 @@ class ReporteAsistenciaController extends Controller
     {
         $departamentoIds = $request->input('departamento_ids');
 
-if (empty($departamentoIds)) {
-    $departamentoIds = [8]; // valor por defecto
-}
+        if (empty($departamentoIds)) {
+            $departamentoIds = [8];
+        }
 
-if (!is_array($departamentoIds)) {
-    $departamentoIds = [$departamentoIds];
-}
+        if (!is_array($departamentoIds)) {
+            $departamentoIds = [$departamentoIds];
+        }
 
-$departamentoIdsStr = implode(',', $departamentoIds);
+        $departamentoIdsStr = implode(',', $departamentoIds);
 
 
         $usuarios = $request->input('usuarios', []);
