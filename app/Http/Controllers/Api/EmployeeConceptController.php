@@ -91,7 +91,7 @@ class EmployeeConceptController extends Controller
         }
     }
 
-    public function getMonthlySummary(Request $request)
+    public function monthlyMobilityReport(Request $request)
     {
         $request->validate([
             'year' => 'required|integer',
@@ -104,32 +104,31 @@ class EmployeeConceptController extends Controller
         $startDate = Carbon::parse("$year-$month-01")->startOfMonth();
         $endDate = Carbon::parse("$year-$month-01")->endOfMonth();
 
-        // 1. Obtener empleados filtrados
         $employees = DB::connection('pgsql_external')
-    ->table('personnel_employee')
-    ->join(
-        'personnel_position',
-        'personnel_employee.position_id',
-        '=',
-        'personnel_position.id'
-    )
-    ->join(
-        'personnel_department',
-        'personnel_employee.department_id',
-        '=',
-        'personnel_department.id'
-    )
-    ->where('personnel_employee.position_id', 7)
-    ->select(
-        'personnel_employee.id',
-        'personnel_employee.emp_code',
-        'personnel_employee.first_name',
-        'personnel_employee.last_name',
-        'personnel_employee.position_id',
-        'personnel_position.position_name as position_name',
-        'personnel_department.dept_name as department_name'
-    )
-    ->get();
+            ->table('personnel_employee')
+            ->join(
+                'personnel_position',
+                'personnel_employee.position_id',
+                '=',
+                'personnel_position.id'
+            )
+            ->join(
+                'personnel_department',
+                'personnel_employee.department_id',
+                '=',
+                'personnel_department.id'
+            )
+            ->where('personnel_employee.position_id', 7)
+            ->select(
+                'personnel_employee.id',
+                'personnel_employee.emp_code',
+                'personnel_employee.first_name',
+                'personnel_employee.last_name',
+                'personnel_employee.position_id',
+                'personnel_position.position_name as position_name',
+                'personnel_department.dept_name as department_name'
+            )
+            ->get();
 
 
         $records = DB::connection('pgsql_external')

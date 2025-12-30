@@ -59,13 +59,11 @@ class IncidenciaController extends Controller
             ->orderBy('e.id')
             ->orderBy('i.fecha')
             ->get();
-
-
         $mapaTipos = [
             'DESCANSO_MEDICO'   => 'DM',
-            'FALTA_JUSTIFICADA' => 'FJ',
-            'PERMISO'           => 'P',
-            'SALIDA_TEMPRANA'   => 'ST',
+            'MINUTOS_JUSTIFICADOS' => 'MF',
+            'FALTA'           => 'F',
+            'TRABAJO_EN_CAMPO'   => 'TC',
         ];
 
         $data = $rows->groupBy('id')->map(function ($items) use ($brutos, $mapaTipos) {
