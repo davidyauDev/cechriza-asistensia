@@ -68,7 +68,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     
     //storeConcept
     Route::post('/employee-concepts', [EmployeeConceptController::class, 'storeConcept']);
-    Route::post('daily-records/monthly-summary', [EmployeeConceptController::class, 'getMonthlySummary']);
+    Route::post('/mobility/monthly-report', [EmployeeConceptController::class, 'monthlyMobilityReport']);
 
     Route::get('/birthday-greetings-history', [BirthdayGreetingsHistoryController::class, 'index']);
     Route::post('/birthday-greetings-history/retry-failed', [BirthdayGreetingsHistoryController::class, 'retryFailedGreetings']);
