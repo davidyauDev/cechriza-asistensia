@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\Log;
 
 class IncidenciaController extends Controller
 {
@@ -57,6 +56,7 @@ class IncidenciaController extends Controller
             ->select([
                 'e.id',
                 'e.emp_code as dni',
+                'e.email',
                 'e.last_name as apellidos',
                 'e.first_name as nombre',
                 'i.fecha',
@@ -132,6 +132,7 @@ class IncidenciaController extends Controller
                 'dni' => $user->dni,
                 'apellidos' => $user->apellidos,
                 'nombre' => $user->nombre,
+                'email' => $user->email,
 
                 // BRUTO
                 'bruto_minutos' => $minutosBruto,

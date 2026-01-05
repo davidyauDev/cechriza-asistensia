@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\EventoController;
 use App\Http\Controllers\Api\IncidenciaController;
 use App\Http\Controllers\Api\TechnicianController;
+use App\Http\Controllers\Api\TardanzaController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\ReporteAsistenciaController;
 
@@ -76,4 +77,5 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/incidencias', [IncidenciaController::class, 'store']);
     Route::get('/incidencias', [IncidenciaController::class, 'index']);
 
+    Route::post('/tardanzas/enviar-correo', [TardanzaController::class, 'enviarCorreoTardanza']);
 });
