@@ -6,12 +6,15 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
-
+use Illuminate\Support\Facades\Log;
 
 class IncidenciaController extends Controller
 {
     public function index(Request $request)
     {
+        /* =========================
+     *  VALIDACIÓN
+     * ========================= */
         $request->validate([
             'mes'  => 'required|integer|min:1|max:12',
             'anio' => 'required|integer|min:2020|max:2030',
@@ -19,7 +22,9 @@ class IncidenciaController extends Controller
 
         $departments = [1, 6, 3, 16, 13, 8];
 
-
+        /* =========================
+     *  MINUTOS BRUTOS (BD)
+     * ========================= */
         $brutos = DB::connection('pgsql_external')
             ->table('att_payloadbase')
             ->selectRaw("
@@ -35,9 +40,11 @@ class IncidenciaController extends Controller
             ->whereMonth('clock_in', $request->mes)
             ->whereYear('clock_in', $request->anio)
             ->groupBy('emp_id')
-            ->pluck('minutos_bruto', 'emp_id'); // [emp_id => minutos]
+            ->pluck('minutos_bruto', 'emp_id');
 
-
+        /* =========================
+     *  INCIDENCIAS + EMPLEADOS
+     * ========================= */
         $rows = DB::connection('pgsql_external')
             ->table('personnel_employee as e')
             ->leftJoin('incidencias as i', function ($join) use ($request) {
@@ -47,25 +54,33 @@ class IncidenciaController extends Controller
             })
             ->whereIn('e.department_id', $departments)
             ->where('e.status', 0)
-            ->select(
+            ->select([
                 'e.id',
                 'e.emp_code as dni',
                 'e.last_name as apellidos',
                 'e.first_name as nombre',
                 'i.fecha',
                 'i.minutos',
-                'i.tipo'
-            )
+                'i.tipo',
+                'i.motivo',
+            ])
             ->orderBy('e.id')
             ->orderBy('i.fecha')
             ->get();
+
+        /* =========================
+     *  MAPEO DE TIPOS
+     * ========================= */
         $mapaTipos = [
-            'DESCANSO_MEDICO'   => 'DM',
+            'DESCANSO_MEDICO'      => 'DM',
             'MINUTOS_JUSTIFICADOS' => 'MF',
-            'FALTA'           => 'F',
-            'TRABAJO_EN_CAMPO'   => 'TC',
+            'FALTA'               => 'F',
+            'TRABAJO_EN_CAMPO'    => 'TC',
         ];
 
+        /* =========================
+     *  PROCESAMIENTO FINAL
+     * ========================= */
         $data = $rows->groupBy('id')->map(function ($items) use ($brutos, $mapaTipos) {
 
             $user = $items->first();
@@ -78,7 +93,6 @@ class IncidenciaController extends Controller
                     continue;
                 }
 
-                //  Formato de fecha (ej: 17-Dic)
                 $key = Carbon::parse($row->fecha)
                     ->locale('es')
                     ->translatedFormat('j-M');
@@ -89,23 +103,26 @@ class IncidenciaController extends Controller
                     str_replace('.', '', $key)
                 );
 
-
                 if (!is_null($row->minutos)) {
 
                     $minutosIncidencias += $row->minutos;
 
-                    $dias[$key] = sprintf(
-                        '%02d:%02d',
-                        intdiv($row->minutos, 60),
-                        $row->minutos % 60
-                    );
-                }
-                elseif (!empty($row->tipo) && isset($mapaTipos[$row->tipo])) {
+                    $dias[$key] = [
+                        'valor'  => sprintf(
+                            '%02d:%02d',
+                            intdiv($row->minutos, 60),
+                            $row->minutos % 60
+                        ),
+                        'motivo' => $row->motivo,
+                    ];
+                } elseif (!empty($row->tipo) && isset($mapaTipos[$row->tipo])) {
 
-                    $dias[$key] = $mapaTipos[$row->tipo];
+                    $dias[$key] = [
+                        'valor'  => $mapaTipos[$row->tipo],
+                        'motivo' => $row->motivo,
+                    ];
                 }
             }
-
 
             $minutosBruto = (int) ($brutos[$user->id] ?? 0);
             $minutosNeto  = max(0, $minutosBruto - $minutosIncidencias);
@@ -116,48 +133,35 @@ class IncidenciaController extends Controller
                 'apellidos' => $user->apellidos,
                 'nombre' => $user->nombre,
 
-                //  BRUTO
+                // BRUTO
                 'bruto_minutos' => $minutosBruto,
-                'bruto_hhmm' => sprintf(
-                    '%02d:%02d',
-                    intdiv($minutosBruto, 60),
-                    $minutosBruto % 60
-                ),
+                'bruto_hhmm' => sprintf('%02d:%02d', intdiv($minutosBruto, 60), $minutosBruto % 60),
 
-                //  INCIDENCIAS (solo minutos)
+                // INCIDENCIAS
                 'incidencias_minutos' => $minutosIncidencias,
-                'incidencias_hhmm' => sprintf(
-                    '%02d:%02d',
-                    intdiv($minutosIncidencias, 60),
-                    $minutosIncidencias % 60
-                ),
+                'incidencias_hhmm' => sprintf('%02d:%02d', intdiv($minutosIncidencias, 60), $minutosIncidencias % 60),
 
-                //  NETO
+                // NETO
                 'neto_minutos' => $minutosNeto,
-                'neto_hhmm' => sprintf(
-                    '%02d:%02d',
-                    intdiv($minutosNeto, 60),
-                    $minutosNeto % 60
-                ),
+                'neto_hhmm' => sprintf('%02d:%02d', intdiv($minutosNeto, 60), $minutosNeto % 60),
 
-                //  CALENDARIO
+                // CALENDARIO
                 'dias' => (object) $dias,
             ];
         })->values();
 
         return response()->json($data);
     }
-
-
-
     public function store(Request $request)
     {
         $request->validate([
+            'creado_por' => 'required|integer',
             'usuario_id' => 'required|integer',
             'fecha'      => 'required|date',
             'tipo'       => 'required|string',
             'minutos'    => 'nullable|integer|min:1',
             'motivo'     => 'required|string|max:255',
+
         ]);
 
         $tiposSinMinutos = [
