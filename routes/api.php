@@ -11,11 +11,14 @@ use App\Http\Controllers\Api\IncidenciaController;
 use App\Http\Controllers\Api\TechnicianController;
 use App\Http\Controllers\Api\TardanzaController;
 use Illuminate\Support\Facades\Route;
+
 use App\Http\Controllers\Api\ReporteAsistenciaController;
+use App\Http\Controllers\Api\SeguimientoTecnicoController;
 
 
 Route::post('/login', [AuthController::class, 'login']);
 Route::middleware(['auth:sanctum'])->group(function () {
+    // Ruta para seguimiento técnico
     Route::post('/register', [UserController::class, 'store']);
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::prefix('users')->group(function () {
@@ -67,7 +70,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/biotime/empresas', [BioTimeController::class, 'empresas']);
     Route::post('/biotime/empleados-por-departamento', [BioTimeController::class, 'empleadosPorDepartamento']);
     
-    //storeConcept
     Route::post('/employee-concepts', [EmployeeConceptController::class, 'storeConcept']);
     Route::post('/mobility/monthly-report', [EmployeeConceptController::class, 'monthlyMobilityReport']);
 
@@ -78,4 +80,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/incidencias', [IncidenciaController::class, 'index']);
 
     Route::post('/tardanzas/enviar-correo', [TardanzaController::class, 'enviarCorreoTardanza']);
+    Route::get('/seguimiento-tecnico', [SeguimientoTecnicoController::class, 'index']);
+
 });

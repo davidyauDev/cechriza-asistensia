@@ -20,7 +20,7 @@ class TardanzaController extends Controller
         $fechaActual = Carbon::now()->format('Y-m-d');
         $horaActual = Carbon::now()->format('H:i');
 
-        Mail::to($data['email'])->send(
+        Mail::to($data['email'])->queue(
             new TardanzaNotificadaMail(
                 $data['nombre'],
                 $data['scheduled_time'], // ahora es minutos acumulados
