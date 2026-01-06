@@ -370,8 +370,24 @@ class ReporteAsistenciaController extends Controller
         $s3_inicio = (clone $s2_fin)->modify('+1 day');
         $s3_fin = (clone $s3_inicio)->modify('+6 days');
 
+
         $s4_inicio = (clone $s3_fin)->modify('+1 day');
-        $s4_fin = (clone $s4_inicio)->modify('+9 days');
+        // Calcular el mismo día del mes siguiente que la fecha de inicio
+        $fechaInicioDT = new \DateTime($fechaInicio);
+        $dia = (int)$fechaInicioDT->format('d');
+        $mes = (int)$fechaInicioDT->format('m');
+        $anio = (int)$fechaInicioDT->format('Y');
+        // Avanzar un mes
+        if ($mes === 12) {
+            $mes = 1;
+            $anio++;
+        } else {
+            $mes++;
+        }
+        // Intentar crear la fecha, si no existe (ej: 31 de febrero), usar último día del mes
+        $ultimoDiaMes = cal_days_in_month(CAL_GREGORIAN, $mes, $anio);
+        $diaFinal = min($dia, $ultimoDiaMes);
+        $s4_fin = \DateTime::createFromFormat('Y-m-d', sprintf('%04d-%02d-%02d', $anio, $mes, $diaFinal));
 
         $S1_IN = $s1_inicio->format('Y-m-d');
         $S1_END = $s1_fin->format('Y-m-d');
