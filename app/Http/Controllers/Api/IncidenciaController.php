@@ -156,6 +156,7 @@ class IncidenciaController extends Controller
     public function store(Request $request)
     {
         $request->validate([
+            'ID_Marcacion' => 'required',
             'creado_por' => 'required|integer',
             'usuario_id' => 'required|integer',
             'fecha'      => 'required|date',
@@ -184,6 +185,11 @@ class IncidenciaController extends Controller
                 'motivo'     => $request->motivo,
                 'created_at' => now(),
             ]);
+
+        DB::connection('pgsql_external')
+            ->table('iclock_transaction')
+            ->where('id', $request->ID_Marcacion)
+            ->update(['tiene_incidencia' => true]);
 
         return response()->json([
             'message' => 'Incidencia registrada correctamente'

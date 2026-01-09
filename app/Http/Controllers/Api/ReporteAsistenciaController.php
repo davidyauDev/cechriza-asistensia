@@ -72,8 +72,7 @@ class ReporteAsistenciaController extends Controller
                 ),
                 marcaciones AS (
                     SELECT
-                        it.emp_code,
-                        MIN(CAST(it.punch_time AS time)) AS ingreso,
+                        it.emp_code,                        MIN(it.id) AS id,                        MIN(CAST(it.punch_time AS time)) AS ingreso,
                         CASE 
                             WHEN MIN(CAST(it.punch_time AS time)) = MAX(CAST(it.punch_time AS time))
                             THEN NULL
@@ -85,6 +84,7 @@ class ReporteAsistenciaController extends Controller
                         MIN(it.longitude) AS longitude,
                         MIN(it.punch_time) AS punch_time,
                         MIN(it.punch_state) AS punch_state,
+                        BOOL_OR(it.tiene_incidencia) AS tiene_incidencia,
                         \'https://www.google.com/maps?q=\' || MIN(it.latitude) || \',\' || MIN(it.longitude) AS map_url
                     FROM iclock_transaction it
                     WHERE it.punch_time >= ?::date AND it.punch_time < (?::date + INTERVAL \'1 day\')
@@ -92,8 +92,7 @@ class ReporteAsistenciaController extends Controller
                     GROUP BY it.emp_code
                 )
 
-                SELECT 
-                    m.gps_location AS "Ubicacion",
+                SELECT                     m.id AS "ID_Marcacion",                    m.gps_location AS "Ubicacion",
 
                     /* ========= IMAGEN (REAL O FALLBACK) ========= */
                     CASE
@@ -108,10 +107,11 @@ class ReporteAsistenciaController extends Controller
                         \'.jpg\'
                 END AS "Imagen",
 
-
                     m.map_url,
+
                     m.punch_time AS "Fecha_Hora_Marcacion",
                     m.punch_state AS "Tipo_Marcacion",
+                    m.tiene_incidencia AS "Tiene_Incidencia",
 
                     pe.emp_code AS "DNI",
                     pe.last_name AS "Apellidos",
