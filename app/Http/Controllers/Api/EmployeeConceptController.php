@@ -13,7 +13,7 @@ class EmployeeConceptController extends Controller
     {
         $request->validate([
             'employee_id' => 'required|integer',
-            'emp_code' => 'required|string', // DNI
+            'emp_code' => 'required|string', 
             'concept_id' => 'required|integer',
             'start_date' => 'required|date',
             'end_date' => 'required|date|after_or_equal:start_date',
