@@ -137,6 +137,13 @@ class EmployeeConceptController extends Controller
             ->get()
             ->groupBy('emp_code');
 
+        // Obtener montos base de movilidad para el año actual
+        $mobilityBase = DB::connection('pgsql_external')
+            ->table('employee_mobility')
+            ->where('year', $year)
+            ->get()
+            ->keyBy('employee_id');
+
         $result = [];
 
         foreach ($employees as $emp) {
@@ -150,11 +157,15 @@ class EmployeeConceptController extends Controller
             $dm = $days->where('day_code', 'DM')->count();
             $nm = $days->where('day_code', 'NM')->count();
             $as = $days->where('day_code', '1')->count();
+            $sr = $days->where('day_code', 'SR')->count();
+
 
             $mobilityDays = $days->where('mobility_eligible', true)->count();
 
-            $mobilityAmount = 5;
-            $totalPay = $mobilityDays * $mobilityAmount;
+            // Obtener el monto base de movilidad del empleado
+            $employeeMobility = $mobilityBase->get($emp->id);
+            $mobilityAmount = $employeeMobility ? (float) $employeeMobility->amount : 5;
+            $totalPay = (($mobilityAmount/30) * ($as + $sr)) - 75;
 
             $dailyData = $days->mapWithKeys(function ($d) {
                 return [
@@ -176,12 +187,12 @@ class EmployeeConceptController extends Controller
                         'department_name' => $emp->department_name,
                     ],
                     'summary' => [
-                        'total_days' => $as,
+                        'total_days' => $as + $sr,
                         'vacation_days' => $vac,
                         'medical_leave_days' => $dm,
                         'no_mark_days' => $nm,
                         'days_with_mobility' => $mobilityDays,
-                        'mobility_amount_per_day' => $mobilityAmount,
+                        'mobility_amount' => $mobilityAmount,
                         'total_mobility_to_pay' => $totalPay,
                     ],
                 ],

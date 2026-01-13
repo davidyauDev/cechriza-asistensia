@@ -23,8 +23,7 @@ class ReporteAsistenciaController extends Controller
         return $this->detalleMarcacion($request);
     }
 
-
-    public function detalleMarcacion(Request $request)
+    public function detalleMarcacionSimple(Request $request)
     {
         $fechas = (array) $request->input('fechas', [date('Y-m-d')]);
 
@@ -72,43 +71,24 @@ class ReporteAsistenciaController extends Controller
                 ),
                 marcaciones AS (
                     SELECT
-                        it.emp_code,                        MIN(it.id) AS id,                        MIN(CAST(it.punch_time AS time)) AS ingreso,
+                        it.emp_code,
+                        MIN(it.id) AS id,
+                        MIN(CAST(it.punch_time AS time)) AS ingreso,
                         CASE 
                             WHEN MIN(CAST(it.punch_time AS time)) = MAX(CAST(it.punch_time AS time))
                             THEN NULL
                             ELSE MAX(CAST(it.punch_time AS time))
                         END AS salida,
-                        MIN(it.gps_location) AS gps_location,
-                        MIN(it.imagen_url) AS imagen,
-                        MIN(it.latitude) AS latitude,
-                        MIN(it.longitude) AS longitude,
                         MIN(it.punch_time) AS punch_time,
                         MIN(it.punch_state) AS punch_state,
-                        BOOL_OR(it.tiene_incidencia) AS tiene_incidencia,
-                        \'https://www.google.com/maps?q=\' || MIN(it.latitude) || \',\' || MIN(it.longitude) AS map_url
+                        BOOL_OR(it.tiene_incidencia) AS tiene_incidencia
                     FROM iclock_transaction it
                     WHERE it.punch_time >= ?::date AND it.punch_time < (?::date + INTERVAL \'1 day\')
-
                     GROUP BY it.emp_code
                 )
 
-                SELECT                     m.id AS "ID_Marcacion",                    m.gps_location AS "Ubicacion",
-
-                    /* ========= IMAGEN (REAL O FALLBACK) ========= */
-                    CASE
-                    WHEN m.imagen IS NOT NULL THEN m.imagen
-                    ELSE
-                        \'http://172.19.0.15/files/upload/\' ||
-                        TO_CHAR(m.punch_time, \'YYYYMM\') ||
-                        \'/App/\' ||
-                        TO_CHAR(m.punch_time, \'YYYYMMDDHH24MISS\') ||
-                        \'-\' ||
-                        pe.emp_code ||
-                        \'.jpg\'
-                END AS "Imagen",
-
-                    m.map_url,
-
+                SELECT 
+                    m.id AS "ID_Marcacion",
                     m.punch_time AS "Fecha_Hora_Marcacion",
                     m.punch_state AS "Tipo_Marcacion",
                     m.tiene_incidencia AS "Tiene_Incidencia",
@@ -168,8 +148,6 @@ class ReporteAsistenciaController extends Controller
                     pe.first_name
                 ';
 
-
-
         $resultadoFinal = [];
         $asistencias = 0;
         $ausencias   = 0;
@@ -209,17 +187,200 @@ class ReporteAsistenciaController extends Controller
         }
 
         if ($request->input('export') === 'excel') {
-    return Excel::download(
-        new DetalleMarcacionExport($resultadoFinal),
-        'detalle_marcacion.xlsx'
-    );
-}
+            return Excel::download(
+                new DetalleMarcacionExport($resultadoFinal),
+                'detalle_marcacion_simple.xlsx'
+            );
+        }
 
         return response()->json([
             "data" => $resultadoFinal,
             "resumen" => [
                 "asistencias" => $asistencias,
                 "ausencias"   => $ausencias,
+                "tardanzas"   => $tardanzas,
+            ]
+        ], 200, [], JSON_UNESCAPED_SLASHES);
+    }
+
+
+    public function detalleMarcacion(Request $request)
+    {
+        $fechas = (array) $request->input('fechas', [date('Y-m-d')]);
+
+        $excluir = $request->input('excluir', ['6638042', '7791208']);
+        $departmentIds = (array) $request->input('departamento_ids', []);
+        $empleadoIds   = (array) $request->input('empleado_ids', []);
+        $companyId = $request->input('company_id');
+
+        $whereDept = "";
+        $paramsDept = [];
+
+        if (!empty($departmentIds)) {
+            $placeholders = implode(',', array_fill(0, count($departmentIds), '?'));
+            $whereDept = " AND pe.department_id IN ($placeholders) ";
+            $paramsDept = array_merge($paramsDept, $departmentIds);
+        }
+
+        $whereUsuario = "";
+        $paramsUsuario = [];
+
+        if (!empty($empleadoIds)) {
+            $placeholders = implode(',', array_fill(0, count($empleadoIds), '?'));
+            $whereUsuario = " AND pe.id IN ($placeholders) ";
+            $paramsUsuario = array_merge($paramsUsuario, $empleadoIds);
+        }
+
+
+        $whereCompany = "";
+        $paramsCompany = [];
+        if (!empty($companyId)) {
+            $whereCompany = " AND pc.id = ? ";
+            $paramsCompany[] = $companyId;
+        }
+
+        $sql = '
+                WITH horarios AS (
+                    SELECT 
+                        aa.employee_id,
+                        ati.in_time AS horario
+                    FROM att_attschedule aa
+                    INNER JOIN att_attshift ash ON ash.id = aa.shift_id
+                    INNER JOIN att_shiftdetail ashd ON ashd.shift_id = ash.id
+                    INNER JOIN att_timeinterval ati ON ati.id = ashd.time_interval_id
+                    WHERE ashd.day_index + 1 = CAST(TO_CHAR(?::date, \'D\') AS INT)
+                ),
+                marcaciones AS (
+                    SELECT
+                        it.emp_code,
+                        it.id,
+                        CAST(it.punch_time AS time) AS hora_marcacion,
+                        it.gps_location,
+                        it.imagen_url AS imagen,
+                        it.latitude,
+                        it.longitude,
+                        it.punch_time,
+                        it.punch_state,
+                        it.tiene_incidencia,
+                        \'https://www.google.com/maps?q=\' || it.latitude || \',\' || it.longitude AS map_url
+                    FROM iclock_transaction it
+                    WHERE it.punch_time >= ?::date AND it.punch_time < (?::date + INTERVAL \'1 day\')
+                )
+
+                SELECT 
+                    m.id AS "ID_Marcacion",
+                    m.gps_location AS "Ubicacion",
+
+                    /* ========= IMAGEN (REAL O FALLBACK) ========= */
+                    CASE
+                    WHEN m.imagen IS NOT NULL THEN m.imagen
+                    ELSE
+                        \'http://172.19.0.15/files/upload/\' ||
+                        TO_CHAR(m.punch_time, \'YYYYMM\') ||
+                        \'/App/\' ||
+                        TO_CHAR(m.punch_time, \'YYYYMMDDHH24MISS\') ||
+                        \'-\' ||
+                        pe.emp_code ||
+                        \'.jpg\'
+                END AS "Imagen",
+
+                    m.map_url,
+
+                    m.punch_time AS "Fecha_Hora_Marcacion",
+                    m.hora_marcacion AS "Hora_Marcacion",
+                    m.punch_state AS "Tipo_Marcacion",
+                    m.tiene_incidencia AS "Tiene_Incidencia",
+
+                    pe.emp_code AS "DNI",
+                    pe.last_name AS "Apellidos",
+                    pe.first_name AS "Nombres",
+                    pe.id AS "Empleado_id",
+
+                    pd.dept_name AS "Departamento",
+                    pd.id AS "Departamento_id",
+
+                    pc.company_name AS "Empresa",
+                    pc.id AS "Empresa_id",
+
+                    CASE 
+                        WHEN pe.department_id IN (9,7,2,10,5) THEN TRUE
+                        ELSE FALSE
+                    END AS "Tecnico",
+
+                    h.horario AS "Horario",
+
+                    /* TARDANZA */
+                    CASE 
+                        WHEN m.hora_marcacion IS NOT NULL 
+                        AND h.horario IS NOT NULL 
+                        AND m.hora_marcacion > h.horario 
+                        AND m.punch_state = \'0\'
+                        THEN 1 
+                        ELSE 0 
+                    END AS "Tardanza"
+
+                FROM personnel_employee pe
+                INNER JOIN personnel_department pd ON pe.department_id = pd.id
+                INNER JOIN personnel_company pc ON pd.company_id = pc.id
+
+                LEFT JOIN horarios h ON h.employee_id = pe.id
+                INNER JOIN marcaciones m ON m.emp_code = pe.emp_code
+
+                WHERE pe.status = 0
+                AND pe.emp_code NOT IN (' . implode(',', array_fill(0, count($excluir), '?')) . ')
+                ' . $whereDept . '
+                ' . $whereUsuario . '
+                ' . $whereCompany . '
+
+                ORDER BY 
+                    pc.company_name,
+                    pd.dept_name,
+                    pe.last_name,
+                    pe.first_name,
+                    m.punch_time
+                ';
+
+        $resultadoFinal = [];
+        $tardanzas   = 0;
+
+        foreach ($fechas as $fecha) {
+
+            $params = [
+                $fecha, // horarios
+                $fecha, // punch_time >= fecha
+                $fecha, // punch_time < fecha + 1 day
+            ];
+            $params = array_merge(
+                $params,
+                $excluir,
+                $paramsDept,
+                $paramsUsuario,
+                $paramsCompany
+            );
+
+            $data = DB::connection('pgsql_external')->select($sql, $params);
+
+            foreach ($data as $row) {
+                $row->Fecha = $fecha;
+                $resultadoFinal[] = $row;
+
+                if ($row->Tardanza == 1) {
+                    $tardanzas++;
+                }
+            }
+        }
+
+        if ($request->input('export') === 'excel') {
+            return Excel::download(
+                new DetalleMarcacionExport($resultadoFinal),
+                'detalle_marcacion.xlsx'
+            );
+        }
+
+        return response()->json([
+            "data" => $resultadoFinal,
+            "resumen" => [
+                "total_marcaciones" => count($resultadoFinal),
                 "tardanzas"   => $tardanzas,
             ]
         ], 200, [], JSON_UNESCAPED_SLASHES);
