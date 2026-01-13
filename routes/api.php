@@ -63,6 +63,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     Route::post('/reporte-asistencia/detalle', [ReporteAsistenciaController::class, 'detalleAsist']);
     Route::post('/reporte-asistencia/marcacion', [ReporteAsistenciaController::class, 'detalleMarcacion']);
+    Route::post('/reporte-asistencia/marcacion-simple', [ReporteAsistenciaController::class, 'detalleMarcacionSimple']);
 
     Route::post('/reporte-asistencia/resumen', [ReporteAsistenciaController::class, 'resumenAsistencia']);
 
