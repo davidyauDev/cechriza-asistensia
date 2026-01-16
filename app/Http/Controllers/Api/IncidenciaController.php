@@ -3,27 +3,26 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Exports\IncidenciasExport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use Maatwebsite\Excel\Facades\Excel;
 
 class IncidenciaController extends Controller
 {
     public function index(Request $request)
     {
-        /* =========================
-     *  VALIDACIÓN
-     * ========================= */
+
         $request->validate([
             'mes'  => 'required|integer|min:1|max:12',
             'anio' => 'required|integer|min:2020|max:2030',
+            'descargar' => 'nullable|boolean',
         ]);
 
         $departments = [1, 6, 3, 16, 13, 8];
 
-        /* =========================
-     *  MINUTOS BRUTOS (BD)
-     * ========================= */
+
         $brutos = DB::connection('pgsql_external')
             ->table('att_payloadbase')
             ->selectRaw("
@@ -41,9 +40,7 @@ class IncidenciaController extends Controller
             ->groupBy('emp_id')
             ->pluck('minutos_bruto', 'emp_id');
 
-        /* =========================
-     *  INCIDENCIAS + EMPLEADOS
-     * ========================= */
+
         $rows = DB::connection('pgsql_external')
             ->table('personnel_employee as e')
             ->leftJoin('incidencias as i', function ($join) use ($request) {
@@ -68,9 +65,7 @@ class IncidenciaController extends Controller
             ->orderBy('i.fecha')
             ->get();
 
-        /* =========================
-     *  MAPEO DE TIPOS
-     * ========================= */
+
         $mapaTipos = [
             'DESCANSO_MEDICO'      => 'DM',
             'MINUTOS_JUSTIFICADOS' => 'MF',
@@ -78,9 +73,7 @@ class IncidenciaController extends Controller
             'TRABAJO_EN_CAMPO'    => 'TC',
         ];
 
-        /* =========================
-     *  PROCESAMIENTO FINAL
-     * ========================= */
+
         $data = $rows->groupBy('id')->map(function ($items) use ($brutos, $mapaTipos) {
 
             $user = $items->first();
@@ -134,22 +127,47 @@ class IncidenciaController extends Controller
                 'nombre' => $user->nombre,
                 'email' => $user->email,
 
-                // BRUTO
                 'bruto_minutos' => $minutosBruto,
                 'bruto_hhmm' => sprintf('%02d:%02d', intdiv($minutosBruto, 60), $minutosBruto % 60),
 
-                // INCIDENCIAS
                 'incidencias_minutos' => $minutosIncidencias,
                 'incidencias_hhmm' => sprintf('%02d:%02d', intdiv($minutosIncidencias, 60), $minutosIncidencias % 60),
 
-                // NETO
                 'neto_minutos' => $minutosNeto,
                 'neto_hhmm' => sprintf('%02d:%02d', intdiv($minutosNeto, 60), $minutosNeto % 60),
 
-                // CALENDARIO
                 'dias' => (object) $dias,
             ];
         })->values();
+
+        // Si se solicita descargar, generar archivo Excel
+        if ($request->descargar) {
+            // Obtener todos los días del mes para las columnas
+            $diasDelMes = [];
+            $ultimoDia = Carbon::create($request->anio, $request->mes, 1)->endOfMonth()->day;
+            
+            for ($dia = 1; $dia <= $ultimoDia; $dia++) {
+                $fecha = Carbon::create($request->anio, $request->mes, $dia);
+                $key = $fecha->locale('es')->translatedFormat('j-M');
+                $key = preg_replace_callback(
+                    '/-(\p{L}+)/u',
+                    fn($m) => '-' . ucfirst($m[1]),
+                    str_replace('.', '', $key)
+                );
+                $diasDelMes[] = $key;
+            }
+
+            $nombreMes = Carbon::create($request->anio, $request->mes, 1)
+                ->locale('es')
+                ->translatedFormat('F');
+            
+            $nombreArchivo = "Incidencias_{$nombreMes}_{$request->anio}.xlsx";
+
+            return Excel::download(
+                new IncidenciasExport($data->toArray(), $diasDelMes),
+                $nombreArchivo
+            );
+        }
 
         return response()->json($data);
     }
