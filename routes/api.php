@@ -78,7 +78,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/birthday-greetings-history/retry-failed', [BirthdayGreetingsHistoryController::class, 'retryFailedGreetings']);
 
     Route::post('/incidencias', [IncidenciaController::class, 'store']);
-    Route::get('/incidencias', [IncidenciaController::class, 'index']);
+    Route::post('/incidencias', [IncidenciaController::class, 'index']);
 
     Route::post('/tardanzas/enviar-correo', [TardanzaController::class, 'enviarCorreoTardanza']);
     Route::get('/seguimiento-tecnico', [SeguimientoTecnicoController::class, 'index']);
