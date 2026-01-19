@@ -128,6 +128,8 @@ class EmployeeConceptController extends Controller
                 'personnel_employee.first_name',
                 'personnel_employee.last_name',
                 'personnel_employee.position_id',
+                'personnel_employee.create_time',
+                'personnel_employee.city',
                 'personnel_position.position_name as position_name',
                 'personnel_department.dept_name as department_name'
             )
@@ -188,6 +190,8 @@ class EmployeeConceptController extends Controller
                         'position_id' => $emp->position_id,
                         'position_name' => $emp->position_name,
                         'department_name' => $emp->department_name,
+                        'create_time' => $emp->create_time ? Carbon::parse($emp->create_time)->format('Y-m-d') : null,
+                        'city' => $emp->city,
                     ],
                     'summary' => [
                         'total_days' => $as + $sr,
