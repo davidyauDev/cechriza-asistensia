@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Exports\MovilidadMensualExport;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Maatwebsite\Excel\Facades\Excel;
 
 class EmployeeConceptController extends Controller
 {
@@ -96,6 +98,7 @@ class EmployeeConceptController extends Controller
         $request->validate([
             'year' => 'required|integer',
             'month' => 'required|integer|min:1|max:12',
+            'descargar' => 'nullable|boolean',
         ]);
 
         $year = $request->year;
@@ -197,6 +200,35 @@ class EmployeeConceptController extends Controller
                     ],
                 ],
                 $dailyData
+            );
+        }
+
+        // Si se solicita descargar, generar archivo Excel
+        if ($request->descargar) {
+            // Obtener todos los días del mes para las columnas
+            $diasDelMes = [];
+            $ultimoDia = Carbon::create($year, $request->month, 1)->endOfMonth()->day;
+            
+            for ($dia = 1; $dia <= $ultimoDia; $dia++) {
+                $fecha = Carbon::create($year, $request->month, $dia);
+                $key = $fecha->locale('es')->translatedFormat('j-M');
+                $key = preg_replace_callback(
+                    '/-(\p{L}+)/u',
+                    fn($m) => '-' . ucfirst($m[1]),
+                    str_replace('.', '', $key)
+                );
+                $diasDelMes[] = $key;
+            }
+
+            $nombreMes = Carbon::create($year, $request->month, 1)
+                ->locale('es')
+                ->translatedFormat('F');
+            
+            $nombreArchivo = "Movilidad_{$nombreMes}_{$year}.xlsx";
+
+            return Excel::download(
+                new MovilidadMensualExport($result, $diasDelMes),
+                $nombreArchivo
             );
         }
 
