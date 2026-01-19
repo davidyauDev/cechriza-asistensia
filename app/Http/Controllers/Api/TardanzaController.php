@@ -14,7 +14,7 @@ class TardanzaController extends Controller
         $data = $request->validate([
             'email'           => 'required|email',
             'nombre'          => 'required|string',
-            'scheduled_time'  => 'required|nullable|min:1',
+            'scheduled_time'  => 'nullable|min:1',
         ]);
 
         $fechaActual = Carbon::now()->format('Y-m-d');
