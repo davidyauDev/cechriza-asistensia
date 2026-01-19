@@ -56,6 +56,7 @@ class IncidenciaController extends Controller
                 'e.email',
                 'e.last_name as apellidos',
                 'e.first_name as nombre',
+                'i.id as incidencia_id',
                 'i.fecha',
                 'i.minutos',
                 'i.tipo',
@@ -101,6 +102,7 @@ class IncidenciaController extends Controller
                     $minutosIncidencias += $row->minutos;
 
                     $dias[$key] = [
+                        'id'     => $row->incidencia_id,
                         'valor'  => sprintf(
                             '%02d:%02d',
                             intdiv($row->minutos, 60),
@@ -111,6 +113,7 @@ class IncidenciaController extends Controller
                 } elseif (!empty($row->tipo) && isset($mapaTipos[$row->tipo])) {
 
                     $dias[$key] = [
+                        'id'     => $row->incidencia_id,
                         'valor'  => $mapaTipos[$row->tipo],
                         'motivo' => $row->motivo,
                     ];
@@ -173,16 +176,74 @@ class IncidenciaController extends Controller
     }
     public function store(Request $request)
     {
+        try {
+            $request->validate([
+                'ID_Marcacion' => 'nullable',
+                'creado_por' => 'required|integer',
+                'usuario_id' => 'required|integer',
+                'fecha'      => 'required|date',
+                'tipo'       => 'required|string',
+                'minutos'    => 'nullable|integer|min:1',
+                'motivo'     => 'required|string|max:255',
+
+            ]);
+
+            $tiposSinMinutos = [
+                'DESCANSO_MEDICO',
+                'FALTA_JUSTIFICADA',
+            ];
+
+            $minutos = in_array($request->tipo, $tiposSinMinutos)
+                ? null
+                : $request->minutos;
+
+            DB::connection('pgsql_external')
+                ->table('incidencias')
+                ->insert([
+                    'usuario_id' => $request->usuario_id,
+                    'fecha'      => $request->fecha,
+                    'tipo'       => $request->tipo,
+                    'minutos'    => $minutos,
+                    'motivo'     => $request->motivo,
+                    'created_at' => now(),
+                ]);
+
+            DB::connection('pgsql_external')
+                ->table('iclock_transaction')
+                ->where('id', $request->ID_Marcacion)
+                ->update(['tiene_incidencia' => true]);
+
+            return response()->json([
+                'message' => 'Incidencia registrada correctamente'
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error al registrar la incidencia',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function update(Request $request, $id)
+    {
         $request->validate([
-            'ID_Marcacion' => 'required',
-            'creado_por' => 'required|integer',
-            'usuario_id' => 'required|integer',
-            'fecha'      => 'required|date',
-            'tipo'       => 'required|string',
+            'fecha'      => 'nullable|date',
+            'tipo'       => 'nullable|string',
             'minutos'    => 'nullable|integer|min:1',
             'motivo'     => 'required|string|max:255',
-
         ]);
+
+        // Verificar que la incidencia existe
+        $incidencia = DB::connection('pgsql_external')
+            ->table('incidencias')
+            ->where('id', $id)
+            ->first();
+
+        if (!$incidencia) {
+            return response()->json([
+                'message' => 'Incidencia no encontrada'
+            ], 404);
+        }
 
         $tiposSinMinutos = [
             'DESCANSO_MEDICO',
@@ -195,22 +256,42 @@ class IncidenciaController extends Controller
 
         DB::connection('pgsql_external')
             ->table('incidencias')
-            ->insert([
-                'usuario_id' => $request->usuario_id,
-                'fecha'      => $request->fecha,
-                'tipo'       => $request->tipo,
+            ->where('id', $id)
+            ->update([
+                //'fecha'      => $request->fecha,
+                //'tipo'       => $request->tipo,
                 'minutos'    => $minutos,
                 'motivo'     => $request->motivo,
-                'created_at' => now(),
+                'updated_at' => now(),
             ]);
 
+        return response()->json([
+            'message' => 'Incidencia actualizada correctamente'
+        ], 200);
+    }
+
+    public function destroy($id)
+    {
+        // Verificar que la incidencia existe
+        $incidencia = DB::connection('pgsql_external')
+            ->table('incidencias')
+            ->where('id', $id)
+            ->first();
+
+        if (!$incidencia) {
+            return response()->json([
+                'message' => 'Incidencia no encontrada'
+            ], 404);
+        }
+
+        // Eliminar la incidencia
         DB::connection('pgsql_external')
-            ->table('iclock_transaction')
-            ->where('id', $request->ID_Marcacion)
-            ->update(['tiene_incidencia' => true]);
+            ->table('incidencias')
+            ->where('id', $id)
+            ->delete();
 
         return response()->json([
-            'message' => 'Incidencia registrada correctamente'
-        ], 201);
+            'message' => 'Incidencia eliminada correctamente'
+        ], 200);
     }
 }
