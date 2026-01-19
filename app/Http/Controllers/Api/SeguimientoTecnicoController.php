@@ -33,14 +33,14 @@ class SeguimientoTecnicoController extends Controller
             ]);
 
             // Obtener marcaciones
-            $query = "
-                SELECT *
-                FROM iclock_transaction it
-                WHERE it.punch_time >= '{$fecha} 00:00:00-05'
-                  AND it.punch_time <  '{$fecha} 23:59:59-05'
-                  AND it.terminal_sn = 'App';
-            ";
-            $resultPgsql = DB::connection('pgsql_external')->select($query);
+            $resultPgsql = DB::connection('pgsql_external')
+                ->table('iclock_transaction')
+                ->whereRaw('punch_time >= ? AND punch_time < ?', [
+                    "{$fecha} 00:00:00-05",
+                    "{$fecha} 23:59:59-05"
+                ])
+                ->where('terminal_sn', 'App')
+                ->get();
 
             $iclockByEmpCode = [];
             foreach ($resultPgsql as $row) {
@@ -48,24 +48,24 @@ class SeguimientoTecnicoController extends Controller
             }
 
             // Obtener daily_records de la fecha
-            $queryDailyRecords = "
-                SELECT 
-                    id,
-                    date,
-                    employee_id,
-                    emp_code,
-                    concept_id,
-                    day_code,
-                    mobility_eligible,
-                    source,
-                    notes,
-                    processed,
-                    created_at,
-                    updated_at
-                FROM daily_records
-                WHERE date = '{$fecha}'
-            ";
-            $dailyRecordsResult = DB::connection('pgsql_external')->select($queryDailyRecords);
+            $dailyRecordsResult = DB::connection('pgsql_external')
+                ->table('daily_records')
+                ->select([
+                    'id',
+                    'date',
+                    'employee_id',
+                    'emp_code',
+                    'concept_id',
+                    'day_code',
+                    'mobility_eligible',
+                    'source',
+                    'notes',
+                    'processed',
+                    'created_at',
+                    'updated_at'
+                ])
+                ->where('date', $fecha)
+                ->get();
 
             $dailyRecordsByEmpCode = [];
             foreach ($dailyRecordsResult as $dr) {
@@ -85,37 +85,32 @@ class SeguimientoTecnicoController extends Controller
                 ];
             }
 
-            $placeholders = implode(',', array_fill(0, count($departamentos), '?'));
-            $whereUsuario = $dni ? "AND pe.emp_code = ?" : "";
-            $params = $departamentos;
-            if ($dni) {
-                $params[] = $dni;
-            }
-
-            $queryUsuarios = "
-                SELECT 
-                    pe.id,
-                    pe.emp_code AS dni,
-                    pe.first_name AS nombre,
-                    pe.last_name AS apellido,
-                    CONCAT(pe.first_name, ' ', pe.last_name) AS nombre_completo,
-                    pe.department_id,
-                    pd.dept_name AS departamento,
-                    pe.position_id,
-                    pp.position_name AS posicion,
-                    pe.email,
-                    pe.mobile,
-                    pe.status
-                FROM personnel_employee pe
-                INNER JOIN personnel_department pd ON pe.department_id = pd.id
-                LEFT JOIN personnel_position pp ON pe.position_id = pp.id
-                WHERE pe.status = 0
-                  AND pe.department_id IN ($placeholders)
-                  $whereUsuario
-                ORDER BY pe.last_name, pe.first_name
-            ";
-
-            $todosUsuarios = DB::connection('pgsql_external')->select($queryUsuarios, $params);
+            $todosUsuarios = DB::connection('pgsql_external')
+                ->table('personnel_employee as pe')
+                ->join('personnel_department as pd', 'pe.department_id', '=', 'pd.id')
+                ->leftJoin('personnel_position as pp', 'pe.position_id', '=', 'pp.id')
+                ->select([
+                    'pe.id',
+                    'pe.emp_code as dni',
+                    'pe.first_name as nombre',
+                    'pe.last_name as apellido',
+                    DB::raw("CONCAT(pe.first_name, ' ', pe.last_name) as nombre_completo"),
+                    'pe.department_id',
+                    'pd.dept_name as departamento',
+                    'pe.position_id',
+                    'pp.position_name as posicion',
+                    'pe.email',
+                    'pe.mobile',
+                    'pe.status'
+                ])
+                ->where('pe.status', 0)
+                ->whereIn('pe.department_id', $departamentos)
+                ->when($dni, function ($query) use ($dni) {
+                    return $query->where('pe.emp_code', $dni);
+                })
+                ->orderBy('pe.last_name')
+                ->orderBy('pe.first_name')
+                ->get();
 
             Log::info('Todos los usuarios del área obtenidos', [
                 'count' => count($todosUsuarios)
