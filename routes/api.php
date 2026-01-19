@@ -77,8 +77,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/birthday-greetings-history', [BirthdayGreetingsHistoryController::class, 'index']);
     Route::post('/birthday-greetings-history/retry-failed', [BirthdayGreetingsHistoryController::class, 'retryFailedGreetings']);
 
-    Route::post('/incidencias', [IncidenciaController::class, 'store']);
     Route::post('/incidencias', [IncidenciaController::class, 'index']);
+    Route::post('/incidencias/store', [IncidenciaController::class, 'store']);
+    Route::put('/incidencias/{id}', [IncidenciaController::class, 'update']);
+    Route::delete('/incidencias/{id}', [IncidenciaController::class, 'destroy']);
 
     Route::post('/tardanzas/enviar-correo', [TardanzaController::class, 'enviarCorreoTardanza']);
     Route::get('/seguimiento-tecnico', [SeguimientoTecnicoController::class, 'index']);
