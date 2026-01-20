@@ -136,7 +136,7 @@ class AttendanceServiceRepository implements AttendanceServiceRepositoryInterfac
 
         try {
             DB::connection('pgsql_external')->table('iclock_transaction')->insert([
-                'emp_code' => $data['emp_code'],
+                'emp_code' => ltrim($data['emp_code'], '0'),
                 'punch_time' => $punchTime,
                 'punch_state' => $data['type'] === 'check_in' ? 0 : 1,
                 'verify_type' => 101,
@@ -165,7 +165,7 @@ class AttendanceServiceRepository implements AttendanceServiceRepositoryInterfac
                         'date'        => $dayDate,
                     ],
                     [
-                        'emp_code'          => $data['emp_code'], // DNI
+                        'emp_code'          => ltrim($data['emp_code'], '0'), // DNI
                         'concept_id'        => 1,
                         'day_code'          => 1, // V, DM, NM, SR, 1...
                         'mobility_eligible' => true,
