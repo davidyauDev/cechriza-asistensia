@@ -6,7 +6,6 @@ use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\WithColumnWidths;
-use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithTitle;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
@@ -35,7 +34,6 @@ class IncidenciasExport implements FromArray, WithHeadings, WithStyles, WithColu
             'DNI',
             'Apellidos',
             'Nombre',
-            'Email',
             'Bruto (HH:MM)',
             'Incidencias (HH:MM)',
             'Neto (HH:MM)',
@@ -58,7 +56,6 @@ class IncidenciasExport implements FromArray, WithHeadings, WithStyles, WithColu
                 $item['dni'],
                 $item['apellidos'],
                 $item['nombre'],
-                $item['email'],
                 $item['bruto_hhmm'],
                 $item['incidencias_hhmm'],
                 $item['neto_hhmm'],
@@ -87,29 +84,28 @@ class IncidenciasExport implements FromArray, WithHeadings, WithStyles, WithColu
             'A' => 12,  // DNI
             'B' => 25,  // Apellidos
             'C' => 20,  // Nombre
-            'D' => 30,  // Email
-            'E' => 15,  // Bruto
-            'F' => 18,  // Incidencias
-            'G' => 15,  // Neto
+            'D' => 15,  // Bruto
+            'E' => 18,  // Incidencias
+            'F' => 15,  // Neto
         ];
     }
 
     public function styles(Worksheet $sheet)
     {
-        $totalColumns = 7 + count($this->diasDelMes);
+        $totalColumns = 6 + count($this->diasDelMes);
         $lastColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($totalColumns);
         $totalRows = count($this->data) + 1;
 
-        // Estilo de encabezado
+        // Encabezado: azul oscuro y blanco, bordes dorados
         $sheet->getStyle('A1:' . $lastColumn . '1')->applyFromArray([
             'font' => [
                 'bold' => true,
                 'color' => ['rgb' => 'FFFFFF'],
-                'size' => 11,
+                'size' => 12,
             ],
             'fill' => [
                 'fillType' => Fill::FILL_SOLID,
-                'startColor' => ['rgb' => '4472C4'],
+                'startColor' => ['rgb' => '1F4E78'],
             ],
             'alignment' => [
                 'horizontal' => Alignment::HORIZONTAL_CENTER,
@@ -118,7 +114,7 @@ class IncidenciasExport implements FromArray, WithHeadings, WithStyles, WithColu
             'borders' => [
                 'allBorders' => [
                     'borderStyle' => Border::BORDER_THIN,
-                    'color' => ['rgb' => '000000'],
+                    'color' => ['rgb' => 'FFD700'],
                 ],
             ],
         ]);
@@ -142,96 +138,84 @@ class IncidenciasExport implements FromArray, WithHeadings, WithStyles, WithColu
         // Centrar columnas de tiempo y días
         $sheet->getStyle('E2:' . $lastColumn . $totalRows)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
-        // Colorear columnas de totales
-        // Columna Bruto (E) - Azul claro
+        // Colorear columnas de totales con colores suaves y diferenciados
+        $sheet->getStyle('D2:D' . $totalRows)->applyFromArray([
+            'fill' => [
+                'fillType' => Fill::FILL_SOLID,
+                'startColor' => ['rgb' => 'B4C6E7'], // azul suave
+            ],
+        ]);
         $sheet->getStyle('E2:E' . $totalRows)->applyFromArray([
             'fill' => [
                 'fillType' => Fill::FILL_SOLID,
-                'startColor' => ['rgb' => 'D9E1F2'],
+                'startColor' => ['rgb' => 'FFD966'], // dorado suave
             ],
         ]);
-
-        // Columna Incidencias (F) - Naranja claro
         $sheet->getStyle('F2:F' . $totalRows)->applyFromArray([
             'fill' => [
                 'fillType' => Fill::FILL_SOLID,
-                'startColor' => ['rgb' => 'FFE699'],
+                'startColor' => ['rgb' => 'A9D08E'], // verde profesional
             ],
         ]);
 
-        // Columna Neto (G) - Verde claro
-        $sheet->getStyle('G2:G' . $totalRows)->applyFromArray([
-            'fill' => [
-                'fillType' => Fill::FILL_SOLID,
-                'startColor' => ['rgb' => 'C6E0B4'],
-            ],
-        ]);
-
-        // Pintar en rojo las celdas con más de 1 hora en columnas de tiempo
+        // Resaltar celdas con más de 1 hora en dorado profesional
         for ($row = 2; $row <= $totalRows; $row++) {
             $dataIndex = $row - 2;
             if (isset($this->data[$dataIndex])) {
-                // Verificar Bruto
                 if ($this->data[$dataIndex]['bruto_minutos'] >= 60) {
+                    $sheet->getStyle('D' . $row)->applyFromArray([
+                        'fill' => [
+                            'fillType' => Fill::FILL_SOLID,
+                            'startColor' => ['rgb' => 'FFC000'], // dorado fuerte
+                        ],
+                        'font' => [
+                            'bold' => true,
+                            'color' => ['rgb' => '002060'],
+                        ],
+                    ]);
+                }
+                if ($this->data[$dataIndex]['incidencias_minutos'] >= 60) {
                     $sheet->getStyle('E' . $row)->applyFromArray([
                         'fill' => [
                             'fillType' => Fill::FILL_SOLID,
-                            'startColor' => ['rgb' => 'FF6B6B'],
+                            'startColor' => ['rgb' => 'FFC000'],
                         ],
                         'font' => [
                             'bold' => true,
-                            'color' => ['rgb' => 'FFFFFF'],
+                            'color' => ['rgb' => '002060'],
                         ],
                     ]);
                 }
-                
-                // Verificar Incidencias
-                if ($this->data[$dataIndex]['incidencias_minutos'] >= 60) {
+                if ($this->data[$dataIndex]['neto_minutos'] >= 60) {
                     $sheet->getStyle('F' . $row)->applyFromArray([
                         'fill' => [
                             'fillType' => Fill::FILL_SOLID,
-                            'startColor' => ['rgb' => 'FF6B6B'],
+                            'startColor' => ['rgb' => 'FFC000'],
                         ],
                         'font' => [
                             'bold' => true,
-                            'color' => ['rgb' => 'FFFFFF'],
-                        ],
-                    ]);
-                }
-                
-                // Verificar Neto
-                if ($this->data[$dataIndex]['neto_minutos'] >= 60) {
-                    $sheet->getStyle('G' . $row)->applyFromArray([
-                        'fill' => [
-                            'fillType' => Fill::FILL_SOLID,
-                            'startColor' => ['rgb' => 'FF6B6B'],
-                        ],
-                        'font' => [
-                            'bold' => true,
-                            'color' => ['rgb' => 'FFFFFF'],
+                            'color' => ['rgb' => '002060'],
                         ],
                     ]);
                 }
             }
         }
 
-        // Alternar colores de filas (solo para columnas A-D y H en adelante)
+        // Alternar colores de filas con gris claro y azul claro para días
         for ($row = 2; $row <= $totalRows; $row++) {
             if ($row % 2 == 0) {
-                $sheet->getStyle('A' . $row . ':D' . $row)->applyFromArray([
+                $sheet->getStyle('A' . $row . ':C' . $row)->applyFromArray([
                     'fill' => [
                         'fillType' => Fill::FILL_SOLID,
                         'startColor' => ['rgb' => 'F2F2F2'],
                     ],
                 ]);
-                
-                // Columnas de días
-                if ($totalColumns > 7) {
-                    $firstDayColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(8);
+                if ($totalColumns > 6) {
+                    $firstDayColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(7);
                     $sheet->getStyle($firstDayColumn . $row . ':' . $lastColumn . $row)->applyFromArray([
                         'fill' => [
                             'fillType' => Fill::FILL_SOLID,
-                            'startColor' => ['rgb' => 'F2F2F2'],
+                            'startColor' => ['rgb' => 'B4C6E7'], // azul claro profesional
                         ],
                     ]);
                 }
