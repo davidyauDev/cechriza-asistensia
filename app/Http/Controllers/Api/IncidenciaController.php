@@ -46,6 +46,8 @@ class IncidenciaController extends Controller
         $brutos = $brutosQuery->groupBy('emp_id')->pluck('minutos_bruto', 'emp_id');
         $rowsQuery = DB::connection('pgsql_external')
             ->table('personnel_employee as e')
+            ->leftJoin('personnel_department as pd', 'e.department_id', '=', 'pd.id')
+            ->leftJoin('personnel_company as pc', 'pd.company_id', '=', 'pc.id')
             ->leftJoin('incidencias as i', function ($join) use ($request, $usarRango) {
                 $join->on('i.usuario_id', '=', 'e.id');
                 if ($usarRango) {
@@ -64,6 +66,7 @@ class IncidenciaController extends Controller
                 'e.email',
                 'e.last_name as apellidos',
                 'e.first_name as nombre',
+                'pc.company_name as empresa',
                 'i.id as incidencia_id',
                 'i.fecha',
                 'i.minutos',
@@ -132,6 +135,7 @@ class IncidenciaController extends Controller
                 'apellidos' => $user->apellidos,
                 'nombre' => $user->nombre,
                 'email' => $user->email,
+                'empresa' => $user->empresa,
                 'bruto_minutos' => $minutosBruto,
                 'bruto_hhmm' => sprintf('%02d:%02d', intdiv($minutosBruto, 60), $minutosBruto % 60),
                 'incidencias_minutos' => $minutosIncidencias,
