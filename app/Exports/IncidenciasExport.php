@@ -34,6 +34,7 @@ class IncidenciasExport implements FromArray, WithHeadings, WithStyles, WithColu
             'DNI',
             'Apellidos',
             'Nombre',
+            'Empresa',
             'Bruto (HH:MM)',
             'Incidencias (HH:MM)',
             'Neto (HH:MM)',
@@ -56,6 +57,7 @@ class IncidenciasExport implements FromArray, WithHeadings, WithStyles, WithColu
                 $item['dni'],
                 $item['apellidos'],
                 $item['nombre'],
+                $item['empresa'] ?? '',
                 $item['bruto_hhmm'],
                 $item['incidencias_hhmm'],
                 $item['neto_hhmm'],
@@ -84,15 +86,16 @@ class IncidenciasExport implements FromArray, WithHeadings, WithStyles, WithColu
             'A' => 12,  // DNI
             'B' => 25,  // Apellidos
             'C' => 20,  // Nombre
-            'D' => 15,  // Bruto
-            'E' => 18,  // Incidencias
-            'F' => 15,  // Neto
+            'D' => 30,  // Empresa
+            'E' => 15,  // Bruto
+            'F' => 18,  // Incidencias
+            'G' => 15,  // Neto
         ];
     }
 
     public function styles(Worksheet $sheet)
     {
-        $totalColumns = 6 + count($this->diasDelMes);
+        $totalColumns = 7 + count($this->diasDelMes);
         $lastColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($totalColumns);
         $totalRows = count($this->data) + 1;
 
@@ -139,19 +142,19 @@ class IncidenciasExport implements FromArray, WithHeadings, WithStyles, WithColu
         $sheet->getStyle('E2:' . $lastColumn . $totalRows)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
         // Colorear columnas de totales con colores suaves y diferenciados
-        $sheet->getStyle('D2:D' . $totalRows)->applyFromArray([
+        $sheet->getStyle('E2:E' . $totalRows)->applyFromArray([
             'fill' => [
                 'fillType' => Fill::FILL_SOLID,
                 'startColor' => ['rgb' => 'B4C6E7'], // azul suave
             ],
         ]);
-        $sheet->getStyle('E2:E' . $totalRows)->applyFromArray([
+        $sheet->getStyle('F2:F' . $totalRows)->applyFromArray([
             'fill' => [
                 'fillType' => Fill::FILL_SOLID,
                 'startColor' => ['rgb' => 'FFD966'], // dorado suave
             ],
         ]);
-        $sheet->getStyle('F2:F' . $totalRows)->applyFromArray([
+        $sheet->getStyle('G2:G' . $totalRows)->applyFromArray([
             'fill' => [
                 'fillType' => Fill::FILL_SOLID,
                 'startColor' => ['rgb' => 'A9D08E'], // verde profesional
@@ -163,7 +166,7 @@ class IncidenciasExport implements FromArray, WithHeadings, WithStyles, WithColu
             $dataIndex = $row - 2;
             if (isset($this->data[$dataIndex])) {
                 if ($this->data[$dataIndex]['bruto_minutos'] >= 60) {
-                    $sheet->getStyle('D' . $row)->applyFromArray([
+                    $sheet->getStyle('E' . $row)->applyFromArray([
                         'fill' => [
                             'fillType' => Fill::FILL_SOLID,
                             'startColor' => ['rgb' => 'FFC000'], // dorado fuerte
@@ -175,7 +178,7 @@ class IncidenciasExport implements FromArray, WithHeadings, WithStyles, WithColu
                     ]);
                 }
                 if ($this->data[$dataIndex]['incidencias_minutos'] >= 60) {
-                    $sheet->getStyle('E' . $row)->applyFromArray([
+                    $sheet->getStyle('F' . $row)->applyFromArray([
                         'fill' => [
                             'fillType' => Fill::FILL_SOLID,
                             'startColor' => ['rgb' => 'FFC000'],
@@ -187,7 +190,7 @@ class IncidenciasExport implements FromArray, WithHeadings, WithStyles, WithColu
                     ]);
                 }
                 if ($this->data[$dataIndex]['neto_minutos'] >= 60) {
-                    $sheet->getStyle('F' . $row)->applyFromArray([
+                    $sheet->getStyle('G' . $row)->applyFromArray([
                         'fill' => [
                             'fillType' => Fill::FILL_SOLID,
                             'startColor' => ['rgb' => 'FFC000'],
@@ -204,14 +207,14 @@ class IncidenciasExport implements FromArray, WithHeadings, WithStyles, WithColu
         // Alternar colores de filas con gris claro y azul claro para días
         for ($row = 2; $row <= $totalRows; $row++) {
             if ($row % 2 == 0) {
-                $sheet->getStyle('A' . $row . ':C' . $row)->applyFromArray([
+                $sheet->getStyle('A' . $row . ':D' . $row)->applyFromArray([
                     'fill' => [
                         'fillType' => Fill::FILL_SOLID,
                         'startColor' => ['rgb' => 'F2F2F2'],
                     ],
                 ]);
-                if ($totalColumns > 6) {
-                    $firstDayColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(7);
+                if ($totalColumns > 7) {
+                    $firstDayColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(8);
                     $sheet->getStyle($firstDayColumn . $row . ':' . $lastColumn . $row)->applyFromArray([
                         'fill' => [
                             'fillType' => Fill::FILL_SOLID,
