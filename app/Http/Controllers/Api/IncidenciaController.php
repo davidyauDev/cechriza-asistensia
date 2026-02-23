@@ -22,7 +22,7 @@ class IncidenciaController extends Controller
             'descargar' => 'nullable|boolean',
         ]);
         $usarRango = $request->filled('fecha_desde') && $request->filled('fecha_hasta');
-        $departments = [1, 6, 3, 16, 13, 8];
+        $departments = [1, 6, 3,11 , 12 , 14, 15 , 16, 13, 8];
         $brutosQuery = DB::connection('pgsql_external')
             ->table('att_payloadbase')
             ->selectRaw("
