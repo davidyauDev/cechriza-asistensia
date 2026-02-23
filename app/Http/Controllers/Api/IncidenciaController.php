@@ -13,7 +13,6 @@ class IncidenciaController extends Controller
 {
     public function index(Request $request)
     {
-        \Log::info('IncidenciaController@index request', $request->all());
         $request->validate([
             'mes'  => 'nullable|integer|min:1|max:12',
             'anio' => 'nullable|integer|min:2020|max:2030',
@@ -66,6 +65,7 @@ class IncidenciaController extends Controller
                 'e.email',
                 'e.last_name as apellidos',
                 'e.first_name as nombre',
+                'pd.dept_name as departamento',
                 'pc.company_name as empresa',
                 'i.id as incidencia_id',
                 'i.fecha',
@@ -135,6 +135,7 @@ class IncidenciaController extends Controller
                 'apellidos' => $user->apellidos,
                 'nombre' => $user->nombre,
                 'email' => $user->email,
+                'departamento' => $user->departamento,
                 'empresa' => $user->empresa,
                 'bruto_minutos' => $minutosBruto,
                 'bruto_hhmm' => sprintf('%02d:%02d', intdiv($minutosBruto, 60), $minutosBruto % 60),
