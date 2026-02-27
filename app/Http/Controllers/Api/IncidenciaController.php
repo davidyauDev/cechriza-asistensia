@@ -57,6 +57,7 @@ class IncidenciaController extends Controller
                         ->whereYear('i.fecha', $request->anio);
                 }
             })
+            ->leftJoin('personnel_employee as creador', 'i.creado_por', '=', 'creador.id')
             ->whereIn('e.department_id', $departments)
             ->where('e.status', 0)
             ->select([
@@ -72,6 +73,9 @@ class IncidenciaController extends Controller
                 'i.minutos',
                 'i.tipo',
                 'i.motivo',
+                'i.created_at',
+                'creador.first_name as creador_nombre',
+                'creador.last_name as creador_apellido',
             ])
             ->orderBy('e.id')
             ->orderBy('i.fecha');
@@ -116,12 +120,16 @@ class IncidenciaController extends Controller
                         'id'     => $row->incidencia_id,
                         'valor'  => sprintf('%02d:%02d', intdiv($row->minutos, 60), $row->minutos % 60),
                         'motivo' => $row->motivo,
+                        'created_at' => $row->created_at,
+                        'creado_por' => trim(($row->creador_nombre ?? '') . ' ' . ($row->creador_apellido ?? '')),
                     ];
                 } elseif (!empty($row->tipo) && isset($mapaTipos[$row->tipo])) {
                     $dias[$key] = [
                         'id'     => $row->incidencia_id,
                         'valor'  => $mapaTipos[$row->tipo],
                         'motivo' => $row->motivo,
+                        'created_at' => $row->created_at,
+                        'creado_por' => trim(($row->creador_nombre ?? '') . ' ' . ($row->creador_apellido ?? '')),
                     ];
                 }
             }
@@ -215,6 +223,7 @@ class IncidenciaController extends Controller
                 ->table('incidencias')
                 ->insert([
                     'usuario_id' => $request->usuario_id,
+                    'creado_por' => $request->creado_por,
                     'fecha'      => $request->fecha,
                     'tipo'       => $request->tipo,
                     'minutos'    => $minutos,
