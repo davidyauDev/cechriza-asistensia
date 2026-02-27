@@ -77,6 +77,10 @@ class IncidenciaController extends Controller
                 'creador.first_name as creador_nombre',
                 'creador.last_name as creador_apellido',
             ])
+            ->orderByRaw("CASE pc.company_name WHEN 'Cechriza SAC' THEN 0 WHEN 'Ydieza SAC' THEN 1 ELSE 2 END")
+            ->orderBy('pd.dept_name')
+            ->orderBy('e.last_name')
+            ->orderBy('e.first_name')
             ->orderBy('e.id')
             ->orderBy('i.fecha');
 
