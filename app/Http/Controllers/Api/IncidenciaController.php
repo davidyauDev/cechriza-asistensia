@@ -157,6 +157,7 @@ class IncidenciaController extends Controller
 
         if ($request->descargar) {
             $diasDelMes = [];
+            $domingos = [];
             if ($usarRango) {
                 $fechaInicio = Carbon::parse($request->fecha_desde);
                 $fechaFin = Carbon::parse($request->fecha_hasta);
@@ -168,6 +169,9 @@ class IncidenciaController extends Controller
                         str_replace('.', '', $key)
                     );
                     $diasDelMes[] = $key;
+                    if ($fecha->isSunday()) {
+                        $domingos[] = $key;
+                    }
                 }
                 $nombreArchivo = "Incidencias_{$fechaInicio->format('d-m-Y')}_a_{$fechaFin->format('d-m-Y')}.xlsx";
             } else {
@@ -181,6 +185,9 @@ class IncidenciaController extends Controller
                         str_replace('.', '', $key)
                     );
                     $diasDelMes[] = $key;
+                    if ($fecha->isSunday()) {
+                        $domingos[] = $key;
+                    }
                 }
                 $nombreMes = Carbon::create($request->anio, $request->mes, 1)
                     ->locale('es')
@@ -189,7 +196,7 @@ class IncidenciaController extends Controller
             }
 
             return Excel::download(
-                new IncidenciasExport($data->toArray(), $diasDelMes),
+                new IncidenciasExport($data->toArray(), $diasDelMes, $domingos),
                 $nombreArchivo
             );
         }
