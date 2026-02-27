@@ -122,6 +122,7 @@ class EmployeeConceptController extends Controller
                 'personnel_department.id'
             )
             ->where('personnel_employee.position_id', 7)
+            ->where('personnel_employee.status', '!=', 100)
             ->select(
                 'personnel_employee.id',
                 'personnel_employee.emp_code',
