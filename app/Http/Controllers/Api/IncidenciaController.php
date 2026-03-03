@@ -49,6 +49,7 @@ class IncidenciaController extends Controller
             ->leftJoin('personnel_company as pc', 'pd.company_id', '=', 'pc.id')
             ->leftJoin('incidencias as i', function ($join) use ($request, $usarRango) {
                 $join->on('i.usuario_id', '=', 'e.id');
+                $join->where('i.es_recordatorio', false);
                 if ($usarRango) {
                     $join->whereDate('i.fecha', '>=', $request->fecha_desde)
                         ->whereDate('i.fecha', '<=', $request->fecha_hasta);
@@ -73,6 +74,7 @@ class IncidenciaController extends Controller
                 'i.minutos',
                 'i.tipo',
                 'i.motivo',
+                'i.es_recordatorio',
                 'i.created_at',
                 'creador.first_name as creador_nombre',
                 'creador.last_name as creador_apellido',
@@ -124,6 +126,7 @@ class IncidenciaController extends Controller
                         'id'     => $row->incidencia_id,
                         'valor'  => sprintf('%02d:%02d', intdiv($row->minutos, 60), $row->minutos % 60),
                         'motivo' => $row->motivo,
+                        'es_recordatorio' => (bool) $row->es_recordatorio,
                         'created_at' => $row->created_at,
                         'creado_por' => trim(($row->creador_nombre ?? '') . ' ' . ($row->creador_apellido ?? '')),
                     ];
@@ -132,6 +135,7 @@ class IncidenciaController extends Controller
                         'id'     => $row->incidencia_id,
                         'valor'  => $mapaTipos[$row->tipo],
                         'motivo' => $row->motivo,
+                        'es_recordatorio' => (bool) $row->es_recordatorio,
                         'created_at' => $row->created_at,
                         'creado_por' => trim(($row->creador_nombre ?? '') . ' ' . ($row->creador_apellido ?? '')),
                     ];
@@ -216,8 +220,9 @@ class IncidenciaController extends Controller
                 'usuario_id' => 'required|integer',
                 'fecha'      => 'required|date',
                 'tipo'       => 'required|string',
-                'minutos'    => 'nullable|integer|min:1',
+                'minutos'    => 'nullable|integer',
                 'motivo'     => 'required|string|max:255',
+                'es_recordatorio' => 'nullable|boolean',
 
             ]);
 
@@ -230,6 +235,8 @@ class IncidenciaController extends Controller
                 ? null
                 : $request->minutos;
 
+            $esRecordatorio = (bool) $request->input('es_recordatorio', false);
+
             DB::connection('pgsql_external')
                 ->table('incidencias')
                 ->insert([
@@ -239,13 +246,16 @@ class IncidenciaController extends Controller
                     'tipo'       => $request->tipo,
                     'minutos'    => $minutos,
                     'motivo'     => $request->motivo,
+                    'es_recordatorio' => $esRecordatorio,
                     'created_at' => now(),
                 ]);
 
-            DB::connection('pgsql_external')
-                ->table('iclock_transaction')
-                ->where('id', $request->ID_Marcacion)
-                ->update(['tiene_incidencia' => true]);
+            if (!$esRecordatorio && !is_null($request->ID_Marcacion)) {
+                DB::connection('pgsql_external')
+                    ->table('iclock_transaction')
+                    ->where('id', $request->ID_Marcacion)
+                    ->update(['tiene_incidencia' => true]);
+            }
 
             return response()->json([
                 'message' => 'Incidencia registrada correctamente'
