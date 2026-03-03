@@ -85,6 +85,15 @@ class ReporteAsistenciaController extends Controller
                     FROM iclock_transaction it
                     WHERE it.punch_time >= ?::date AND it.punch_time < (?::date + INTERVAL \'1 day\')
                     GROUP BY it.emp_code
+                ),
+                recordatorios AS (
+                    SELECT
+                        i.usuario_id,
+                        BOOL_OR(i.es_recordatorio) AS es_recordatorio
+                    FROM incidencias i
+                    WHERE i.es_recordatorio = true
+                      AND i.fecha = ?::date
+                    GROUP BY i.usuario_id
                 )
 
                 SELECT 
@@ -92,6 +101,7 @@ class ReporteAsistenciaController extends Controller
                     m.punch_time AS "Fecha_Hora_Marcacion",
                     m.punch_state AS "Tipo_Marcacion",
                     m.tiene_incidencia AS "Tiene_Incidencia",
+                    COALESCE(r.es_recordatorio, false) AS "Es_Recordatorio",
 
                     pe.emp_code AS "DNI",
                     pe.last_name AS "Apellidos",
@@ -134,6 +144,7 @@ class ReporteAsistenciaController extends Controller
 
                 LEFT JOIN horarios h ON h.employee_id = pe.id
                 LEFT JOIN marcaciones m ON m.emp_code = pe.emp_code
+                LEFT JOIN recordatorios r ON r.usuario_id = pe.id
 
                 WHERE pe.status = 0
                 AND pe.emp_code NOT IN (' . implode(',', array_fill(0, count($excluir), '?')) . ')
@@ -159,6 +170,7 @@ class ReporteAsistenciaController extends Controller
                 $fecha, // horarios
                 $fecha, // punch_time >= fecha
                 $fecha, // punch_time < fecha + 1 day
+                $fecha, // recordatorios
             ];
             $params = array_merge(
                 $params,
