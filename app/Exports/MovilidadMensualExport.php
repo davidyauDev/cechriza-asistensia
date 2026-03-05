@@ -120,6 +120,7 @@ class MovilidadMensualExport implements FromArray, WithHeadings, WithStyles, Wit
         $totalColumns = 14 + count($this->diasDelMes);
         $lastColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($totalColumns);
         $totalRows = count($this->data) + 1;
+        $firstDayColumnIndex = 15; // despues de N (14 columnas fijas)
 
         // Estilo de encabezado
         $sheet->getStyle("A1:{$lastColumn}1")->applyFromArray([
@@ -143,13 +144,14 @@ class MovilidadMensualExport implements FromArray, WithHeadings, WithStyles, Wit
                 ],
             ],
         ]);
+        $sheet->getRowDimension(1)->setRowHeight(22);
 
-        // Bordes para todas las celdas
+        // Bordes para todas las celdas (negro para cuadrícula marcada)
         $sheet->getStyle("A1:{$lastColumn}{$totalRows}")->applyFromArray([
             'borders' => [
                 'allBorders' => [
                     'borderStyle' => Border::BORDER_THIN,
-                    'color' => ['rgb' => 'CCCCCC'],
+                    'color' => ['rgb' => '000000'],
                 ],
             ],
         ]);
@@ -168,6 +170,59 @@ class MovilidadMensualExport implements FromArray, WithHeadings, WithStyles, Wit
                 'horizontal' => Alignment::HORIZONTAL_LEFT,
             ],
         ]);
+
+        // Filas con rayas (zebra)
+        for ($row = 2; $row <= $totalRows; $row++) {
+            if ($row % 2 == 0) {
+                $sheet->getStyle("A{$row}:{$lastColumn}{$row}")->applyFromArray([
+                    'fill' => [
+                        'fillType' => Fill::FILL_SOLID,
+                        'startColor' => ['rgb' => 'DDEBF7'],
+                    ],
+                ]);
+            }
+        }
+
+        // Resaltar detalle por dia segun codigo (V, DM, NM, SR, etc.)
+        $dayValueStyles = [
+            'V'  => ['fill' => 'F8CBAD', 'font' => '9C0006'], // Vacaciones
+            'DM' => ['fill' => 'F8CBAD', 'font' => '9C0006'], // Descanso medico
+            'MF' => ['fill' => 'BDD7EE', 'font' => '1F4E79'], // Minutos justificados
+            'F'  => ['fill' => 'F4B084', 'font' => '7F3F00'], // Falta
+            'TC' => ['fill' => 'C6E0B4', 'font' => '215E1B'], // Trabajo en campo
+            'SR' => ['fill' => 'D9D9D9', 'font' => '404040'], // Sin registro
+            'NM' => ['fill' => 'FFE699', 'font' => '7F6000'], // No marcado
+        ];
+
+        for ($row = 2; $row <= $totalRows; $row++) {
+            $dataIndex = $row - 2;
+            if (!isset($this->data[$dataIndex])) {
+                continue;
+            }
+            $item = $this->data[$dataIndex];
+            foreach ($this->diasDelMes as $index => $dia) {
+                if (!isset($item[$dia]['code'])) {
+                    continue;
+                }
+                $valor = strtoupper(trim((string) $item[$dia]['code']));
+                if (!isset($dayValueStyles[$valor])) {
+                    continue;
+                }
+                $colIndex = $firstDayColumnIndex + $index;
+                $columnLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIndex);
+                $style = $dayValueStyles[$valor];
+                $sheet->getStyle($columnLetter . $row)->applyFromArray([
+                    'fill' => [
+                        'fillType' => Fill::FILL_SOLID,
+                        'startColor' => ['rgb' => $style['fill']],
+                    ],
+                    'font' => [
+                        'color' => ['rgb' => $style['font']],
+                        'bold' => true,
+                    ],
+                ]);
+            }
+        }
 
         return $sheet;
     }

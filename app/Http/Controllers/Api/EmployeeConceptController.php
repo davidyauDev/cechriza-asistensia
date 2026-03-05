@@ -172,8 +172,15 @@ class EmployeeConceptController extends Controller
             $totalPay = (($mobilityAmount/30) * ($as + $sr)) - 75;
 
             $dailyData = $days->mapWithKeys(function ($d) {
+                $fecha = Carbon::parse($d->date);
+                $key = $fecha->locale('es')->translatedFormat('j-M');
+                $key = preg_replace_callback(
+                    '/-(\p{L}+)/u',
+                    fn($m) => '-' . ucfirst($m[1]),
+                    str_replace('.', '', $key)
+                );
                 return [
-                    $d->date => [
+                    $key => [
                         'code' => $d->day_code,
                         'mobility_counted' => (bool) $d->mobility_eligible,
                     ]
