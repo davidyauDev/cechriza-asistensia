@@ -96,16 +96,14 @@ class EmployeeConceptController extends Controller
     public function monthlyMobilityReport(Request $request)
     {
         $request->validate([
-            'year' => 'required|integer',
-            'month' => 'required|integer|min:1|max:12',
+            'start_date' => 'required|date',
+            'end_date' => 'required|date|after_or_equal:start_date',
             'descargar' => 'nullable|boolean',
         ]);
 
-        $year = $request->year;
-        $month = str_pad($request->month, 2, '0', STR_PAD_LEFT);
-
-        $startDate = Carbon::parse("$year-$month-01")->startOfMonth();
-        $endDate = Carbon::parse("$year-$month-01")->endOfMonth();
+        $startDate = Carbon::parse($request->start_date)->startOfDay();
+        $endDate = Carbon::parse($request->end_date)->endOfDay();
+        $year = $startDate->year;
 
         $employees = DB::connection('pgsql_external')
             ->table('personnel_employee')
@@ -210,29 +208,23 @@ class EmployeeConceptController extends Controller
 
         // Si se solicita descargar, generar archivo Excel
         if ($request->descargar) {
-            // Obtener todos los días del mes para las columnas
-            $diasDelMes = [];
-            $ultimoDia = Carbon::create($year, $request->month, 1)->endOfMonth()->day;
-            
-            for ($dia = 1; $dia <= $ultimoDia; $dia++) {
-                $fecha = Carbon::create($year, $request->month, $dia);
+            // Obtener todos los dias del rango para las columnas
+            $diasDelRango = [];
+
+            for ($fecha = $startDate->copy()->startOfDay(); $fecha->lte($endDate); $fecha->addDay()) {
                 $key = $fecha->locale('es')->translatedFormat('j-M');
                 $key = preg_replace_callback(
                     '/-(\p{L}+)/u',
                     fn($m) => '-' . ucfirst($m[1]),
                     str_replace('.', '', $key)
                 );
-                $diasDelMes[] = $key;
+                $diasDelRango[] = $key;
             }
 
-            $nombreMes = Carbon::create($year, $request->month, 1)
-                ->locale('es')
-                ->translatedFormat('F');
-            
-            $nombreArchivo = "Movilidad_{$nombreMes}_{$year}.xlsx";
+            $nombreArchivo = 'Movilidad_' . $startDate->format('Y-m-d') . '_a_' . $endDate->format('Y-m-d') . '.xlsx';
 
             return Excel::download(
-                new MovilidadMensualExport($result, $diasDelMes),
+                new MovilidadMensualExport($result, $diasDelRango),
                 $nombreArchivo
             );
         }
@@ -240,3 +232,4 @@ class EmployeeConceptController extends Controller
         return response()->json($result);
     }
 }
+
