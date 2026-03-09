@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;;
 
 class ReporteAsistenciaController extends Controller
@@ -25,6 +26,12 @@ class ReporteAsistenciaController extends Controller
 
     public function detalleMarcacionSimple(Request $request)
     {
+        Log::info('Request recibido en detalleMarcacionSimple', [
+            'fechas' => $request->input('fechas'),
+            'departamento_ids' => $request->input('departamento_ids'),
+            'empleado_ids' => $request->input('empleado_ids'),
+            'company_id' => $request->input('company_id'),
+        ]);
         $fechas = (array) $request->input('fechas', [date('Y-m-d')]);
 
         $excluir = $request->input('excluir', ['6638042', '7791208']);

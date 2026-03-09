@@ -7,6 +7,7 @@ use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\WithColumnWidths;
 use Maatwebsite\Excel\Concerns\WithTitle;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
@@ -16,6 +17,27 @@ class MovilidadMensualExport implements FromArray, WithHeadings, WithStyles, Wit
 {
     protected $data;
     protected $diasDelMes;
+
+    private const FIXED_EMPLOYEE_HEADERS = [
+        'DNI',
+        'Apellidos',
+        'Nombres',
+        'Cargo',
+        'Departamento',
+        'Ciudad',
+        'Fecha Ingreso',
+    ];
+
+    private const SUMMARY_HEADERS = [
+        'TOTAL',
+        'VACACION',
+        'NO MARCADO',
+        'DM',
+        'LCGH',
+        'LSGH',
+        'Vac >23',
+        'MONTO APROX A DEPOSTAR',
+    ];
 
     public function __construct($data, $diasDelMes)
     {
@@ -30,29 +52,11 @@ class MovilidadMensualExport implements FromArray, WithHeadings, WithStyles, Wit
 
     public function headings(): array
     {
-        $headers = [
-            'DNI',
-            'Apellidos',
-            'Nombres',
-            'Cargo',
-            'Departamento',
-            'Ciudad',
-            'Fecha Ingreso',
-            'Total Días',
-            'Días Vacación',
-            'Días DM',
-            'Días NM',
-            'Días con Movilidad',
-            'Monto Movilidad',
-            'Total a Pagar',
-        ];
-
-        // Agregar columnas para cada día del mes
-        foreach ($this->diasDelMes as $dia) {
-            $headers[] = $dia;
-        }
-
-        return $headers;
+        return array_merge(
+            self::FIXED_EMPLOYEE_HEADERS,
+            $this->diasDelMes,
+            self::SUMMARY_HEADERS
+        );
     }
 
     public function array(): array
@@ -71,23 +75,39 @@ class MovilidadMensualExport implements FromArray, WithHeadings, WithStyles, Wit
                 $emp['department_name'],
                 $emp['city'] ?? '',
                 $emp['create_time'] ?? '',
-                $summary['total_days'],
-                $summary['vacation_days'],
-                $summary['medical_leave_days'],
-                $summary['no_mark_days'],
-                $summary['days_with_mobility'],
-                number_format($summary['mobility_amount'], 2),
-                number_format($summary['total_mobility_to_pay'], 2),
+            ];
+
+            $summaryCodeCounts = [
+                'LCGH' => 0,
+                'LSGH' => 0,
             ];
 
             // Agregar valores para cada día
             foreach ($this->diasDelMes as $dia) {
                 if (isset($item[$dia])) {
-                    $row[] = $item[$dia]['code'];
+                    $code = $item[$dia]['code'];
+                    $row[] = $code;
+
+                    $normalized = strtoupper(trim((string) $code));
+                    if (isset($summaryCodeCounts[$normalized])) {
+                        $summaryCodeCounts[$normalized]++;
+                    }
                 } else {
                     $row[] = '';
                 }
             }
+
+            $vacationDays = (int) ($summary['vacation_days'] ?? 0);
+            $vacOver23 = max(0, $vacationDays - 23);
+
+            $row[] = (int) ($summary['total_days'] ?? 0);
+            $row[] = $vacationDays;
+            $row[] = (int) ($summary['no_mark_days'] ?? 0);
+            $row[] = (int) ($summary['medical_leave_days'] ?? 0);
+            $row[] = $summaryCodeCounts['LCGH'];
+            $row[] = $summaryCodeCounts['LSGH'];
+            $row[] = $vacOver23;
+            $row[] = number_format((float) ($summary['total_mobility_to_pay'] ?? 0), 2);
 
             $rows[] = $row;
         }
@@ -97,7 +117,7 @@ class MovilidadMensualExport implements FromArray, WithHeadings, WithStyles, Wit
 
     public function columnWidths(): array
     {
-        return [
+        $widths = [
             'A' => 12,  // DNI
             'B' => 25,  // Apellidos
             'C' => 20,  // Nombres
@@ -105,22 +125,30 @@ class MovilidadMensualExport implements FromArray, WithHeadings, WithStyles, Wit
             'E' => 25,  // Departamento
             'F' => 15,  // Ciudad
             'G' => 15,  // Fecha Ingreso
-            'H' => 12,  // Total Días
-            'I' => 12,  // Días Vacación
-            'J' => 12,  // Días DM
-            'K' => 12,  // Días NM
-            'L' => 15,  // Días con Movilidad
-            'M' => 15,  // Monto Movilidad
-            'N' => 15,  // Total a Pagar
         ];
+
+        $firstDayColumnIndex = count(self::FIXED_EMPLOYEE_HEADERS) + 1; // A=1
+        foreach ($this->diasDelMes as $index => $_dia) {
+            $columnLetter = Coordinate::stringFromColumnIndex($firstDayColumnIndex + $index);
+            $widths[$columnLetter] = 6;
+        }
+
+        $firstSummaryColumnIndex = $firstDayColumnIndex + count($this->diasDelMes);
+        $summaryWidths = [10, 10, 12, 8, 8, 8, 10, 18];
+        foreach (self::SUMMARY_HEADERS as $index => $_header) {
+            $columnLetter = Coordinate::stringFromColumnIndex($firstSummaryColumnIndex + $index);
+            $widths[$columnLetter] = $summaryWidths[$index] ?? 12;
+        }
+
+        return $widths;
     }
 
     public function styles(Worksheet $sheet)
     {
-        $totalColumns = 14 + count($this->diasDelMes);
-        $lastColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($totalColumns);
+        $totalColumns = count(self::FIXED_EMPLOYEE_HEADERS) + count($this->diasDelMes) + count(self::SUMMARY_HEADERS);
+        $lastColumn = Coordinate::stringFromColumnIndex($totalColumns);
         $totalRows = count($this->data) + 1;
-        $firstDayColumnIndex = 15; // despues de N (14 columnas fijas)
+        $firstDayColumnIndex = count(self::FIXED_EMPLOYEE_HEADERS) + 1;
 
         // Estilo de encabezado
         $sheet->getStyle("A1:{$lastColumn}1")->applyFromArray([
@@ -145,6 +173,21 @@ class MovilidadMensualExport implements FromArray, WithHeadings, WithStyles, Wit
             ],
         ]);
         $sheet->getRowDimension(1)->setRowHeight(22);
+
+        // Resaltar encabezados finales (Vac >23 y Monto aprox) como en el ejemplo
+        $firstSummaryColumnIndex = $firstDayColumnIndex + count($this->diasDelMes);
+        $vacOver23HeaderCol = Coordinate::stringFromColumnIndex($firstSummaryColumnIndex + 6);
+        $montoHeaderCol = Coordinate::stringFromColumnIndex($firstSummaryColumnIndex + 7);
+        $sheet->getStyle("{$vacOver23HeaderCol}1:{$montoHeaderCol}1")->applyFromArray([
+            'font' => [
+                'bold' => true,
+                'color' => ['rgb' => '000000'],
+            ],
+            'fill' => [
+                'fillType' => Fill::FILL_SOLID,
+                'startColor' => ['rgb' => 'FFD966'],
+            ],
+        ]);
 
         // Bordes para todas las celdas (negro para cuadrícula marcada)
         $sheet->getStyle("A1:{$lastColumn}{$totalRows}")->applyFromArray([
@@ -209,7 +252,7 @@ class MovilidadMensualExport implements FromArray, WithHeadings, WithStyles, Wit
                     continue;
                 }
                 $colIndex = $firstDayColumnIndex + $index;
-                $columnLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIndex);
+                $columnLetter = Coordinate::stringFromColumnIndex($colIndex);
                 $style = $dayValueStyles[$valor];
                 $sheet->getStyle($columnLetter . $row)->applyFromArray([
                     'fill' => [
@@ -223,6 +266,20 @@ class MovilidadMensualExport implements FromArray, WithHeadings, WithStyles, Wit
                 ]);
             }
         }
+
+        // Pintar en verde la columna TOTAL (resumen)
+        $totalHeaderCol = Coordinate::stringFromColumnIndex($firstSummaryColumnIndex);
+        $sheet->getStyle("{$totalHeaderCol}1:{$totalHeaderCol}{$totalRows}")->applyFromArray([
+            'fill' => [
+                'fillType' => Fill::FILL_SOLID,
+                'startColor' => ['rgb' => 'C6EFCE'],
+            ],
+        ]);
+        $sheet->getStyle("{$totalHeaderCol}1")->applyFromArray([
+            'font' => [
+                'color' => ['rgb' => '000000'],
+            ],
+        ]);
 
         return $sheet;
     }
