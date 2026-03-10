@@ -119,7 +119,7 @@ class EmployeeConceptController extends Controller
                 '=',
                 'personnel_department.id'
             )
-            ->whereIn('personnel_employee.position_id', [7, 36 , 29 , 37 ,30])
+            ->whereIn('personnel_employee.position_id', [7, 36 , 29 , 37 ,30 , 32])
             ->where('personnel_employee.status', '!=', 100)
             ->select(
                 'personnel_employee.id',
