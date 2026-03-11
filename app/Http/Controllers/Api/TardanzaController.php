@@ -1,7 +1,10 @@
 <?php
+
 namespace App\Http\Controllers\Api;
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Controller;
 use App\Mail\TardanzaNotificadaMail;
 use Carbon\Carbon;
@@ -38,31 +41,92 @@ class TardanzaController extends Controller
         $fechaInicio = $startDate->format('Y-m-d');
         $fechaFin = $endDate->format('Y-m-d');
 
-        Mail::to($data['email'])->queue(
-            new TardanzaNotificadaMail(
-                $data['nombre'],
-                $minutosTardanza,
-                null,
-                null,
-                null,
-                $fechaInicio,
-                $fechaFin
-                ,
-                $data['nro'] ?? null,
-                $data['dni'] ?? null,
-                $data['apellidos'] ?? null,
-                $data['departamento'] ?? null,
-                $data['empresa'] ?? null
-            )
+        $empresa = trim((string) ($data['empresa'] ?? ''));
+        $empresaNormalizada = strtolower($empresa);
+        $empresaNormalizada = preg_replace('/\s+/', ' ', $empresaNormalizada);
+
+        $mailer = 'smtp';
+        $fromAddress = config('mail.from.address');
+        $fromName = config('mail.from.name');
+
+        $contieneCechriza = !empty($empresaNormalizada) && str_contains($empresaNormalizada, 'cechriza');
+        $contieneYdieza = !empty($empresaNormalizada) && str_contains($empresaNormalizada, 'ydieza');
+
+        $empresaEsCechriza = $empresaNormalizada === 'cechriza sac';
+        $empresaEsYdieza = $empresaNormalizada === 'ydieza sac';
+
+        if ($empresaEsYdieza || ($contieneYdieza && !$contieneCechriza)) {
+            $mailer = 'smtp_alt';
+            $fromAddress = config('mail.from_alt.address')
+                ?: config('mail.mailers.smtp_alt.username')
+                ?: $fromAddress;
+            $fromName = config('mail.from_alt.name') ?: $fromName;
+        }
+
+        if ($contieneCechriza && $contieneYdieza && !($empresaEsCechriza || $empresaEsYdieza)) {
+            Log::warning('tardanza.mailer_empresa_ambigua', [
+                'empresa_raw' => $empresa,
+                'empresa_norm' => $empresaNormalizada,
+            ]);
+        }
+
+        Log::info('tardanza.mailer_seleccionado', [
+            'empresa_raw' => $empresa ?: null,
+            'empresa_norm' => $empresaNormalizada ?: null,
+            'mailer' => $mailer,
+        ]);
+
+        $mailable = new TardanzaNotificadaMail(
+            $data['nombre'],
+            $minutosTardanza,
+            null,
+            null,
+            null,
+            $fechaInicio,
+            $fechaFin,
+            $data['nro'] ?? null,
+            $data['dni'] ?? null,
+            $data['apellidos'] ?? null,
+            $data['departamento'] ?? null,
+            $data['empresa'] ?? null
         );
 
-        return response()->json([
+        if (!empty($fromAddress)) {
+            $mailable->from($fromAddress, $fromName);
+        }
+
+        $ccRecipients = $mailer === 'smtp_alt'
+            ? 'flavia.veliz@cechriza.com'
+            : 'emma.julian@cechriza.com';
+
+        $bccRecipients = $mailer === 'smtp_alt'
+            ? []
+            : ['flavia.veliz@cechriza.com'];
+
+        $pendingMail = Mail::mailer($mailer)
+            ->to($data['email'])
+            ->cc($ccRecipients);
+
+        if (!empty($bccRecipients)) {
+            $pendingMail->bcc($bccRecipients);
+        }
+
+        $pendingMail->queue($mailable);
+
+        $response = [
             'message' => 'Correo de tardanza enviado correctamente',
             'minutos_tardanza' => $minutosTardanza,
             'start_date' => $fechaInicio,
             'end_date' => $fechaFin,
             'nro' => $data['nro'] ?? null,
             'dni' => $data['dni'] ?? null,
-        ]);
+        ];
+
+        if (config('app.debug')) {
+            $response['mailer'] = $mailer;
+            $response['empresa'] = $empresa ?: null;
+        }
+
+        return response()->json($response);
     }
 }

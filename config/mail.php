@@ -39,7 +39,7 @@ return [
 
         'smtp' => [
             'transport' => 'smtp',
-            'scheme' => env('MAIL_SCHEME'),
+            'scheme' => env('MAIL_SCHEME') ?: (env('MAIL_ENCRYPTION') === 'ssl' ? 'smtps' : null),
             'url' => env('MAIL_URL'),
             'host' => env('MAIL_HOST', '127.0.0.1'),
             'port' => env('MAIL_PORT', 2525),
@@ -47,6 +47,18 @@ return [
             'password' => env('MAIL_PASSWORD'),
             'timeout' => null,
             'local_domain' => env('MAIL_EHLO_DOMAIN', parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST)),
+        ],
+
+        'smtp_alt' => [
+            'transport' => env('MAIL_ALT_MAILER', 'smtp'),
+            'scheme' => env('MAIL_ALT_SCHEME') ?: (env('MAIL_ALT_ENCRYPTION') === 'ssl' ? 'smtps' : null),
+            'url' => env('MAIL_ALT_URL'),
+            'host' => env('MAIL_ALT_HOST', '127.0.0.1'),
+            'port' => env('MAIL_ALT_PORT', 2525),
+            'username' => env('MAIL_ALT_USERNAME'),
+            'password' => env('MAIL_ALT_PASSWORD'),
+            'timeout' => null,
+            'local_domain' => env('MAIL_ALT_EHLO_DOMAIN', parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST)),
         ],
 
         'ses' => [
@@ -113,6 +125,11 @@ return [
     'from' => [
         'address' => env('MAIL_FROM_ADDRESS', 'hello@example.com'),
         'name' => env('MAIL_FROM_NAME', 'Example'),
+    ],
+
+    'from_alt' => [
+        'address' => env('MAIL_ALT_FROM_ADDRESS'),
+        'name' => env('MAIL_ALT_FROM_NAME'),
     ],
 
 ];
