@@ -35,7 +35,7 @@ class ReporteAsistenciaController extends Controller
             $export = $request->wantsJson() ? 'json' : 'excel';
         }
 
-        $excluir = (array) $request->input('excluir', ['6638042', '7791208']);
+        $excluir = (array) $request->input('excluir', ['6638042', '7791208' ,'10145773' ]);
         $departmentIds = (array) $request->input('departamento_ids', []);
         $empleadoIds = (array) $request->input('empleado_ids', []);
         $companyId = $request->input('company_id');
