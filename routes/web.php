@@ -3,7 +3,14 @@
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
-    return view('welcome');
+    if (app()->environment('production')) {
+        return response()->json(['message' => 'Not Found'], 404);
+    }
+
+    return response()->json([
+        'name' => config('app.name'),
+        'status' => 'ok',
+    ]);
 });
 
 Route::get('/login', function () {
