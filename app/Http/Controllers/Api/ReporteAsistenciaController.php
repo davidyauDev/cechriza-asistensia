@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Exports\DetalleAsistenciaExport;
+use App\Exports\AsistenciaDiaExport;
 use App\Exports\DetalleMarcacionExport;
 use App\Exports\ResumenAsistenciaExport;
 use App\Http\Controllers\Controller;
@@ -10,251 +11,233 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Maatwebsite\Excel\Facades\Excel;;
+use Maatwebsite\Excel\Facades\Excel;
 
 class ReporteAsistenciaController extends Controller
 {
-
     public function detalleMaarcacionTecnico(Request $request)
     {
         $request->merge([
             'departamento_ids' => [2, 5, 7, 9, 10],
         ]);
 
-        return $this->detalleMarcacion($request);
+        return $this->technicians($request);
     }
 
-    public function detalleMarcacionSimple(Request $request)
-    {
-        Log::info('Request recibido en detalleMarcacionSimple', [
-            'fechas' => $request->input('fechas'),
-            'departamento_ids' => $request->input('departamento_ids'),
-            'empleado_ids' => $request->input('empleado_ids'),
-            'company_id' => $request->input('company_id'),
-        ]);
-        $fechas = (array) $request->input('fechas', [date('Y-m-d')]);
 
-        $excluir = $request->input('excluir', ['6638042', '7791208']);
+    public function today(Request $request)
+    {
+        $fecha = (string) ($request->input('fecha') ?? Carbon::now()->format('Y-m-d'));
+        $fecha = Carbon::parse($fecha)->format('Y-m-d');
+
+        $export = $request->input('export');
+        if ($export === null) {
+            $export = $request->wantsJson() ? 'json' : 'excel';
+        }
+
+        $excluir = (array) $request->input('excluir', ['6638042', '7791208']);
         $departmentIds = (array) $request->input('departamento_ids', []);
-        $empleadoIds   = (array) $request->input('empleado_ids', []);
+        $empleadoIds = (array) $request->input('empleado_ids', []);
         $companyId = $request->input('company_id');
 
-        $whereDept = "";
-        $paramsDept = [];
+        $whereExcluir = '';
+        $paramsExcluir = [];
+        if (! empty($excluir)) {
+            $placeholders = implode(',', array_fill(0, count($excluir), '?'));
+            $whereExcluir = " AND pe.emp_code NOT IN ($placeholders) ";
+            $paramsExcluir = array_values($excluir);
+        }
 
-        if (!empty($departmentIds)) {
+        $whereDept = '';
+        $paramsDept = [];
+        if (! empty($departmentIds)) {
             $placeholders = implode(',', array_fill(0, count($departmentIds), '?'));
             $whereDept = " AND pe.department_id IN ($placeholders) ";
             $paramsDept = array_merge($paramsDept, $departmentIds);
         }
 
-        $whereUsuario = "";
+        $whereUsuario = '';
         $paramsUsuario = [];
-
-        if (!empty($empleadoIds)) {
+        if (! empty($empleadoIds)) {
             $placeholders = implode(',', array_fill(0, count($empleadoIds), '?'));
             $whereUsuario = " AND pe.id IN ($placeholders) ";
             $paramsUsuario = array_merge($paramsUsuario, $empleadoIds);
         }
 
-
-        $whereCompany = "";
+        $whereCompany = '';
         $paramsCompany = [];
-        if (!empty($companyId)) {
-            $whereCompany = " AND pc.id = ? ";
+        if (! empty($companyId)) {
+            $whereCompany = ' AND pc.id = ? ';
             $paramsCompany[] = $companyId;
         }
 
-        $sql = '
-                WITH horarios AS (
+                            $sql = <<<SQL
                     SELECT 
-                        aa.employee_id,
-                        ati.in_time AS horario
-                    FROM att_attschedule aa
-                    INNER JOIN att_attshift ash ON ash.id = aa.shift_id
-                    INNER JOIN att_shiftdetail ashd ON ashd.shift_id = ash.id
-                    INNER JOIN att_timeinterval ati ON ati.id = ashd.time_interval_id
-                    WHERE ashd.day_index + 1 = CAST(TO_CHAR(?::date, \'D\') AS INT)
-                ),
-                marcaciones AS (
-                    SELECT
-                        it.emp_code,
-                        MIN(it.id) AS id,
-                        MIN(CAST(it.punch_time AS time)) AS ingreso,
+                        pe.emp_code AS "DNI",
+                        pe.last_name AS "Apellidos",
+                        pe.first_name AS "Nombres",
+                        pd.dept_name AS "Departamento",
+                        pc.company_name AS "Empresa",
+                        h.in_time AS "Horario",
+                        ?::date AS "Fecha",
+                        t.ingreso AS "Ingreso",
                         CASE 
-                            WHEN MIN(CAST(it.punch_time AS time)) = MAX(CAST(it.punch_time AS time))
-                            THEN NULL
-                            ELSE MAX(CAST(it.punch_time AS time))
-                        END AS salida,
-                        MIN(it.punch_time) AS punch_time,
-                        MIN(it.punch_state) AS punch_state,
-                        BOOL_OR(it.tiene_incidencia) AS tiene_incidencia
-                    FROM iclock_transaction it
-                    WHERE it.punch_time >= ?::date AND it.punch_time < (?::date + INTERVAL \'1 day\')
-                    GROUP BY it.emp_code
-                ),
-                recordatorios AS (
-                    SELECT
-                        i.usuario_id,
-                        BOOL_OR(i.es_recordatorio) AS es_recordatorio
-                    FROM incidencias i
-                    WHERE i.es_recordatorio = true
-                      AND i.fecha = ?::date
-                    GROUP BY i.usuario_id
-                )
+                            WHEN t.ingreso = t.salida THEN NULL
+                            ELSE t.salida
+                        END AS "Salida",
+                        t.tiene_incidencia AS "Tiene_Incidencia",
+                        COALESCE(r.es_recordatorio, false) AS "Es_Recordatorio"
 
-                SELECT 
-                    m.id AS "ID_Marcacion",
-                    m.punch_time AS "Fecha_Hora_Marcacion",
-                    m.punch_state AS "Tipo_Marcacion",
-                    m.tiene_incidencia AS "Tiene_Incidencia",
-                    COALESCE(r.es_recordatorio, false) AS "Es_Recordatorio",
+                    FROM personnel_employee pe
 
-                    pe.emp_code AS "DNI",
-                    pe.last_name AS "Apellidos",
-                    pe.first_name AS "Nombres",
-                    pe.id AS "Empleado_id",
+                    INNER JOIN personnel_department pd 
+                        ON pe.department_id = pd.id
 
-                    pd.dept_name AS "Departamento",
-                    pd.id AS "Departamento_id",
+                    INNER JOIN personnel_position pp 
+                        ON pe.position_id = pp.id
 
-                    pc.company_name AS "Empresa",
-                    pc.id AS "Empresa_id",
+                    INNER JOIN personnel_company pc 
+                        ON pd.company_id = pc.id
 
-                    CASE 
-                        WHEN pe.department_id IN (9,7,2,10,5) THEN TRUE
-                        ELSE FALSE
-                    END AS "Tecnico",
+                    LEFT JOIN (
+                        SELECT 
+                            pe3.emp_code,
+                            MIN(ati.in_time) AS in_time
+                        FROM personnel_employee pe3
+                        LEFT JOIN att_attschedule aa 
+                            ON pe3.id = aa.employee_id
+                        INNER JOIN att_attshift ash 
+                            ON ash.id = aa.shift_id
+                        INNER JOIN att_shiftdetail ashd 
+                            ON ashd.shift_id = ash.id
+                        INNER JOIN att_timeinterval ati 
+                            ON ati.id = ashd.time_interval_id
+                        WHERE ashd.day_index + 1 = CAST(to_char(?::date,'D') AS INT)
+                        GROUP BY pe3.emp_code
+                    ) h ON h.emp_code = pe.emp_code
 
-                    h.horario AS "Horario",
-                    m.ingreso AS "Ingreso",
-                    m.salida AS "Salida",
+                    LEFT JOIN (
+                        SELECT 
+                            emp_code,
+                            MIN(punch_time::time) AS ingreso,
+                            MAX(punch_time::time) AS salida,
+                            BOOL_OR(tiene_incidencia) AS tiene_incidencia
+                        FROM iclock_transaction
+                        WHERE punch_time::date = ?::date
+                        GROUP BY emp_code
+                    ) t ON t.emp_code = pe.emp_code
 
-                    /* TARDANZA */
-                    CASE 
-                        WHEN m.ingreso IS NOT NULL 
-                        AND h.horario IS NOT NULL 
-                        AND m.ingreso > h.horario 
-                        THEN 1 
-                        ELSE 0 
-                    END AS "Tardanza",
+                    LEFT JOIN (
+                        SELECT
+                            i.usuario_id,
+                            BOOL_OR(i.es_recordatorio) AS es_recordatorio
+                        FROM incidencias i
+                        WHERE i.es_recordatorio = true
+                        AND i.fecha = ?::date
+                        GROUP BY i.usuario_id
+                    ) r ON r.usuario_id = pe.id
 
-                    /* AUSENCIA */
-                    CASE 
-                        WHEN m.ingreso IS NULL THEN 1 
-                        ELSE 0
-                    END AS "Ausencia"
+                    WHERE 
+                        pe.status = 0
+                        {$whereExcluir}
+                        {$whereDept}
+                        {$whereUsuario}
+                        {$whereCompany}
 
-                FROM personnel_employee pe
-                INNER JOIN personnel_department pd ON pe.department_id = pd.id
-                INNER JOIN personnel_company pc ON pd.company_id = pc.id
+                    ORDER BY 
+                        pc.company_name,
+                        pd.dept_name,
+                        pe.last_name,
+                        pe.first_name
+                    SQL;
 
-                LEFT JOIN horarios h ON h.employee_id = pe.id
-                LEFT JOIN marcaciones m ON m.emp_code = pe.emp_code
-                LEFT JOIN recordatorios r ON r.usuario_id = pe.id
+        $params = [$fecha, $fecha, $fecha, $fecha];
+        $params = array_merge($params, $paramsExcluir, $paramsDept, $paramsUsuario, $paramsCompany);
 
-                WHERE pe.status = 0
-                AND pe.emp_code NOT IN (' . implode(',', array_fill(0, count($excluir), '?')) . ')
-                ' . $whereDept . '
-                ' . $whereUsuario . '
-                ' . $whereCompany . '
+        $data = DB::connection('pgsql_external')->select($sql, $params);
 
-                ORDER BY 
-                    pc.company_name,
-                    pd.dept_name,
-                    pe.last_name,
-                    pe.first_name
-                ';
-
-        $resultadoFinal = [];
         $asistencias = 0;
-        $ausencias   = 0;
-        $tardanzas   = 0;
+        $ausencias = 0;
+        $tardanzas = 0;
 
-        foreach ($fechas as $fecha) {
+        foreach ($data as $row) {
+            $ingreso = isset($row->Ingreso) ? (string) $row->Ingreso : '';
+            $horario = isset($row->Horario) ? (string) $row->Horario : '';
 
-            $params = [
-                $fecha, // horarios
-                $fecha, // punch_time >= fecha
-                $fecha, // punch_time < fecha + 1 day
-                $fecha, // recordatorios
-            ];
-            $params = array_merge(
-                $params,
-                $excluir,
-                $paramsDept,
-                $paramsUsuario,
-                $paramsCompany
-            );
+            $tieneIngreso = $ingreso !== '' && $ingreso !== null;
 
-            $data = DB::connection('pgsql_external')->select($sql, $params);
+            if ($tieneIngreso) {
+                $asistencias++;
+            } else {
+                $ausencias++;
+            }
 
-            foreach ($data as $row) {
-                $row->Fecha = $fecha;
-                $resultadoFinal[] = $row;
-
-                if ($row->Ingreso !== null) {
-                    $asistencias++;
+            $esTardanza = false;
+            if ($tieneIngreso && $horario !== '' && $horario !== null) {
+                $h = strtotime("1970-01-01 {$horario}");
+                $i = strtotime("1970-01-01 {$ingreso}");
+                if ($h !== false && $i !== false && $i > $h) {
+                    $esTardanza = true;
                 }
-                if ($row->Ausencia == 1) {
-                    $ausencias++;
-                }
-                if ($row->Tardanza == 1) {
-                    $tardanzas++;
-                }
+            }
+
+            $row->Tardanza = $esTardanza ? 1 : 0;
+            $row->Ausencia = $tieneIngreso ? 0 : 1;
+
+            if ($esTardanza) {
+                $tardanzas++;
             }
         }
 
-        if ($request->input('export') === 'excel') {
-            return Excel::download(
-                new DetalleMarcacionExport($resultadoFinal),
-                'detalle_marcacion_simple.xlsx'
-            );
+        if ($export === 'json') {
+            return response()->json([
+                'success' => true,
+                'data' => $data,
+                'resumen' => [
+                    'asistencias' => $asistencias,
+                    'ausencias' => $ausencias,
+                    'tardanzas' => $tardanzas,
+                ],
+            ], 200, [], JSON_UNESCAPED_SLASHES);
         }
 
-        return response()->json([
-            "data" => $resultadoFinal,
-            "resumen" => [
-                "asistencias" => $asistencias,
-                "ausencias"   => $ausencias,
-                "tardanzas"   => $tardanzas,
-            ]
-        ], 200, [], JSON_UNESCAPED_SLASHES);
+        return Excel::download(
+            new AsistenciaDiaExport($data),
+            "asistencia_dia_{$fecha}.xlsx"
+        );
     }
 
-
-    public function detalleMarcacion(Request $request)
+    public function technicians(Request $request)
     {
         $fechas = (array) $request->input('fechas', [date('Y-m-d')]);
 
         $excluir = $request->input('excluir', ['6638042', '7791208']);
         $departmentIds = (array) $request->input('departamento_ids', []);
-        $empleadoIds   = (array) $request->input('empleado_ids', []);
+        $empleadoIds = (array) $request->input('empleado_ids', []);
         $companyId = $request->input('company_id');
 
-        $whereDept = "";
+        $whereDept = '';
         $paramsDept = [];
 
-        if (!empty($departmentIds)) {
+        if (! empty($departmentIds)) {
             $placeholders = implode(',', array_fill(0, count($departmentIds), '?'));
             $whereDept = " AND pe.department_id IN ($placeholders) ";
             $paramsDept = array_merge($paramsDept, $departmentIds);
         }
 
-        $whereUsuario = "";
+        $whereUsuario = '';
         $paramsUsuario = [];
 
-        if (!empty($empleadoIds)) {
+        if (! empty($empleadoIds)) {
             $placeholders = implode(',', array_fill(0, count($empleadoIds), '?'));
             $whereUsuario = " AND pe.id IN ($placeholders) ";
             $paramsUsuario = array_merge($paramsUsuario, $empleadoIds);
         }
 
-
-        $whereCompany = "";
+        $whereCompany = '';
         $paramsCompany = [];
-        if (!empty($companyId)) {
-            $whereCompany = " AND pc.id = ? ";
+        if (! empty($companyId)) {
+            $whereCompany = ' AND pc.id = ? ';
             $paramsCompany[] = $companyId;
         }
 
@@ -360,7 +343,7 @@ class ReporteAsistenciaController extends Controller
                 ';
 
         $resultadoFinal = [];
-        $tardanzas   = 0;
+        $tardanzas = 0;
 
         foreach ($fechas as $fecha) {
 
@@ -397,16 +380,13 @@ class ReporteAsistenciaController extends Controller
         }
 
         return response()->json([
-            "data" => $resultadoFinal,
-            "resumen" => [
-                "total_marcaciones" => count($resultadoFinal),
-                "tardanzas"   => $tardanzas,
-            ]
+            'data' => $resultadoFinal,
+            'resumen' => [
+                'total_marcaciones' => count($resultadoFinal),
+                'tardanzas' => $tardanzas,
+            ],
         ], 200, [], JSON_UNESCAPED_SLASHES);
     }
-
-
-
 
     public function detalleAsist(Request $request)
     {
@@ -415,23 +395,28 @@ class ReporteAsistenciaController extends Controller
         $fechaFin = $request->input('fecha_fin', Carbon::now()->endOfMonth()->format('Y-m-d'));
 
         $empresaIds = $request->input('empresa_ids', [1, 2]);
-        if (!is_array($empresaIds)) $empresaIds = [$empresaIds];
+        if (! is_array($empresaIds)) {
+            $empresaIds = [$empresaIds];
+        }
         $empresaIdsPG = '{' . implode(',', $empresaIds) . '}';
 
         $departamentoIds = $request->input('departamento_ids', [8]);
-        if (!is_array($departamentoIds)) $departamentoIds = [$departamentoIds];
+        if (! is_array($departamentoIds)) {
+            $departamentoIds = [$departamentoIds];
+        }
         $departamentoIdsPG = '{' . implode(',', $departamentoIds) . '}';
 
         $usuarioIds = $request->input('usuarios', []);
         $whereUsuarios = '';
 
-        if (!empty($usuarioIds)) {
-            if (!is_array($usuarioIds)) $usuarioIds = [$usuarioIds];
+        if (! empty($usuarioIds)) {
+            if (! is_array($usuarioIds)) {
+                $usuarioIds = [$usuarioIds];
+            }
 
             $usuariosPG = '{' . implode(',', $usuarioIds) . '}';
-            $whereUsuarios = " AND pe.id = ANY(?) ";
+            $whereUsuarios = ' AND pe.id = ANY(?) ';
         }
-
 
         ds($fechaInicio);
         ds($fechaFin);
@@ -480,7 +465,7 @@ class ReporteAsistenciaController extends Controller
 
         $params = [$empresaIdsPG, $departamentoIdsPG];
 
-        if (!empty($usuarioIds)) {
+        if (! empty($usuarioIds)) {
             $params[] = $usuariosPG;
         }
 
@@ -489,22 +474,18 @@ class ReporteAsistenciaController extends Controller
 
         $result = DB::connection('pgsql_external')->select($sql, $params);
 
-
         if ($request->get('export') === 'excel') {
             return Excel::download(
                 new DetalleAsistenciaExport([
                     'sql' => $sql,
-                    'bindings' => $params
+                    'bindings' => $params,
                 ]),
                 'detalle_asistencia.xlsx'
             );
         }
 
-
         return response()->json($result);
     }
-
-
 
     public function resumenAsistencia(Request $request)
     {
@@ -514,18 +495,17 @@ class ReporteAsistenciaController extends Controller
             $departamentoIds = [8];
         }
 
-        if (!is_array($departamentoIds)) {
+        if (! is_array($departamentoIds)) {
             $departamentoIds = [$departamentoIds];
         }
 
         $departamentoIdsStr = implode(',', $departamentoIds);
 
-
         $usuarios = $request->input('usuarios', []);
         $whereUsuarios = '';
 
-        if (!empty($usuarios)) {
-            if (!is_array($usuarios)) {
+        if (! empty($usuarios)) {
+            if (! is_array($usuarios)) {
                 $usuarios = [$usuarios];
             }
             $ids = implode(',', $usuarios);
@@ -534,10 +514,10 @@ class ReporteAsistenciaController extends Controller
 
         $fechaInicio = $request->input('fecha_inicio');
 
-        if (!$fechaInicio) {
+        if (! $fechaInicio) {
             return response()->json([
                 'success' => false,
-                'message' => 'La fecha_inicio es obligatoria.'
+                'message' => 'La fecha_inicio es obligatoria.',
             ], 400);
         }
 
@@ -550,13 +530,12 @@ class ReporteAsistenciaController extends Controller
         $s3_inicio = (clone $s2_fin)->modify('+1 day');
         $s3_fin = (clone $s3_inicio)->modify('+6 days');
 
-
         $s4_inicio = (clone $s3_fin)->modify('+1 day');
         // Calcular el mismo día del mes siguiente que la fecha de inicio
         $fechaInicioDT = new \DateTime($fechaInicio);
-        $dia = (int)$fechaInicioDT->format('d');
-        $mes = (int)$fechaInicioDT->format('m');
-        $anio = (int)$fechaInicioDT->format('Y');
+        $dia = (int) $fechaInicioDT->format('d');
+        $mes = (int) $fechaInicioDT->format('m');
+        $anio = (int) $fechaInicioDT->format('Y');
         // Avanzar un mes
         if ($mes === 12) {
             $mes = 1;
@@ -580,7 +559,6 @@ class ReporteAsistenciaController extends Controller
 
         $S4_IN = $s4_inicio->format('Y-m-d');
         $S4_END = $s4_fin->format('Y-m-d');
-
 
         $sql = "
         SELECT
@@ -704,7 +682,13 @@ class ReporteAsistenciaController extends Controller
         if ($request->get('export') === 'excel') {
             return Excel::download(
                 new ResumenAsistenciaExport([
-                    'sql' => $sql
+                    'sql' => $sql,
+                    'semanas' => [
+                        's1' => ['inicio' => $S1_IN, 'fin' => $S1_END],
+                        's2' => ['inicio' => $S2_IN, 'fin' => $S2_END],
+                        's3' => ['inicio' => $S3_IN, 'fin' => $S3_END],
+                        's4' => ['inicio' => $S4_IN, 'fin' => $S4_END],
+                    ],
                 ]),
                 'resumen_asistencia.xlsx'
             );
@@ -715,22 +699,22 @@ class ReporteAsistenciaController extends Controller
             'semanas' => [
                 's1' => [
                     'inicio' => $S1_IN,
-                    'fin'    => $S1_END,
+                    'fin' => $S1_END,
                 ],
                 's2' => [
                     'inicio' => $S2_IN,
-                    'fin'    => $S2_END,
+                    'fin' => $S2_END,
                 ],
                 's3' => [
                     'inicio' => $S3_IN,
-                    'fin'    => $S3_END,
+                    'fin' => $S3_END,
                 ],
                 's4' => [
                     'inicio' => $S4_IN,
-                    'fin'    => $S4_END,
+                    'fin' => $S4_END,
                 ],
             ],
-            'data' => $result
+            'data' => $result,
         ]);
     }
 }
