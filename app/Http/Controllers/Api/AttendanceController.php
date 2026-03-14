@@ -82,15 +82,6 @@ class AttendanceController extends Controller
     public function update(UpdateAttendanceRequest $request, Attendance $attendance)
     {
 
-        // ds($request->validated());
-            // $validated = $request->validate([
-            //     'notes' => ['nullable', 'string', 'max:255'],
-            //     'device_model' => ['nullable', 'string', 'max:255'],
-            //     'battery_percentage' => ['nullable', 'integer', 'min:0', 'max:100'],
-            //     'signal_strength' => ['nullable', 'integer', 'min:0', 'max:4'],
-            //     'network_type' => ['nullable', 'string', 'max:50'],
-            // ]);
-        // $attendance->update($request->validated());
         $request->validated();
 
      
