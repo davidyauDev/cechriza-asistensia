@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BioTimeController;
 use App\Http\Controllers\Api\BirthdayGreetingsHistoryController;
 use App\Http\Controllers\Api\EmployeeConceptController;
+use App\Http\Controllers\Api\EmployeeMobilityController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\EventoController;
 use App\Http\Controllers\Api\IncidenciaController;
@@ -73,6 +74,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     
     Route::post('/employee-concepts', [EmployeeConceptController::class, 'storeConcept']);
     Route::post('/mobility/monthly-report', [EmployeeConceptController::class, 'monthlyMobilityReport']);
+    Route::get('/employee-mobility', [EmployeeMobilityController::class, 'index']);
+    Route::post('/employee-mobility', [EmployeeMobilityController::class, 'store']);
+    Route::put('/employee-mobility/{id}', [EmployeeMobilityController::class, 'update']);
+    Route::patch('/employee-mobility/{id}', [EmployeeMobilityController::class, 'update']);
 
     Route::get('/birthday-greetings-history', [BirthdayGreetingsHistoryController::class, 'index']);
     Route::post('/birthday-greetings-history/retry-failed', [BirthdayGreetingsHistoryController::class, 'retryFailedGreetings']);
