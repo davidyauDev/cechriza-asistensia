@@ -73,6 +73,7 @@ class ReporteAsistenciaController extends Controller
 
                             $sql = <<<SQL
                     SELECT 
+                        pe.id AS "usuario_id",
                         pe.emp_code AS "DNI",
                         pe.last_name AS "Apellidos",
                         pe.first_name AS "Nombres",
