@@ -73,6 +73,7 @@ class ReporteAsistenciaController extends Controller
 
                             $sql = <<<SQL
                     SELECT 
+                        
                         pe.id AS "usuario_id",
                         pe.emp_code AS "DNI",
                         pe.last_name AS "Apellidos",
@@ -81,13 +82,14 @@ class ReporteAsistenciaController extends Controller
                         pc.company_name AS "Empresa",
                         h.in_time AS "Horario",
                         ?::date AS "Fecha",
+                        t.id_marcacion AS "ID_Marcacion",
                         t.ingreso AS "Ingreso",
                         CASE 
                             WHEN t.ingreso = t.salida THEN NULL
                             ELSE t.salida
                         END AS "Salida",
-                        t.tiene_incidencia AS "Tiene_Incidencia",
-                        COALESCE(r.es_recordatorio, false) AS "Es_Recordatorio"
+                        (COALESCE(t.tiene_incidencia, false) OR COALESCE(i2.tiene_incidencia, false)) AS "Tiene_Incidencia",
+                        COALESCE(i2.es_recordatorio, false) AS "Es_Recordatorio"
 
                     FROM personnel_employee pe
 
@@ -120,6 +122,7 @@ class ReporteAsistenciaController extends Controller
                     LEFT JOIN (
                         SELECT 
                             emp_code,
+                            (ARRAY_AGG(id ORDER BY punch_time ASC))[1] AS id_marcacion,
                             MIN(punch_time::time) AS ingreso,
                             MAX(punch_time::time) AS salida,
                             BOOL_OR(tiene_incidencia) AS tiene_incidencia
@@ -131,12 +134,12 @@ class ReporteAsistenciaController extends Controller
                     LEFT JOIN (
                         SELECT
                             i.usuario_id,
-                            BOOL_OR(i.es_recordatorio) AS es_recordatorio
+                            BOOL_OR(COALESCE(i.es_recordatorio, false)) AS es_recordatorio,
+                            BOOL_OR(NOT COALESCE(i.es_recordatorio, false)) AS tiene_incidencia
                         FROM incidencias i
-                        WHERE i.es_recordatorio = true
-                        AND i.fecha = ?::date
+                        WHERE i.fecha = ?::date
                         GROUP BY i.usuario_id
-                    ) r ON r.usuario_id = pe.id
+                    ) i2 ON i2.usuario_id = pe.id
 
                     WHERE 
                         pe.status = 0
