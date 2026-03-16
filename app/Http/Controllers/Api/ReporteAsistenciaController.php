@@ -35,7 +35,7 @@ class ReporteAsistenciaController extends Controller
             $export = $request->wantsJson() ? 'json' : 'excel';
         }
 
-        $excluir = (array) $request->input('excluir', ['6638042', '7791208' ,'10145773' ]);
+        $excluir = (array) $request->input('excluir', ['6638042', '7791208' ,'10145773','21463768' , '44534138' ]);
         $departmentIds = (array) $request->input('departamento_ids', []);
         $empleadoIds = (array) $request->input('empleado_ids', []);
         $companyId = $request->input('company_id');
@@ -215,7 +215,7 @@ class ReporteAsistenciaController extends Controller
     {
         $fechas = (array) $request->input('fechas', [date('Y-m-d')]);
 
-        $excluir = $request->input('excluir', ['6638042', '7791208']);
+        $excluir = $request->input('excluir', ['6638042', '7791208' ]);
         $departmentIds = (array) $request->input('departamento_ids', []);
         $empleadoIds = (array) $request->input('empleado_ids', []);
         $companyId = $request->input('company_id');
@@ -394,9 +394,36 @@ class ReporteAsistenciaController extends Controller
 
     public function detalleAsist(Request $request)
     {
+        $request->validate([
+            'fechas' => ['nullable', 'array'],
+            'fechas.*' => ['nullable', 'date'],
+        ]);
 
         $fechaInicio = $request->input('fecha_inicio', Carbon::now()->startOfMonth()->format('Y-m-d'));
         $fechaFin = $request->input('fecha_fin', Carbon::now()->endOfMonth()->format('Y-m-d'));
+
+        $fechas = $request->input('fechas');
+        $fechasFiltradas = [];
+        if (is_array($fechas) && ! empty($fechas)) {
+            $fechasFiltradas = collect($fechas)
+                ->filter(fn ($f) => $f !== null && $f !== '')
+                ->map(fn ($f) => Carbon::parse((string) $f)->format('Y-m-d'))
+                ->unique()
+                ->values()
+                ->all();
+        }
+
+        $whereFechas = '';
+        $paramsFechas = [];
+        if (! empty($fechasFiltradas)) {
+            $fechasPG = '{' . implode(',', array_map(fn (string $d) => "\"{$d}\"", $fechasFiltradas)) . '}';
+            $whereFechas = ' AND CAST(ap.clock_in AS date) = ANY(?::date[]) ';
+            $paramsFechas[] = $fechasPG;
+        } else {
+            $whereFechas = ' AND CAST(ap.clock_in AS date) BETWEEN ? AND ? ';
+            $paramsFechas[] = $fechaInicio;
+            $paramsFechas[] = $fechaFin;
+        }
 
         $empresaIds = $request->input('empresa_ids', [1, 2]);
         if (! is_array($empresaIds)) {
@@ -460,7 +487,7 @@ class ReporteAsistenciaController extends Controller
             AND pc.id = ANY(?)
             AND pd.id = ANY(?)
             $whereUsuarios
-            AND CAST(ap.clock_in AS date) BETWEEN ? AND ?
+            $whereFechas
         ORDER BY
             pd.dept_name,
             pe.last_name,
@@ -473,8 +500,7 @@ class ReporteAsistenciaController extends Controller
             $params[] = $usuariosPG;
         }
 
-        $params[] = $fechaInicio;
-        $params[] = $fechaFin;
+        $params = array_merge($params, $paramsFechas);
 
         $result = DB::connection('pgsql_external')->select($sql, $params);
 
