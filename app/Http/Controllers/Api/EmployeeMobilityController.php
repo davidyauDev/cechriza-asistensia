@@ -102,8 +102,16 @@ class EmployeeMobilityController extends Controller
         ], 201);
     }
 
-    public function update(Request $request, int $id)
+    public function update(Request $request, string $id)
     {
+        if (! ctype_digit($id) || (int) $id < 1) {
+            return response()->json([
+                'message' => 'ID invÃ¡lido.',
+            ], 422);
+        }
+
+        $id = (int) $id;
+
         $validated = $request->validate([
             'employee_id' => 'required|integer|exists:pgsql_external.personnel_employee,id',
             'year' => 'required|integer|min:2000|max:2100',
