@@ -148,6 +148,14 @@ class EmployeeConceptController extends Controller
             ->get()
             ->keyBy('employee_id');
 
+        $periodMonth = $startDate->copy()->startOfMonth()->toDateString();
+        $monthlyComments = DB::connection('pgsql_external')
+            ->table('employee_mobility_monthly_comments')
+            ->where('period_month', $periodMonth)
+            ->whereIn('employee_id', $employees->pluck('id')->all())
+            ->get()
+            ->keyBy('employee_id');
+
         $result = [];
 
         foreach ($employees as $emp) {
@@ -207,6 +215,7 @@ class EmployeeConceptController extends Controller
                         'days_with_mobility' => $mobilityDays,
                         'mobility_amount' => $mobilityAmount,
                         'total_mobility_to_pay' => $totalPay,
+                        'monthly_comment' => $monthlyComments->get($emp->id)->monthly_comment ?? null,
                     ],
                 ],
                 $dailyData
