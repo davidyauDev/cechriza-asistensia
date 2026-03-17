@@ -64,6 +64,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/technicians/rutas-dia', [TechnicianController::class, 'getRutasTecnicosDia']);
 
     Route::post('/reporte-asistencia/detalle', [ReporteAsistenciaController::class, 'detalleAsist']);
+    Route::post('/reporte-asistencia/detalle-general', [ReporteAsistenciaController::class, 'detalleAsistGeneral']);
     Route::post('/reporte-asistencia/technicians', [ReporteAsistenciaController::class, 'technicians']);
     Route::post('/reporte-asistencia/today', [ReporteAsistenciaController::class, 'today']);
 

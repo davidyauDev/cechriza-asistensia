@@ -11,6 +11,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 use Maatwebsite\Excel\Facades\Excel;
 
 class ReporteAsistenciaController extends Controller
@@ -511,6 +512,186 @@ class ReporteAsistenciaController extends Controller
                     'bindings' => $params,
                 ]),
                 'detalle_asistencia.xlsx'
+            );
+        }
+
+        return response()->json($result);
+    }
+
+    public function detalleAsistGeneral(Request $request)
+    {
+        $request->validate([
+            'fechas' => ['nullable', 'array'],
+            'fechas.*' => ['nullable', 'date'],
+            'fecha_inicio' => ['nullable', 'date'],
+            'fecha_fin' => ['nullable', 'date'],
+            'empresa_ids' => [
+                'nullable',
+                Rule::when(is_array($request->input('empresa_ids')), ['array'], ['integer']),
+            ],
+            'empresa_ids.*' => ['integer'],
+            'departamento_ids' => [
+                'nullable',
+                Rule::when(is_array($request->input('departamento_ids')), ['array'], ['integer']),
+            ],
+            'departamento_ids.*' => ['integer'],
+            'usuarios' => [
+                'nullable',
+                Rule::when(is_array($request->input('usuarios')), ['array'], ['integer']),
+            ],
+            'usuarios.*' => ['integer'],
+        ]);
+
+        $fechaInicio = $request->input('fecha_inicio', Carbon::now()->startOfMonth()->format('Y-m-d'));
+        $fechaFin = $request->input('fecha_fin', Carbon::now()->endOfMonth()->format('Y-m-d'));
+
+        $fechas = $request->input('fechas');
+        $fechasFiltradas = [];
+        if (is_array($fechas) && ! empty($fechas)) {
+            $fechasFiltradas = collect($fechas)
+                ->filter(fn ($f) => $f !== null && $f !== '')
+                ->map(fn ($f) => Carbon::parse((string) $f)->format('Y-m-d'))
+                ->unique()
+                ->values()
+                ->all();
+        }
+
+        $whereFechas = '';
+        $paramsFechas = [];
+        if (! empty($fechasFiltradas)) {
+            $fechasPG = '{' . implode(',', array_map(fn (string $d) => "\"{$d}\"", $fechasFiltradas)) . '}';
+            $whereFechas = ' AND CAST(it.punch_time AS date) = ANY(?::date[]) ';
+            $paramsFechas[] = $fechasPG;
+        } else {
+            $whereFechas = ' AND CAST(it.punch_time AS date) BETWEEN ?::date AND ?::date ';
+            $paramsFechas[] = $fechaInicio;
+            $paramsFechas[] = $fechaFin;
+        }
+
+        $empresaIds = $request->input('empresa_ids', [1, 2]);
+        if (! is_array($empresaIds)) {
+            $empresaIds = [$empresaIds];
+        }
+        $empresaIds = array_values(array_unique(array_map('intval', array_filter($empresaIds, fn ($v) => $v !== null && $v !== ''))));
+        if (empty($empresaIds)) {
+            $empresaIds = [1, 2];
+        }
+        $empresaIdsPG = '{' . implode(',', $empresaIds) . '}';
+
+        $departamentoIds = $request->input('departamento_ids', []);
+        if (! is_array($departamentoIds)) {
+            $departamentoIds = [$departamentoIds];
+        }
+        $departamentoIds = array_values(array_unique(array_map('intval', array_filter($departamentoIds, fn ($v) => $v !== null && $v !== ''))));
+        $whereDept = '';
+        $paramsDept = [];
+        if (! empty($departamentoIds)) {
+            $departamentoIdsPG = '{' . implode(',', $departamentoIds) . '}';
+            $whereDept = ' AND pd.id = ANY(?::int[]) ';
+            $paramsDept[] = $departamentoIdsPG;
+        }
+
+        $usuarioIds = $request->input('usuarios', []);
+        $whereUsuarios = '';
+        $paramsUsuarios = [];
+        if (! empty($usuarioIds)) {
+            if (! is_array($usuarioIds)) {
+                $usuarioIds = [$usuarioIds];
+            }
+
+            $usuarioIds = array_values(array_unique(array_map('intval', array_filter($usuarioIds, fn ($v) => $v !== null && $v !== ''))));
+            if (! empty($usuarioIds)) {
+                $usuariosPG = '{' . implode(',', $usuarioIds) . '}';
+                $whereUsuarios = ' AND pe.id = ANY(?::int[]) ';
+                $paramsUsuarios[] = $usuariosPG;
+            }
+        }
+
+        $sql = "
+            WITH empleados AS (
+                SELECT
+                    pe.id AS emp_id,
+                    pe.emp_code,
+                    pe.last_name,
+                    pe.first_name,
+                    pd.dept_name,
+                    pc.company_name
+                FROM personnel_employee pe
+                INNER JOIN personnel_department pd ON pe.department_id = pd.id
+                INNER JOIN personnel_company pc ON pd.company_id = pc.id
+                WHERE pe.status = 0
+                    AND pc.id = ANY(?::int[])
+                    $whereDept
+                    $whereUsuarios
+            ),
+            marcaciones AS (
+                SELECT
+                    it.emp_code,
+                    CAST(it.punch_time AS date) AS att_date,
+                    MIN(CAST(it.punch_time AS time)) AS clock_in,
+                    MAX(CAST(it.punch_time AS time)) AS clock_out
+                FROM iclock_transaction it
+                INNER JOIN empleados e ON e.emp_code = it.emp_code
+                WHERE 1=1
+                    $whereFechas
+                GROUP BY
+                    it.emp_code,
+                    CAST(it.punch_time AS date)
+            )
+            SELECT
+                e.emp_code AS dni,
+                e.last_name AS apellidos,
+                e.first_name AS nombres,
+                e.dept_name AS departamento,
+                e.company_name AS empresa,
+                m.att_date AS fecha,
+                CAST(ap.check_in AS time) AS h_ingreso,
+                CAST(ap.check_out AS time) AS h_salida,
+                CAST(m.clock_in AS time) AS m_ingreso,
+                CASE
+                    WHEN m.clock_in = m.clock_out THEN NULL
+                    ELSE CAST(m.clock_out AS time)
+                END AS m_salida,
+                TO_CHAR(make_interval(secs => NULLIF(ap.late, 0)), 'HH24:MI:SS') AS tardanza,
+                TO_CHAR(
+                    make_interval(secs =>
+                        CASE
+                            WHEN ap.weekday = 5 AND ap.clock_out > ap.check_out
+                                THEN ap.actual_worked + (EXTRACT(EPOCH FROM ap.clock_out) - EXTRACT(EPOCH FROM ap.check_out))
+                            WHEN ap.weekday = 5 AND ap.clock_out < ap.check_out
+                                THEN ap.actual_worked
+                            WHEN ap.clock_out > ap.check_out
+                                THEN ap.actual_worked + (EXTRACT(EPOCH FROM ap.clock_out) - EXTRACT(EPOCH FROM ap.check_out))
+                            ELSE ap.actual_worked + ap.early_leave
+                        END
+                    ),
+                    'HH24:MI:SS'
+                ) AS total_trabajado
+            FROM marcaciones m
+            INNER JOIN empleados e ON e.emp_code = m.emp_code
+            LEFT JOIN att_payloadbase ap
+                ON ap.emp_id = e.emp_id
+                AND ap.att_date = m.att_date
+            ORDER BY
+                e.dept_name,
+                e.last_name,
+                m.att_date
+        ";
+
+        $params = [$empresaIdsPG];
+        $params = array_merge($params, $paramsDept);
+        $params = array_merge($params, $paramsUsuarios);
+        $params = array_merge($params, $paramsFechas);
+
+        $result = DB::connection('pgsql_external')->select($sql, $params);
+
+        if ($request->get('export') === 'excel') {
+            return Excel::download(
+                new DetalleAsistenciaExport([
+                    'sql' => $sql,
+                    'bindings' => $params,
+                ]),
+                'detalle_asistencia_general.xlsx'
             );
         }
 
