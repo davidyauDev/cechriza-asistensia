@@ -137,8 +137,16 @@ class EmployeeConceptController extends Controller
 
 
         $records = DB::connection('pgsql_external')
-            ->table('daily_records')
-            ->whereBetween('date', [$startDate, $endDate])
+            ->table('daily_records as dr')
+            ->leftJoin('concepts as c', 'dr.concept_id', '=', 'c.id')
+            ->whereBetween('dr.date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->select([
+                'dr.*',
+                DB::raw('COALESCE(dr.mobility_eligible, c.affects_mobility, false) as mobility_eligible_resolved'),
+                'c.code as concept_code',
+                'c.name as concept_name',
+                'c.affects_mobility as concept_affects_mobility',
+            ])
             ->get()
             ->groupBy('emp_code');
 
@@ -166,19 +174,31 @@ class EmployeeConceptController extends Controller
 
             $days = $records->get($dni, collect());
 
-            $vac = $days->where('day_code', 'V')->count();
-            $dm = $days->where('day_code', 'DM')->count();
-            $nm = $days->where('day_code', 'NM')->count();
-            $as = $days->where('day_code', '1')->count();
-            $sr = $days->where('day_code', 'SR')->count();
+            $codeCounts = $days->countBy(function ($d) {
+                $code = $d->day_code ?? $d->concept_code ?? null;
+                return strtoupper(trim((string) $code));
+            });
 
+            $as = (int) ($codeCounts->get('1') ?? 0);
+            $sr = (int) ($codeCounts->get('SR') ?? 0);
+            $nm = (int) ($codeCounts->get('NM') ?? 0);
+            $dm = (int) ($codeCounts->get('DM') ?? 0);
+            $de = (int) ($codeCounts->get('DE') ?? 0);
 
-            $mobilityDays = $days->where('mobility_eligible', true)->count();
+            $vacRegular = (int) ($codeCounts->get('V') ?? 0);
+            $vacExtemporaneous = (int) ($codeCounts->get('VE') ?? 0);
+            $vac = $vacRegular + $vacExtemporaneous;
+
+            $lcgh = (int) ($codeCounts->get('LCGH') ?? 0);
+            $lsgh = (int) ($codeCounts->get('LSGH') ?? 0);
+            $cese = (int) ($codeCounts->get('X') ?? 0);
+
+            $mobilityDays = $days->where('mobility_eligible_resolved', true)->count();
 
             // Obtener el monto base de movilidad del empleado
             $employeeMobility = $mobilityBase->get($emp->id);
             $mobilityAmount = $employeeMobility ? (float) $employeeMobility->amount : 5;
-            $totalPay = (($mobilityAmount/30) * ($as + $sr)) - 75;
+            $totalPay = (($mobilityAmount / 30) * $mobilityDays) - 75;
 
             $dailyData = $days->mapWithKeys(function ($d) {
                 $fecha = Carbon::parse($d->date);
@@ -188,10 +208,11 @@ class EmployeeConceptController extends Controller
                     fn($m) => '-' . ucfirst($m[1]),
                     str_replace('.', '', $key)
                 );
+                $code = $d->day_code ?? $d->concept_code ?? null;
                 return [
                     $key => [
-                        'code' => $d->day_code,
-                        'mobility_counted' => (bool) $d->mobility_eligible,
+                        'code' => $code,
+                        'mobility_counted' => (bool) ($d->mobility_eligible_resolved ?? false),
                     ]
                 ];
             })->toArray();
@@ -209,14 +230,23 @@ class EmployeeConceptController extends Controller
                         'city' => $emp->city,
                     ],
                     'summary' => [
-                        'total_days' => $as + $sr,
+                        'total_days' => $mobilityDays,
+                        'attendance_days' => $as,
+                        'sin_ruta_days' => $sr,
                         'vacation_days' => $vac,
+                        'vacation_regular_days' => $vacRegular,
+                        'vacation_extemporaneous_days' => $vacExtemporaneous,
                         'medical_leave_days' => $dm,
+                        'extemporaneous_rest_days' => $de,
                         'no_mark_days' => $nm,
+                        'lcgh_days' => $lcgh,
+                        'lsgh_days' => $lsgh,
+                        'cese_days' => $cese,
                         'days_with_mobility' => $mobilityDays,
                         'mobility_amount' => $mobilityAmount,
                         'total_mobility_to_pay' => $totalPay,
                         'monthly_comment' => $monthlyComments->get($emp->id)->monthly_comment ?? null,
+                        'concept_counts' => $codeCounts->toArray(),
                     ],
                 ],
                 $dailyData

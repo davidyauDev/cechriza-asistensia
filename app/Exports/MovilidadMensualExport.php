@@ -30,13 +30,19 @@ class MovilidadMensualExport implements FromArray, WithHeadings, WithStyles, Wit
 
     private const SUMMARY_HEADERS = [
         'TOTAL',
+        'AS',
+        'SR',
         'VACACION',
+        'VE',
         'NO MARCADO',
         'DM',
+        'DE',
         'LCGH',
         'LSGH',
+        'CESE',
         'Vac >23',
         'MONTO APROX A DEPOSTAR',
+        'COMENTARIO',
     ];
 
     public function __construct($data, $diasDelMes)
@@ -98,16 +104,32 @@ class MovilidadMensualExport implements FromArray, WithHeadings, WithStyles, Wit
             }
 
             $vacationDays = (int) ($summary['vacation_days'] ?? 0);
-            $vacOver23 = max(0, $vacationDays - 23);
+            $attendanceDays = (int) ($summary['attendance_days'] ?? 0);
+            $sinRutaDays = (int) ($summary['sin_ruta_days'] ?? 0);
+            $vacExtemporaneousDays = (int) ($summary['vacation_extemporaneous_days'] ?? 0);
+            $medicalLeaveDays = (int) ($summary['medical_leave_days'] ?? 0);
+            $extemporaneousRestDays = (int) ($summary['extemporaneous_rest_days'] ?? 0);
+            $lcghDays = (int) ($summary['lcgh_days'] ?? $summaryCodeCounts['LCGH']);
+            $lsghDays = (int) ($summary['lsgh_days'] ?? $summaryCodeCounts['LSGH']);
+            $ceseDays = (int) ($summary['cese_days'] ?? 0);
+            $vacOver23 = $vacExtemporaneousDays > 0
+                ? $vacExtemporaneousDays
+                : max(0, $vacationDays - 23);
 
             $row[] = (int) ($summary['total_days'] ?? 0);
+            $row[] = $attendanceDays;
+            $row[] = $sinRutaDays;
             $row[] = $vacationDays;
+            $row[] = $vacExtemporaneousDays;
             $row[] = (int) ($summary['no_mark_days'] ?? 0);
-            $row[] = (int) ($summary['medical_leave_days'] ?? 0);
-            $row[] = $summaryCodeCounts['LCGH'];
-            $row[] = $summaryCodeCounts['LSGH'];
+            $row[] = $medicalLeaveDays;
+            $row[] = $extemporaneousRestDays;
+            $row[] = $lcghDays;
+            $row[] = $lsghDays;
+            $row[] = $ceseDays;
             $row[] = $vacOver23;
             $row[] = number_format((float) ($summary['total_mobility_to_pay'] ?? 0), 2);
+            $row[] = (string) ($summary['monthly_comment'] ?? '');
 
             $rows[] = $row;
         }
@@ -134,7 +156,7 @@ class MovilidadMensualExport implements FromArray, WithHeadings, WithStyles, Wit
         }
 
         $firstSummaryColumnIndex = $firstDayColumnIndex + count($this->diasDelMes);
-        $summaryWidths = [10, 10, 12, 8, 8, 8, 10, 18];
+        $summaryWidths = [10, 8, 8, 10, 8, 12, 8, 8, 8, 8, 8, 10, 18, 35];
         foreach (self::SUMMARY_HEADERS as $index => $_header) {
             $columnLetter = Coordinate::stringFromColumnIndex($firstSummaryColumnIndex + $index);
             $widths[$columnLetter] = $summaryWidths[$index] ?? 12;
@@ -176,8 +198,10 @@ class MovilidadMensualExport implements FromArray, WithHeadings, WithStyles, Wit
 
         // Resaltar encabezados finales (Vac >23 y Monto aprox) como en el ejemplo
         $firstSummaryColumnIndex = $firstDayColumnIndex + count($this->diasDelMes);
-        $vacOver23HeaderCol = Coordinate::stringFromColumnIndex($firstSummaryColumnIndex + 6);
-        $montoHeaderCol = Coordinate::stringFromColumnIndex($firstSummaryColumnIndex + 7);
+        $vacOver23Index = array_search('Vac >23', self::SUMMARY_HEADERS, true);
+        $montoIndex = array_search('MONTO APROX A DEPOSTAR', self::SUMMARY_HEADERS, true);
+        $vacOver23HeaderCol = Coordinate::stringFromColumnIndex($firstSummaryColumnIndex + (int) $vacOver23Index);
+        $montoHeaderCol = Coordinate::stringFromColumnIndex($firstSummaryColumnIndex + (int) $montoIndex);
         $sheet->getStyle("{$vacOver23HeaderCol}1:{$montoHeaderCol}1")->applyFromArray([
             'font' => [
                 'bold' => true,
@@ -214,6 +238,18 @@ class MovilidadMensualExport implements FromArray, WithHeadings, WithStyles, Wit
             ],
         ]);
 
+        // Alinear texto a la izquierda para la columna comentario
+        $commentIndex = array_search('COMENTARIO', self::SUMMARY_HEADERS, true);
+        if ($commentIndex !== false) {
+            $firstSummaryColumnIndex = $firstDayColumnIndex + count($this->diasDelMes);
+            $commentCol = Coordinate::stringFromColumnIndex($firstSummaryColumnIndex + (int) $commentIndex);
+            $sheet->getStyle("{$commentCol}2:{$commentCol}{$totalRows}")->applyFromArray([
+                'alignment' => [
+                    'horizontal' => Alignment::HORIZONTAL_LEFT,
+                ],
+            ]);
+        }
+
         // Filas con rayas (zebra)
         for ($row = 2; $row <= $totalRows; $row++) {
             if ($row % 2 == 0) {
@@ -229,12 +265,15 @@ class MovilidadMensualExport implements FromArray, WithHeadings, WithStyles, Wit
         // Resaltar detalle por dia segun codigo (V, DM, NM, SR, etc.)
         $dayValueStyles = [
             'V'  => ['fill' => 'F8CBAD', 'font' => '9C0006'], // Vacaciones
+            'VE' => ['fill' => 'F8CBAD', 'font' => '9C0006'], // Vacaciones extemporaneas
             'DM' => ['fill' => 'F8CBAD', 'font' => '9C0006'], // Descanso medico
+            'DE' => ['fill' => 'F8CBAD', 'font' => '9C0006'], // Descanso extemporaneas
             'MF' => ['fill' => 'BDD7EE', 'font' => '1F4E79'], // Minutos justificados
             'F'  => ['fill' => 'F4B084', 'font' => '7F3F00'], // Falta
             'TC' => ['fill' => 'C6E0B4', 'font' => '215E1B'], // Trabajo en campo
             'SR' => ['fill' => 'D9D9D9', 'font' => '404040'], // Sin registro
             'NM' => ['fill' => 'FFE699', 'font' => '7F6000'], // No marcado
+            'X'  => ['fill' => 'C9C9C9', 'font' => '000000'], // Cese
         ];
 
         for ($row = 2; $row <= $totalRows; $row++) {
