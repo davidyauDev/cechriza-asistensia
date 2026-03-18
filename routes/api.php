@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\BirthdayGreetingsHistoryController;
 use App\Http\Controllers\Api\EmployeeConceptController;
 use App\Http\Controllers\Api\EmployeeMobilityController;
 use App\Http\Controllers\Api\EmployeeMobilityMonthlyCommentController;
+use App\Http\Controllers\Api\PersonnelEmployeeController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\EventoController;
 use App\Http\Controllers\Api\IncidenciaController;
@@ -73,10 +74,17 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/biotime/departamentos', [BioTimeController::class, 'departamentos']);
     Route::get('/biotime/empresas', [BioTimeController::class, 'empresas']);
     Route::post('/biotime/empleados-por-departamento', [BioTimeController::class, 'empleadosPorDepartamento']);
+    Route::prefix('biotime/personnel-employees')->group(function () {
+        Route::get('/', [PersonnelEmployeeController::class, 'index']);
+        Route::get('/{id}', [PersonnelEmployeeController::class, 'show'])->whereNumber('id');
+        Route::put('/{id}', [PersonnelEmployeeController::class, 'update'])->whereNumber('id');
+        Route::patch('/{id}', [PersonnelEmployeeController::class, 'update'])->whereNumber('id');
+    });
     
     Route::post('/employee-concepts', [EmployeeConceptController::class, 'storeConcept']);
     Route::post('/mobility/monthly-report', [EmployeeConceptController::class, 'monthlyMobilityReport']);
     Route::get('/employee-mobility', [EmployeeMobilityController::class, 'index']);
+    Route::post('/employee-mobility/set', [EmployeeMobilityController::class, 'set']);
     Route::post('/employee-mobility', [EmployeeMobilityController::class, 'store']);
     Route::put('/employee-mobility/{id}', [EmployeeMobilityController::class, 'update'])->whereNumber('id');
     Route::patch('/employee-mobility/{id}', [EmployeeMobilityController::class, 'update'])->whereNumber('id');
