@@ -121,6 +121,7 @@ class EmployeeConceptController extends Controller
             )
             ->whereIn('personnel_employee.position_id', [7, 36 , 29 , 37 ,30 , 32])
             ->where('personnel_employee.status', '!=', 100)
+            ->where('personnel_employee.has_mobility', true)
             ->orderBy('personnel_department.dept_name', 'asc')
             ->select(
                 'personnel_employee.id',
