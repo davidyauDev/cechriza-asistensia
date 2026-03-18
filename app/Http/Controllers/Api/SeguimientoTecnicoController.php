@@ -49,22 +49,27 @@ class SeguimientoTecnicoController extends Controller
 
             // Obtener daily_records de la fecha
             $dailyRecordsResult = DB::connection('pgsql_external')
-                ->table('daily_records')
+                ->table('daily_records as dr')
+                ->leftJoin('concepts as c', 'dr.concept_id', '=', 'c.id')
                 ->select([
-                    'id',
-                    'date',
-                    'employee_id',
-                    'emp_code',
-                    'concept_id',
-                    'day_code',
-                    'mobility_eligible',
-                    'source',
-                    'notes',
-                    'processed',
-                    'created_at',
-                    'updated_at'
+                    'dr.id',
+                    'dr.date',
+                    'dr.employee_id',
+                    'dr.emp_code',
+                    'dr.concept_id',
+                    'dr.day_code',
+                    'dr.mobility_eligible',
+                    DB::raw('COALESCE(dr.mobility_eligible, c.affects_mobility, false) as mobility_eligible_resolved'),
+                    'dr.source',
+                    'dr.notes',
+                    'dr.processed',
+                    'dr.created_at',
+                    'dr.updated_at',
+                    'c.code as concept_code',
+                    'c.name as concept_name',
+                    'c.affects_mobility as concept_affects_mobility',
                 ])
-                ->where('date', $fecha)
+                ->where('dr.date', $fecha)
                 ->get();
 
             $dailyRecordsByEmpCode = [];
@@ -77,6 +82,10 @@ class SeguimientoTecnicoController extends Controller
                     'concept_id' => $dr->concept_id,
                     'day_code' => $dr->day_code,
                     'mobility_eligible' => $dr->mobility_eligible,
+                    'mobility_eligible_resolved' => (bool) ($dr->mobility_eligible_resolved ?? false),
+                    'concept_code' => $dr->concept_code,
+                    'concept_name' => $dr->concept_name,
+                    'concept_affects_mobility' => (bool) ($dr->concept_affects_mobility ?? false),
                     'source' => $dr->source,
                     'notes' => $dr->notes,
                     'processed' => $dr->processed,

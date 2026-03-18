@@ -8,20 +8,53 @@ use Illuminate\Support\Facades\DB;
 
 class EmployeeMobilityController extends Controller
 {
-    private function mobilityWithEmployeeQuery()
+    private function mobilityWithEmployeeQuery(?int $year = null, bool $includeEmployeesWithoutMobility = false)
     {
-        return DB::connection('pgsql_external')
+        $connection = DB::connection('pgsql_external');
+
+        if ($includeEmployeesWithoutMobility) {
+            if ($year === null) {
+                throw new \InvalidArgumentException('Year is required when including employees without mobility.');
+            }
+
+            return $connection
+                ->table('personnel_employee as pe')
+                ->leftJoin('employee_mobility', function ($join) use ($year) {
+                    $join->on('pe.id', '=', 'employee_mobility.employee_id')
+                        ->where('employee_mobility.year', '=', $year);
+                })
+                ->where('pe.has_mobility', true)
+                ->where('pe.status', '!=', 100)
+                ->select(
+                    'employee_mobility.id',
+                    'pe.id as employee_id',
+                    DB::raw((int) $year . ' as year'),
+                    'employee_mobility.amount',
+                    'employee_mobility.is_active',
+                    'employee_mobility.created_at',
+                    'pe.emp_code',
+                    'pe.first_name',
+                    'pe.last_name',
+                    DB::raw('CASE WHEN employee_mobility.id IS NULL THEN false ELSE true END as has_mobility'),
+                );
+        }
+
+        return $connection
             ->table('employee_mobility')
             ->join('personnel_employee as pe', 'pe.id', '=', 'employee_mobility.employee_id')
+            ->where('pe.has_mobility', true)
+            ->where('pe.status', '!=', 100)
             ->select(
                 'employee_mobility.id',
                 'employee_mobility.employee_id',
                 'employee_mobility.year',
                 'employee_mobility.amount',
+                'employee_mobility.is_active',
                 'employee_mobility.created_at',
                 'pe.emp_code',
                 'pe.first_name',
                 'pe.last_name',
+                DB::raw('true as has_mobility'),
             );
     }
 
@@ -34,17 +67,19 @@ class EmployeeMobilityController extends Controller
             'paginate' => 'nullable|boolean',
         ]);
 
-        $query = $this->mobilityWithEmployeeQuery()
-            ->orderByDesc('employee_mobility.year')
+        $year = $validated['year'] ?? (int) now()->format('Y');
+        $query = $this->mobilityWithEmployeeQuery(
+            $year,
+            true
+        );
+
+        $query
+            ->orderByRaw('CASE WHEN employee_mobility.id IS NULL THEN 1 ELSE 0 END')
             ->orderBy('pe.last_name')
             ->orderBy('pe.first_name');
 
         if (isset($validated['employee_id'])) {
-            $query->where('employee_mobility.employee_id', $validated['employee_id']);
-        }
-
-        if (isset($validated['year'])) {
-            $query->where('employee_mobility.year', $validated['year']);
+            $query->where('pe.id', $validated['employee_id']);
         }
 
         $paginate = array_key_exists('paginate', $validated) ? (bool) $validated['paginate'] : true;
@@ -63,12 +98,90 @@ class EmployeeMobilityController extends Controller
         ]);
     }
 
+    public function set(Request $request)
+    {
+        $validated = $request->validate([
+            'employee_id' => 'required|integer|exists:pgsql_external.personnel_employee,id',
+            'year' => 'nullable|integer|min:2000|max:2100',
+            'has_mobility' => 'required|boolean',
+            'amount' => 'nullable|numeric|min:0',
+            'is_active' => 'nullable|boolean',
+        ]);
+
+        $employeeId = (int) $validated['employee_id'];
+        $year = (int) ($validated['year'] ?? now()->format('Y'));
+        $hasMobility = (bool) $validated['has_mobility'];
+
+        return DB::connection('pgsql_external')->transaction(function () use ($employeeId, $year, $hasMobility, $validated) {
+            $existing = DB::connection('pgsql_external')
+                ->table('employee_mobility')
+                ->where('employee_id', $employeeId)
+                ->where('year', $year)
+                ->first();
+
+            if (! $hasMobility) {
+                if ($existing) {
+                    DB::connection('pgsql_external')
+                        ->table('employee_mobility')
+                        ->where('id', $existing->id)
+                        ->delete();
+                }
+
+                $record = $this->mobilityWithEmployeeQuery($year, true)
+                    ->where('pe.id', $employeeId)
+                    ->first();
+
+                return response()->json([
+                    'success' => true,
+                    'data' => $record,
+                ]);
+            }
+
+            if ($existing) {
+                $updates = [];
+                if (array_key_exists('amount', $validated) && $validated['amount'] !== null) {
+                    $updates['amount'] = $validated['amount'];
+                }
+                if (array_key_exists('is_active', $validated)) {
+                    $updates['is_active'] = (bool) $validated['is_active'];
+                }
+
+                if (! empty($updates)) {
+                    DB::connection('pgsql_external')
+                        ->table('employee_mobility')
+                        ->where('id', $existing->id)
+                        ->update($updates);
+                }
+            } else {
+                DB::connection('pgsql_external')
+                    ->table('employee_mobility')
+                    ->insert([
+                        'employee_id' => $employeeId,
+                        'year' => $year,
+                        'amount' => $validated['amount'] ?? 0,
+                        'is_active' => array_key_exists('is_active', $validated) ? (bool) $validated['is_active'] : true,
+                        'created_at' => now(),
+                    ]);
+            }
+
+            $record = $this->mobilityWithEmployeeQuery($year, true)
+                ->where('pe.id', $employeeId)
+                ->first();
+
+            return response()->json([
+                'success' => true,
+                'data' => $record,
+            ]);
+        });
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate([
             'employee_id' => 'required|integer|exists:pgsql_external.personnel_employee,id',
             'year' => 'required|integer|min:2000|max:2100',
             'amount' => 'required|numeric|min:0',
+            'is_active' => 'nullable|boolean',
         ]);
 
         $alreadyExists = DB::connection('pgsql_external')
@@ -89,6 +202,7 @@ class EmployeeMobilityController extends Controller
                 'employee_id' => $validated['employee_id'],
                 'year' => $validated['year'],
                 'amount' => $validated['amount'],
+                'is_active' => array_key_exists('is_active', $validated) ? (bool) $validated['is_active'] : true,
                 'created_at' => now(),
             ]);
 
@@ -106,7 +220,7 @@ class EmployeeMobilityController extends Controller
     {
         if (! ctype_digit($id) || (int) $id < 1) {
             return response()->json([
-                'message' => 'ID invÃ¡lido.',
+                'message' => 'ID Invalido.',
             ], 422);
         }
 
@@ -116,6 +230,7 @@ class EmployeeMobilityController extends Controller
             'employee_id' => 'required|integer|exists:pgsql_external.personnel_employee,id',
             'year' => 'required|integer|min:2000|max:2100',
             'amount' => 'required|numeric|min:0',
+            'is_active' => 'nullable|boolean',
         ]);
 
         $existing = DB::connection('pgsql_external')
@@ -149,6 +264,7 @@ class EmployeeMobilityController extends Controller
                 'employee_id' => $validated['employee_id'],
                 'year' => $validated['year'],
                 'amount' => $validated['amount'],
+                'is_active' => array_key_exists('is_active', $validated) ? (bool) $validated['is_active'] : ($existing->is_active ?? true),
             ]);
 
         $record = $this->mobilityWithEmployeeQuery()
