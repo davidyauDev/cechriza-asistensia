@@ -16,8 +16,7 @@ class UpdateEmployeeMobilityMonthlyCommentRequest extends FormRequest
         return [
             'employee_id' => ['required', 'integer', 'exists:pgsql_external.personnel_employee,id'],
             'period_month' => ['required', 'date_format:Y-m-d'],
-            'monthly_comment' => ['required', 'string'],
+            'monthly_comment' => ['present', 'nullable', 'string'],
         ];
     }
 }
-
