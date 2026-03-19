@@ -170,7 +170,7 @@ class AttendanceServiceRepository implements AttendanceServiceRepositoryInterfac
                         'day_code'          => 1, // V, DM, NM, SR, 1...
                         'mobility_eligible' => true,
                         'source'            => 'employee_concepts',
-                        'notes'             => 'asuistencia registrada desde app',
+                        'notes'             => 'asistencia registrada desde app',
                         'processed'         => false,
                         'created_at'        => now(),
                         'updated_at'        => now(),
