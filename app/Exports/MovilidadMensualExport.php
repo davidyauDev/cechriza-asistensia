@@ -19,6 +19,7 @@ class MovilidadMensualExport implements FromArray, WithHeadings, WithStyles, Wit
     protected $diasDelMes;
 
     private const FIXED_EMPLOYEE_HEADERS = [
+        'N°',
         'DNI',
         'Apellidos',
         'Nombres',
@@ -69,11 +70,12 @@ class MovilidadMensualExport implements FromArray, WithHeadings, WithStyles, Wit
     {
         $rows = [];
 
-        foreach ($this->data as $item) {
+        foreach ($this->data as $index => $item) {
             $emp = $item['employee'];
             $summary = $item['summary'];
 
             $row = [
+                $index + 1,
                 $emp['dni'],
                 $emp['last_name'],
                 $emp['first_name'],
@@ -140,13 +142,14 @@ class MovilidadMensualExport implements FromArray, WithHeadings, WithStyles, Wit
     public function columnWidths(): array
     {
         $widths = [
-            'A' => 12,  // DNI
-            'B' => 25,  // Apellidos
-            'C' => 20,  // Nombres
-            'D' => 20,  // Cargo
-            'E' => 25,  // Departamento
-            'F' => 15,  // Ciudad
-            'G' => 15,  // Fecha Ingreso
+            'A' => 6,   // N°
+            'B' => 12,  // DNI
+            'C' => 25,  // Apellidos
+            'D' => 20,  // Nombres
+            'E' => 20,  // Cargo
+            'F' => 25,  // Departamento
+            'G' => 15,  // Ciudad
+            'H' => 15,  // Fecha Ingreso
         ];
 
         $firstDayColumnIndex = count(self::FIXED_EMPLOYEE_HEADERS) + 1; // A=1
@@ -232,7 +235,7 @@ class MovilidadMensualExport implements FromArray, WithHeadings, WithStyles, Wit
         ]);
 
         // Alinear texto a la izquierda para nombres y ciudad
-        $sheet->getStyle("B2:F{$totalRows}")->applyFromArray([
+        $sheet->getStyle("C2:G{$totalRows}")->applyFromArray([
             'alignment' => [
                 'horizontal' => Alignment::HORIZONTAL_LEFT,
             ],
