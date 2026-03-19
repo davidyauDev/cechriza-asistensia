@@ -75,11 +75,15 @@ class EmployeeMobilityMonthlyCommentController extends Controller
             return $this->errorResponse('Comentario mensual no encontrado.', 404);
         }
 
+        $monthlyComment = $validated['monthly_comment'] ?? null;
+        if ($monthlyComment === null) {
+            $monthlyComment = '';
+        }
+
         $comment->update([
-            'monthly_comment' => $validated['monthly_comment'],
+            'monthly_comment' => $monthlyComment,
         ]);
 
         return $this->successResponse($comment->fresh(), 'Comentario mensual actualizado.');
     }
 }
-
