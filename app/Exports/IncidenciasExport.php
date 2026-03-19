@@ -36,6 +36,7 @@ class IncidenciasExport implements FromArray, WithHeadings, WithStyles, WithColu
             'DNI',
             'Apellidos',
             'Nombre',
+            'Departamento',
             'Empresa',
         ];
 
@@ -60,6 +61,7 @@ class IncidenciasExport implements FromArray, WithHeadings, WithStyles, WithColu
                 $item['dni'],
                 $item['apellidos'],
                 $item['nombre'],
+                $item['departamento'] ?? '',
                 $item['empresa'] ?? '',
             ];
 
@@ -90,13 +92,14 @@ class IncidenciasExport implements FromArray, WithHeadings, WithStyles, WithColu
             'A' => 12,  // DNI
             'B' => 25,  // Apellidos
             'C' => 20,  // Nombre
-            'D' => 30,  // Empresa
+            'D' => 25,  // Departamento
+            'E' => 30,  // Empresa
         ];
     }
 
     public function styles(Worksheet $sheet)
     {
-        $totalColumns = 7 + count($this->diasDelMes);
+        $totalColumns = 8 + count($this->diasDelMes);
         $lastColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($totalColumns);
         $totalRows = count($this->data) + 1;
 
@@ -140,7 +143,7 @@ class IncidenciasExport implements FromArray, WithHeadings, WithStyles, WithColu
         $sheet->getRowDimension(1)->setRowHeight(25);
 
         // Centrar columnas de tiempo y días
-        $firstDayColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(5);
+        $firstDayColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(6);
         $sheet->getStyle($firstDayColumn . '2:' . $lastColumn . $totalRows)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
         // Encabezados de Bruto/Incidencias/Neto con colores del diseño
@@ -204,7 +207,7 @@ class IncidenciasExport implements FromArray, WithHeadings, WithStyles, WithColu
             if (!in_array($dia, $this->domingos, true)) {
                 continue;
             }
-            $colIndex = 5 + $index;
+            $colIndex = 6 + $index;
             $columnLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIndex);
             $sheet->getStyle($columnLetter . '1:' . $columnLetter . $totalRows)->applyFromArray([
                 'fill' => [
@@ -215,7 +218,7 @@ class IncidenciasExport implements FromArray, WithHeadings, WithStyles, WithColu
         }
 
         // Ancho columnas de días
-        for ($col = 5; $col <= $lastDayColumnIndex; $col++) {
+        for ($col = 6; $col <= $lastDayColumnIndex; $col++) {
             $columnLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col);
             $sheet->getColumnDimension($columnLetter)->setWidth(10);
         }
@@ -227,8 +230,8 @@ class IncidenciasExport implements FromArray, WithHeadings, WithStyles, WithColu
         // Filtros automáticos
         $sheet->setAutoFilter('A1:' . $lastColumn . '1');
 
-        // Congelar primera fila y primeras 4 columnas
-        $sheet->freezePane('E2');
+        // Congelar primera fila y primeras 5 columnas
+        $sheet->freezePane('F2');
 
         return [];
     }
