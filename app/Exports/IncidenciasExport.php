@@ -45,9 +45,9 @@ class IncidenciasExport implements FromArray, WithHeadings, WithStyles, WithColu
             $headers[] = $dia;
         }
 
-        $headers[] = 'Bruto (HH:MM)';
-        $headers[] = 'Incidencias (HH:MM)';
-        $headers[] = 'Neto (HH:MM)';
+        $headers[] = 'Bruto (HH:MM:SS)';
+        $headers[] = 'Incidencias (HH:MM:SS)';
+        $headers[] = 'Neto (HH:MM:SS)';
 
         return $headers;
     }
@@ -76,9 +76,9 @@ class IncidenciasExport implements FromArray, WithHeadings, WithStyles, WithColu
                 }
             }
 
-            $row[] = $item['bruto_hhmm'];
-            $row[] = $item['incidencias_hhmm'];
-            $row[] = $item['neto_hhmm'];
+            $row[] = $item['bruto_hhmmss'] ?? $item['bruto_hhmm'];
+            $row[] = $item['incidencias_hhmmss'] ?? $item['incidencias_hhmm'];
+            $row[] = $item['neto_hhmmss'] ?? $item['neto_hhmm'];
 
             $rows[] = $row;
         }

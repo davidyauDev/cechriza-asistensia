@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Exports\IncidenciasExport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 use Carbon\Carbon;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -21,6 +23,7 @@ class IncidenciaController extends Controller
             'descargar' => 'nullable|boolean',
         ]);
         $usarRango = $request->filled('fecha_desde') && $request->filled('fecha_hasta');
+        $usaDuracionSegundos = $this->tieneColumnaDuracionSegundos();
         $departments = [1, 6, 3,11 , 12 , 14, 15 , 16, 13, 8];
         $brutosQuery = DB::connection('pgsql_external')
             ->table('att_payloadbase')
@@ -29,10 +32,10 @@ class IncidenciaController extends Controller
                 COALESCE(SUM(
                     CASE
                         WHEN clock_in > check_in
-                        THEN EXTRACT(EPOCH FROM (clock_in - check_in)) / 60
+                        THEN EXTRACT(EPOCH FROM (clock_in - check_in))
                         ELSE 0
                     END
-                ), 0) AS minutos_bruto
+                ), 0) AS duracion_bruto_segundos
             ");
 
         if ($usarRango) {
@@ -42,7 +45,7 @@ class IncidenciaController extends Controller
             $brutosQuery->whereMonth('clock_in', $request->mes)
                 ->whereYear('clock_in', $request->anio);
         }
-        $brutos = $brutosQuery->groupBy('emp_id')->pluck('minutos_bruto', 'emp_id');
+        $brutos = $brutosQuery->groupBy('emp_id')->pluck('duracion_bruto_segundos', 'emp_id');
         $rowsQuery = DB::connection('pgsql_external')
             ->table('personnel_employee as e')
             ->leftJoin('personnel_department as pd', 'e.department_id', '=', 'pd.id')
@@ -86,6 +89,12 @@ class IncidenciaController extends Controller
             ->orderBy('e.id')
             ->orderBy('i.fecha');
 
+        $rowsQuery->addSelect(DB::raw(
+            $usaDuracionSegundos
+                ? 'i.duracion_segundos'
+                : '(i.minutos * 60) as duracion_segundos'
+        ));
+
         $rows = $rowsQuery->get();
 
 
@@ -100,7 +109,7 @@ class IncidenciaController extends Controller
         $data = $rows->groupBy('id')->map(function ($items) use ($brutos, $mapaTipos, $usarRango, $request) {
             $user = $items->first();
             $dias = [];
-            $minutosIncidencias = 0;
+            $segundosIncidencias = 0;
 
             // Si se usa rango, limitar los días a ese rango
             $fechaDesde = $usarRango ? Carbon::parse($request->fecha_desde)->startOfDay() : null;
@@ -120,12 +129,16 @@ class IncidenciaController extends Controller
                     fn($m) => '-' . ucfirst($m[1]),
                     str_replace('.', '', $key)
                 );
-                if (!is_null($row->minutos)) {
-                    $minutosIncidencias += $row->minutos;
+                $duracionSegundos = is_null($row->duracion_segundos) ? null : (int) $row->duracion_segundos;
+
+                if (!is_null($duracionSegundos)) {
+                    $segundosIncidencias += $duracionSegundos;
                     $dias[$key] = [
                         'id'     => $row->incidencia_id,
-                        'valor'  => sprintf('%02d:%02d', intdiv($row->minutos, 60), $row->minutos % 60),
+                        'valor'  => $this->formatearSegundos($duracionSegundos),
                         'motivo' => $row->motivo,
+                        'minutos' => is_null($row->minutos) ? intdiv($duracionSegundos, 60) : (int) $row->minutos,
+                        'segundos' => $duracionSegundos,
                         'es_recordatorio' => (bool) $row->es_recordatorio,
                         'created_at' => $row->created_at,
                         'creado_por' => trim(($row->creador_nombre ?? '') . ' ' . ($row->creador_apellido ?? '')),
@@ -142,8 +155,12 @@ class IncidenciaController extends Controller
                 }
             }
 
-            $minutosBruto = (int) ($brutos[$user->id] ?? 0);
-            $minutosNeto  = max(0, $minutosBruto - $minutosIncidencias);
+            $segundosBruto = (int) round($brutos[$user->id] ?? 0);
+            $segundosNeto  = max(0, $segundosBruto - $segundosIncidencias);
+
+            $minutosBruto = intdiv($segundosBruto, 60);
+            $minutosIncidencias = intdiv($segundosIncidencias, 60);
+            $minutosNeto = intdiv($segundosNeto, 60);
 
             return [
                 'id' => $user->id,
@@ -153,12 +170,18 @@ class IncidenciaController extends Controller
                 'email' => $user->email,
                 'departamento' => $user->departamento,
                 'empresa' => $user->empresa,
+                'bruto_segundos' => $segundosBruto,
                 'bruto_minutos' => $minutosBruto,
-                'bruto_hhmm' => sprintf('%02d:%02d', intdiv($minutosBruto, 60), $minutosBruto % 60),
+                'bruto_hhmm' => $this->formatearMinutos($segundosBruto),
+                'bruto_hhmmss' => $this->formatearSegundos($segundosBruto),
+                'incidencias_segundos' => $segundosIncidencias,
                 'incidencias_minutos' => $minutosIncidencias,
-                'incidencias_hhmm' => sprintf('%02d:%02d', intdiv($minutosIncidencias, 60), $minutosIncidencias % 60),
+                'incidencias_hhmm' => $this->formatearMinutos($segundosIncidencias),
+                'incidencias_hhmmss' => $this->formatearSegundos($segundosIncidencias),
+                'neto_segundos' => $segundosNeto,
                 'neto_minutos' => $minutosNeto,
-                'neto_hhmm' => sprintf('%02d:%02d', intdiv($minutosNeto, 60), $minutosNeto % 60),
+                'neto_hhmm' => $this->formatearMinutos($segundosNeto),
+                'neto_hhmmss' => $this->formatearSegundos($segundosNeto),
                 'dias' => (object) $dias,
             ];
         })->values();
@@ -220,7 +243,9 @@ class IncidenciaController extends Controller
                 'usuario_id' => 'required|integer',
                 'fecha'      => 'required|date',
                 'tipo'       => 'required|string',
-                'minutos'    => 'nullable|integer',
+                'minutos'    => 'nullable|integer|min:0',
+                'segundos'   => 'nullable|integer|min:0|max:59',
+                'duracion_segundos' => 'nullable|integer|min:1',
                 'motivo'     => 'required|string|max:255',
                 'es_recordatorio' => 'nullable|boolean',
 
@@ -231,24 +256,31 @@ class IncidenciaController extends Controller
                 'FALTA_JUSTIFICADA',
             ];
 
-            $minutos = in_array($request->tipo, $tiposSinMinutos)
+            $duracionSegundos = $this->resolverDuracionSegundos($request, $tiposSinMinutos);
+            $minutos = is_null($duracionSegundos)
                 ? null
-                : $request->minutos;
+                : intdiv($duracionSegundos, 60);
 
             $esRecordatorio = (bool) $request->input('es_recordatorio', false);
 
+            $payload = [
+                'usuario_id' => $request->usuario_id,
+                'creado_por' => $request->creado_por,
+                'fecha'      => $request->fecha,
+                'tipo'       => $request->tipo,
+                'minutos'    => $minutos,
+                'motivo'     => $request->motivo,
+                'es_recordatorio' => $esRecordatorio,
+                'created_at' => now(),
+            ];
+
+            if ($this->tieneColumnaDuracionSegundos()) {
+                $payload['duracion_segundos'] = $duracionSegundos;
+            }
+
             DB::connection('pgsql_external')
                 ->table('incidencias')
-                ->insert([
-                    'usuario_id' => $request->usuario_id,
-                    'creado_por' => $request->creado_por,
-                    'fecha'      => $request->fecha,
-                    'tipo'       => $request->tipo,
-                    'minutos'    => $minutos,
-                    'motivo'     => $request->motivo,
-                    'es_recordatorio' => $esRecordatorio,
-                    'created_at' => now(),
-                ]);
+                ->insert($payload);
 
             if (!$esRecordatorio && !is_null($request->ID_Marcacion)) {
                 DB::connection('pgsql_external')
@@ -260,6 +292,8 @@ class IncidenciaController extends Controller
             return response()->json([
                 'message' => 'Incidencia registrada correctamente'
             ], 201);
+        } catch (ValidationException $e) {
+            throw $e;
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Error al registrar la incidencia',
@@ -273,7 +307,9 @@ class IncidenciaController extends Controller
         $request->validate([
             'fecha'      => 'nullable|date',
             'tipo'       => 'nullable|string',
-            'minutos'    => 'nullable|integer|min:1',
+            'minutos'    => 'nullable|integer|min:0',
+            'segundos'   => 'nullable|integer|min:0|max:59',
+            'duracion_segundos' => 'nullable|integer|min:1',
             'motivo'     => 'required|string|max:255',
         ]);
 
@@ -294,20 +330,27 @@ class IncidenciaController extends Controller
             'FALTA_JUSTIFICADA',
         ];
 
-        $minutos = in_array($request->tipo, $tiposSinMinutos)
+        $duracionSegundos = $this->resolverDuracionSegundos($request, $tiposSinMinutos, $incidencia);
+        $minutos = is_null($duracionSegundos)
             ? null
-            : $request->minutos;
+            : intdiv($duracionSegundos, 60);
+
+        $payload = [
+            //'fecha'      => $request->fecha,
+            //'tipo'       => $request->tipo,
+            'minutos'    => $minutos,
+            'motivo'     => $request->motivo,
+            'updated_at' => now(),
+        ];
+
+        if ($this->tieneColumnaDuracionSegundos()) {
+            $payload['duracion_segundos'] = $duracionSegundos;
+        }
 
         DB::connection('pgsql_external')
             ->table('incidencias')
             ->where('id', $id)
-            ->update([
-                //'fecha'      => $request->fecha,
-                //'tipo'       => $request->tipo,
-                'minutos'    => $minutos,
-                'motivo'     => $request->motivo,
-                'updated_at' => now(),
-            ]);
+            ->update($payload);
 
         return response()->json([
             'message' => 'Incidencia actualizada correctamente'
@@ -337,5 +380,66 @@ class IncidenciaController extends Controller
         return response()->json([
             'message' => 'Incidencia eliminada correctamente'
         ], 200);
+    }
+
+    private function tieneColumnaDuracionSegundos(): bool
+    {
+        static $tieneColumna = null;
+
+        if ($tieneColumna !== null) {
+            return $tieneColumna;
+        }
+
+        return $tieneColumna = Schema::connection('pgsql_external')
+            ->hasColumn('incidencias', 'duracion_segundos');
+    }
+
+    private function resolverDuracionSegundos(Request $request, array $tiposSinMinutos, ?object $incidencia = null): ?int
+    {
+        $tipo = $request->input('tipo', $incidencia->tipo ?? null);
+
+        if (in_array($tipo, $tiposSinMinutos, true)) {
+            return null;
+        }
+
+        if ($request->filled('duracion_segundos')) {
+            $duracionSegundos = (int) $request->input('duracion_segundos');
+        } elseif ($request->has('minutos') || $request->has('segundos')) {
+            $duracionSegundos = ((int) $request->input('minutos', 0) * 60)
+                + (int) $request->input('segundos', 0);
+        } elseif ($incidencia && isset($incidencia->duracion_segundos) && !is_null($incidencia->duracion_segundos)) {
+            $duracionSegundos = (int) $incidencia->duracion_segundos;
+        } elseif ($incidencia && !is_null($incidencia->minutos)) {
+            $duracionSegundos = (int) $incidencia->minutos * 60;
+        } else {
+            return null;
+        }
+
+        if ($duracionSegundos <= 0) {
+            throw ValidationException::withMessages([
+                'duracion_segundos' => 'La duración debe ser mayor a 0 segundos.',
+            ]);
+        }
+
+        return $duracionSegundos;
+    }
+
+    private function formatearSegundos(int $segundos): string
+    {
+        $segundos = max(0, $segundos);
+
+        return sprintf(
+            '%02d:%02d:%02d',
+            intdiv($segundos, 3600),
+            intdiv($segundos % 3600, 60),
+            $segundos % 60
+        );
+    }
+
+    private function formatearMinutos(int $segundos): string
+    {
+        $minutosTotales = intdiv(max(0, $segundos), 60);
+
+        return sprintf('%02d:%02d', intdiv($minutosTotales, 60), $minutosTotales % 60);
     }
 }
