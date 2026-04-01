@@ -3,11 +3,16 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Services\EmployeeBirthdayServiceInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class PersonnelEmployeeController extends Controller
 {
+    public function __construct(
+        private readonly EmployeeBirthdayServiceInterface $birthdayService
+    ) {}
+
     private function baseQuery()
     {
         return DB::connection('pgsql_external')
@@ -55,7 +60,7 @@ class PersonnelEmployeeController extends Controller
 
         if (! empty($validated['q'] ?? null)) {
             $q = trim((string) $validated['q']);
-            $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $q) . '%';
+            $like = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $q).'%';
             $query->where(function ($sub) use ($like) {
                 $sub
                     ->where('pe.emp_code', 'ilike', $like)
@@ -199,5 +204,28 @@ class PersonnelEmployeeController extends Controller
             'success' => true,
             'data' => $record,
         ]);
+    }
+
+    public function birthdaysByMonth(Request $request)
+    {
+        $validated = $request->validate([
+            'month' => 'required|integer|min:1|max:12',
+            'search' => 'nullable|string|max:150',
+        ]);
+
+        try {
+            return response()->json(
+                $this->birthdayService->getBirthdaysByMonth(
+                    (int) $validated['month'],
+                    $validated['search'] ?? null
+                )
+            );
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al consultar los cumpleaños del mes.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
     }
 }
