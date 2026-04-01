@@ -89,6 +89,44 @@ class TechnicianNightlyMissingMarksService
         ];
     }
 
+    public function getPreviousDayNotifications(?string $dni = null): array
+    {
+        $fecha = Carbon::yesterday('America/Lima')->format('Y-m-d');
+        $data = $this->getUsersWithRouteWithoutMark($fecha, $dni);
+
+        $notifications = collect($data['usuarios_con_ruta_sin_marcacion'])
+            ->map(function (array $user) use ($fecha): array {
+                return [
+                    'id' => $user['id'],
+                    'employee_id' => $user['id'],
+                    'dni' => $user['dni'],
+                    'nombre' => $user['nombre'],
+                    'apellido' => $user['apellido'],
+                    'nombre_completo' => $user['nombre_completo'],
+                    'fecha_referencia' => $fecha,
+                    'title' => 'Técnico sin marcación',
+                    'message' => "{$user['nombre_completo']} tenía ruta y no marcó el {$fecha}.",
+                    'selected' => true,
+                    'type' => 'technician_missing_mark',
+                    'rutas_count' => count($user['rutas'] ?? []),
+                    'rutas' => $user['rutas'] ?? [],
+                    'daily_record' => $user['daily_record'] ?? null,
+                    'source' => 'seguimiento_tecnico',
+                ];
+            })
+            ->values()
+            ->all();
+
+        return [
+            'success' => true,
+            'fecha_referencia' => $fecha,
+            'total_notificaciones' => count($notifications),
+            'notifications' => $notifications,
+            'selected_users' => $notifications,
+            'raw' => $data,
+        ];
+    }
+
     public function registerMissingConceptForDay(array $user, string $fecha, int $conceptId = self::MISSING_MARK_CONCEPT_ID, ?string $comment = null): array
     {
         $comment ??= self::MISSING_MARK_COMMENT;

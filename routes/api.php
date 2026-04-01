@@ -7,17 +7,15 @@ use App\Http\Controllers\Api\BirthdayGreetingsHistoryController;
 use App\Http\Controllers\Api\EmployeeConceptController;
 use App\Http\Controllers\Api\EmployeeMobilityController;
 use App\Http\Controllers\Api\EmployeeMobilityMonthlyCommentController;
-use App\Http\Controllers\Api\PersonnelEmployeeController;
-use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\EventoController;
 use App\Http\Controllers\Api\IncidenciaController;
-use App\Http\Controllers\Api\TechnicianController;
-use App\Http\Controllers\Api\TardanzaController;
-use Illuminate\Support\Facades\Route;
-
+use App\Http\Controllers\Api\PersonnelEmployeeController;
 use App\Http\Controllers\Api\ReporteAsistenciaController;
 use App\Http\Controllers\Api\SeguimientoTecnicoController;
-
+use App\Http\Controllers\Api\TardanzaController;
+use App\Http\Controllers\Api\TechnicianController;
+use App\Http\Controllers\Api\UserController;
+use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
 Route::middleware(['auth:sanctum'])->group(function () {
@@ -76,11 +74,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/biotime/empleados-por-departamento', [BioTimeController::class, 'empleadosPorDepartamento']);
     Route::prefix('biotime/personnel-employees')->group(function () {
         Route::get('/', [PersonnelEmployeeController::class, 'index']);
+        Route::get('/birthdays-by-month', [PersonnelEmployeeController::class, 'birthdaysByMonth']);
         Route::get('/{id}', [PersonnelEmployeeController::class, 'show'])->whereNumber('id');
         Route::put('/{id}', [PersonnelEmployeeController::class, 'update'])->whereNumber('id');
         Route::patch('/{id}', [PersonnelEmployeeController::class, 'update'])->whereNumber('id');
     });
-    
+
     Route::post('/employee-concepts', [EmployeeConceptController::class, 'storeConcept']);
     Route::post('/mobility/monthly-report', [EmployeeConceptController::class, 'monthlyMobilityReport']);
     Route::get('/employee-mobility', [EmployeeMobilityController::class, 'index']);
@@ -106,5 +105,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     Route::post('/tardanzas/enviar-correo', [TardanzaController::class, 'enviarCorreoTardanza']);
     Route::get('/seguimiento-tecnico', [SeguimientoTecnicoController::class, 'index']);
+    Route::get('/seguimiento-tecnico/notificaciones-dia-anterior', [SeguimientoTecnicoController::class, 'notificacionesDiaAnterior']);
 
 });

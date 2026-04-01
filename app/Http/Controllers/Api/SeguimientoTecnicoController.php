@@ -3,24 +3,30 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Services\TechnicianNightlyMissingMarksService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Http\Request;
 
 class SeguimientoTecnicoController extends Controller
 {
+    public function __construct(
+        private readonly TechnicianNightlyMissingMarksService $nightlyMissingMarksService
+    ) {}
+
     public function index(Request $request)
     {
         $request->validate([
             'fecha' => 'required|date',
-            'dni' => 'nullable|string'
+            'dni' => 'nullable|string',
         ]);
 
         try {
             $fecha = $request->query('fecha');
-            $dni = $request->query('dni'); 
+            $dni = $request->query('dni');
             $departamentos = [9, 7, 2, 10, 5]; // Áreas técnicas
-            
+
             $rutasResults = DB::connection('mysql_external')->select(
                 'CALL sp_get_rutas_tecnicos_dia_fecha(?, ?)',
                 [$dni, $fecha]
@@ -29,7 +35,7 @@ class SeguimientoTecnicoController extends Controller
             Log::info('Resultados SP sp_get_rutas_tecnicos_dia_fecha', [
                 'dni' => $dni,
                 'fecha' => $fecha,
-                'count' => count($rutasResults)
+                'count' => count($rutasResults),
             ]);
 
             // Obtener marcaciones
@@ -37,7 +43,7 @@ class SeguimientoTecnicoController extends Controller
                 ->table('iclock_transaction')
                 ->whereRaw('punch_time >= ? AND punch_time < ?', [
                     "{$fecha} 00:00:00-05",
-                    "{$fecha} 23:59:59-05"
+                    "{$fecha} 23:59:59-05",
                 ])
                 ->where('terminal_sn', 'App')
                 ->get();
@@ -90,7 +96,7 @@ class SeguimientoTecnicoController extends Controller
                     'notes' => $dr->notes,
                     'processed' => $dr->processed,
                     'created_at' => $dr->created_at,
-                    'updated_at' => $dr->updated_at
+                    'updated_at' => $dr->updated_at,
                 ];
             }
 
@@ -110,7 +116,7 @@ class SeguimientoTecnicoController extends Controller
                     'pp.position_name as posicion',
                     'pe.email',
                     'pe.mobile',
-                    'pe.status'
+                    'pe.status',
                 ])
                 ->where('pe.status', 0)
                 ->whereIn('pe.department_id', $departamentos)
@@ -122,14 +128,14 @@ class SeguimientoTecnicoController extends Controller
                 ->get();
 
             Log::info('Todos los usuarios del área obtenidos', [
-                'count' => count($todosUsuarios)
+                'count' => count($todosUsuarios),
             ]);
 
             // 4. Crear índice de usuarios con ruta
             $usuariosConRutaMap = [];
             foreach ($rutasResults as $ruta) {
                 $dniRuta = $ruta->dni;
-                if (!isset($usuariosConRutaMap[$dniRuta])) {
+                if (! isset($usuariosConRutaMap[$dniRuta])) {
                     $usuariosConRutaMap[$dniRuta] = [];
                 }
                 $usuariosConRutaMap[$dniRuta][] = $ruta;
@@ -141,7 +147,7 @@ class SeguimientoTecnicoController extends Controller
 
             foreach ($todosUsuarios as $usuario) {
                 $dniUsuario = $usuario->dni;
-                
+
                 $userData = [
                     'id' => $usuario->id,
                     'dni' => $dniUsuario,
@@ -154,7 +160,7 @@ class SeguimientoTecnicoController extends Controller
                     'posicion' => $usuario->posicion,
                     'email' => $usuario->email,
                     'mobile' => $usuario->mobile,
-                    'status' => $usuario->status
+                    'status' => $usuario->status,
                 ];
 
                 // Agregar marcaciones
@@ -191,16 +197,42 @@ class SeguimientoTecnicoController extends Controller
                 'total_con_ruta' => count($usuariosConRuta),
                 'total_sin_ruta' => count($usuariosSinRuta),
                 'usuarios_con_ruta' => $usuariosConRuta,
-                'usuarios_sin_ruta' => $usuariosSinRuta
+                'usuarios_sin_ruta' => $usuariosSinRuta,
             ]);
         } catch (\Exception $e) {
-            Log::error('Error al ejecutar SP sp_get_rutas_tecnicos_dia_fecha: ' . $e->getMessage());
+            Log::error('Error al ejecutar SP sp_get_rutas_tecnicos_dia_fecha: '.$e->getMessage());
+
             return response()->json([
                 'success' => false,
                 'message' => 'Error al consultar el SP',
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
 
+    public function notificacionesDiaAnterior(Request $request): JsonResponse
+    {
+        $request->validate([
+            'dni' => 'nullable|string',
+        ]);
+
+        try {
+            return response()->json(
+                $this->nightlyMissingMarksService->getPreviousDayNotifications(
+                    $request->query('dni')
+                )
+            );
+        } catch (\Throwable $e) {
+            Log::error('Error al obtener notificaciones del día anterior', [
+                'dni' => $request->query('dni'),
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al consultar las notificaciones del día anterior',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
 }

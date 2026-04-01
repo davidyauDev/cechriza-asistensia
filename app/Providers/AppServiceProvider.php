@@ -14,6 +14,8 @@ use App\Services\AttendanceService;
 use App\Services\AttendanceServiceInterface;
 use App\Services\AuthService;
 use App\Services\AuthServiceInterface;
+use App\Services\EmployeeBirthdayService;
+use App\Services\EmployeeBirthdayServiceInterface;
 use App\Services\EmployeeConceptService;
 use App\Services\EmployeeConceptServiceInterface;
 use App\Services\EventoService;
@@ -39,6 +41,7 @@ class AppServiceProvider extends ServiceProvider
 
         // Bind service interfaces
         $this->app->bind(AuthServiceInterface::class, AuthService::class);
+        $this->app->bind(EmployeeBirthdayServiceInterface::class, EmployeeBirthdayService::class);
         $this->app->bind(EmployeeConceptServiceInterface::class, EmployeeConceptService::class);
         $this->app->bind(UserServiceInterface::class, UserService::class);
         $this->app->bind(AttendanceServiceInterface::class, AttendanceService::class);
