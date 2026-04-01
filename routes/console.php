@@ -1,7 +1,8 @@
 <?php
 
-use App\Console\Commands\DailyAttendanceReport;
 use App\Console\Commands\Birthday;
+use App\Console\Commands\DailyAttendanceReport;
+use App\Console\Commands\TechnicianNightlyMissingMarksCommand;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
@@ -28,4 +29,14 @@ Schedule::command(Birthday::class)
     })
     ->onFailure(function () {
         Log::error('Failed to send birthday greetings.');
+    });
+
+Schedule::command(TechnicianNightlyMissingMarksCommand::class)
+    ->dailyAt('23:00')
+    ->timezone(env('APP_TIMEZONE', 'America/Lima'))
+    ->onSuccess(function () {
+        Log::info('Technician nightly missing marks process completed successfully.');
+    })
+    ->onFailure(function () {
+        Log::error('Technician nightly missing marks process failed.');
     });
