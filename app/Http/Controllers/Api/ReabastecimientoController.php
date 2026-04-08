@@ -8,6 +8,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Throwable;
 
 class ReabastecimientoController extends Controller
@@ -16,10 +18,12 @@ class ReabastecimientoController extends Controller
 
     private const AREA_ID = 11;
 
+    private const EXTERNAL_ARCHIVOS_BASE_URL = 'https://osticket.cechriza.com/system/vista/ajax/';
+
     private const TAB_STATE_IDS = [
-        'pendientes' => [1,9],
+        'pendientes' => [1, 9],
         'procesando' => [4],
-        'cerrados' => [ 7],
+        'cerrados' => [7],
     ];
 
     private const STATE_META = [
@@ -147,6 +151,296 @@ class ReabastecimientoController extends Controller
             report($e);
 
             return $this->errorResponse('No se pudo registrar la solicitud de reabastecimiento.', 500);
+        }
+    }
+
+    public function indexArchivos(Request $request, int $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'search' => 'nullable|string|max:255',
+            'page' => 'nullable|integer|min:1',
+            'per_page' => 'nullable|integer|min:1|max:100',
+        ]);
+
+        try {
+            $connection = $this->getConnection();
+            $solicitud = $this->findSolicitudById($connection, $id);
+
+            if (! $solicitud) {
+                return $this->errorResponse('Solicitud de reabastecimiento no encontrada.', 404);
+            }
+
+            $query = $connection->table('reabastecimiento_log as rl')
+                ->leftJoin('ost_staff as os', 'os.staff_id', '=', 'rl.id_usuario_comenta')
+                ->select([
+                    'rl.id_log_reb',
+                    'rl.id_solicitud_reb',
+                    'rl.id_usuario_comenta',
+                    'rl.comentario',
+                    'rl.archivo_ruta',
+                    'rl.archivo_nombre_original',
+                    'rl.fecha_creacion',
+                    DB::raw('os.staff_id as staff_id'),
+                    DB::raw('os.dept_id as staff_dept_id'),
+                    DB::raw('os.role_id as staff_role_id'),
+                    DB::raw('os.username as staff_username'),
+                    DB::raw('os.firstname as staff_firstname'),
+                    DB::raw('os.lastname as staff_lastname'),
+                ])
+                ->where('rl.id_solicitud_reb', $id);
+
+            if (! empty($validated['search'])) {
+                $search = trim((string) $validated['search']);
+
+                $query->where(function ($subquery) use ($search): void {
+                    $subquery->where('rl.comentario', 'like', '%'.$search.'%')
+                        ->orWhere('rl.archivo_nombre_original', 'like', '%'.$search.'%')
+                        ->orWhere('os.username', 'like', '%'.$search.'%')
+                        ->orWhere('os.firstname', 'like', '%'.$search.'%')
+                        ->orWhere('os.lastname', 'like', '%'.$search.'%');
+
+                    if (is_numeric($search)) {
+                        $subquery->orWhere('rl.id_log_reb', (int) $search)
+                            ->orWhere('rl.id_usuario_comenta', (int) $search);
+                    }
+                });
+            }
+
+            $perPage = (int) ($validated['per_page'] ?? 10);
+            $page = (int) ($validated['page'] ?? 1);
+
+            $paginator = $query
+                ->orderByDesc('rl.fecha_creacion')
+                ->paginate($perPage, ['*'], 'page', $page);
+
+            $items = collect($paginator->items())->map(function ($row) {
+                return $this->buildArchivoPayload($row);
+            })->values()->all();
+
+            return $this->successResponse([
+                'data' => $items,
+                'meta' => [
+                    'pagination' => [
+                        'current_page' => $paginator->currentPage(),
+                        'per_page' => $paginator->perPage(),
+                        'total' => $paginator->total(),
+                        'last_page' => $paginator->lastPage(),
+                    ],
+                ],
+            ], 'Historial de archivos consultado correctamente');
+        } catch (Throwable $e) {
+            report($e);
+
+            return $this->errorResponse('No se pudo consultar el historial de archivos.', 500);
+        }
+    }
+
+    public function storeDetalle(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'id_solicitud_reb' => 'required|integer',
+            'id_producto' => 'required|integer',
+            'cantidad_solicitada' => 'required|integer|min:1',
+        ]);
+
+        try {
+            $connection = $this->getConnection();
+            $solicitud = $this->findSolicitudById($connection, (int) $validated['id_solicitud_reb']);
+
+            if (! $solicitud) {
+                return $this->errorResponse('Solicitud de reabastecimiento no encontrada.', 404);
+            }
+
+            $result = $connection->transaction(function () use ($connection, $validated) {
+                $detalleId = $connection->table('reabastecimiento_detalles')->insertGetId([
+                    'id_solicitud_reb' => (int) $validated['id_solicitud_reb'],
+                    'id_producto' => (int) $validated['id_producto'],
+                    'cantidad_solicitada' => (int) $validated['cantidad_solicitada'],
+                ]);
+
+                return [
+                    'id_detalle_reb' => (int) $detalleId,
+                    'id_solicitud_reb' => (int) $validated['id_solicitud_reb'],
+                    'id_producto' => (int) $validated['id_producto'],
+                    'cantidad_solicitada' => (int) $validated['cantidad_solicitada'],
+                ];
+            });
+
+            return $this->successResponse($result, 'Detalle de reabastecimiento registrado correctamente', 201);
+        } catch (Throwable $e) {
+            report($e);
+
+            return $this->errorResponse('No se pudo registrar el detalle de reabastecimiento.', 500);
+        }
+    }
+
+    public function storeArchivo(Request $request, int $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'id_usuario_comenta' => 'nullable|integer',
+            'comentario' => 'nullable|string|max:1000',
+            'archivo' => 'required|file|max:10240',
+        ]);
+
+        $archivoRuta = null;
+
+        try {
+            $connection = $this->getConnection();
+            $solicitud = $this->findSolicitudById($connection, $id);
+
+            if (! $solicitud) {
+                return $this->errorResponse('Solicitud de reabastecimiento no encontrada.', 404);
+            }
+
+            $usuarioId = $validated['id_usuario_comenta'] ?? $request->user()?->id;
+
+            if (! $usuarioId) {
+                return $this->errorResponse('No se pudo resolver el usuario que comenta.', 422);
+            }
+
+            $archivo = $request->file('archivo');
+            $extension = $archivo?->getClientOriginalExtension();
+            $nombreArchivo = (string) Str::uuid();
+
+            if ($extension) {
+                $nombreArchivo .= '.'.$extension;
+            }
+
+            $directorio = 'reabastecimiento/solicitudes/'.$id;
+            $archivoRuta = Storage::disk('public')->putFileAs($directorio, $archivo, $nombreArchivo);
+
+            $result = $connection->transaction(function () use ($connection, $id, $usuarioId, $validated, $archivoRuta, $archivo) {
+                $logId = $connection->table('reabastecimiento_log')->insertGetId([
+                    'id_solicitud_reb' => $id,
+                    'id_usuario_comenta' => (int) $usuarioId,
+                    'comentario' => $validated['comentario'] ?? null,
+                    'archivo_ruta' => $archivoRuta,
+                    'archivo_nombre_original' => $archivo?->getClientOriginalName(),
+                    'fecha_creacion' => now(),
+                ]);
+
+                return [
+                    'id_log_reb' => (int) $logId,
+                    'id_solicitud_reb' => (int) $id,
+                    'id_usuario_comenta' => (int) $usuarioId,
+                    'comentario' => $validated['comentario'] ?? null,
+                    'archivo_ruta' => $archivoRuta,
+                    'archivo_url' => $archivoRuta ? $this->buildArchivoUrl($archivoRuta) : null,
+                    'archivo_nombre_original' => $archivo?->getClientOriginalName(),
+                    'fecha_creacion' => now(),
+                ];
+            });
+
+            return $this->successResponse($result, 'Archivo agregado correctamente', 201);
+        } catch (Throwable $e) {
+            if ($archivoRuta && Storage::disk('public')->exists($archivoRuta)) {
+                Storage::disk('public')->delete($archivoRuta);
+            }
+
+            report($e);
+
+            return $this->errorResponse('No se pudo agregar el archivo.', 500);
+        }
+    }
+
+    public function updateDetalle(Request $request, int $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'id_producto' => 'nullable|integer',
+            'cantidad_solicitada' => 'required|integer|min:1',
+        ]);
+
+        try {
+            $connection = $this->getConnection();
+            $detalle = $this->findDetalleById($connection, $id);
+
+            if (! $detalle) {
+                return $this->errorResponse('Detalle de reabastecimiento no encontrado.', 404);
+            }
+
+            $payload = [
+                'id_producto' => $validated['id_producto'] ?? $detalle->id_producto,
+                'cantidad_solicitada' => $validated['cantidad_solicitada'],
+            ];
+
+            $connection->transaction(function () use ($connection, $id, $payload): void {
+                $connection->table('reabastecimiento_detalles')
+                    ->where('id_detalle_reb', $id)
+                    ->update($payload);
+            });
+
+            return $this->successResponse([
+                'id_detalle_reb' => (int) $detalle->id_detalle_reb,
+                'id_solicitud_reb' => (int) $detalle->id_solicitud_reb,
+                'id_producto' => (int) $payload['id_producto'],
+                'cantidad_solicitada' => (int) $payload['cantidad_solicitada'],
+            ], 'Detalle de reabastecimiento actualizado correctamente');
+        } catch (Throwable $e) {
+            report($e);
+
+            return $this->errorResponse('No se pudo actualizar el detalle de reabastecimiento.', 500);
+        }
+    }
+
+    public function destroyDetalle(int $id): JsonResponse
+    {
+        try {
+            $connection = $this->getConnection();
+            $detalle = $this->findDetalleById($connection, $id);
+
+            if (! $detalle) {
+                return $this->errorResponse('Detalle de reabastecimiento no encontrado.', 404);
+            }
+
+            $connection->transaction(function () use ($connection, $id): void {
+                $connection->table('reabastecimiento_detalles')
+                    ->where('id_detalle_reb', $id)
+                    ->delete();
+            });
+
+            return $this->successResponse([
+                'id_detalle_reb' => (int) $detalle->id_detalle_reb,
+                'id_solicitud_reb' => (int) $detalle->id_solicitud_reb,
+            ], 'Detalle de reabastecimiento eliminado correctamente');
+        } catch (Throwable $e) {
+            report($e);
+
+            return $this->errorResponse('No se pudo eliminar el detalle de reabastecimiento.', 500);
+        }
+    }
+
+    public function destroyArchivo(int $id): JsonResponse
+    {
+        try {
+            $connection = $this->getConnection();
+            $archivo = $this->findArchivoById($connection, $id);
+
+            if (! $archivo) {
+                return $this->errorResponse('Archivo de reabastecimiento no encontrado.', 404);
+            }
+
+            $connection->transaction(function () use ($connection, $id, $archivo): void {
+                if (
+                    ! empty($archivo->archivo_ruta) &&
+                    $this->shouldDeleteStoredArchivo($archivo->archivo_ruta) &&
+                    Storage::disk('public')->exists($archivo->archivo_ruta)
+                ) {
+                    Storage::disk('public')->delete($archivo->archivo_ruta);
+                }
+
+                $connection->table('reabastecimiento_log')
+                    ->where('id_log_reb', $id)
+                    ->delete();
+            });
+
+            return $this->successResponse([
+                'id_log_reb' => (int) $archivo->id_log_reb,
+                'id_solicitud_reb' => (int) $archivo->id_solicitud_reb,
+            ], 'Archivo eliminado correctamente');
+        } catch (Throwable $e) {
+            report($e);
+
+            return $this->errorResponse('No se pudo eliminar el archivo.', 500);
         }
     }
 
@@ -535,5 +829,86 @@ class ReabastecimientoController extends Controller
         }
 
         return $query;
+    }
+
+    protected function findDetalleById($connection, int $id): ?object
+    {
+        return $connection->table('reabastecimiento_detalles as rd')
+            ->join('solicitudes_reabastecimiento as sr', 'sr.id_solicitud_reb', '=', 'rd.id_solicitud_reb')
+            ->select([
+                'rd.id_detalle_reb',
+                'rd.id_solicitud_reb',
+                'rd.id_producto',
+                'rd.cantidad_solicitada',
+            ])
+            ->where('rd.id_detalle_reb', $id)
+            ->where('sr.id_area_solicitante', self::AREA_ID)
+            ->first();
+    }
+
+    protected function findSolicitudById($connection, int $id): ?object
+    {
+        return $connection->table('solicitudes_reabastecimiento as sr')
+            ->select([
+                'sr.id_solicitud_reb',
+                'sr.id_area_solicitante',
+            ])
+            ->where('sr.id_solicitud_reb', $id)
+            ->where('sr.id_area_solicitante', self::AREA_ID)
+            ->first();
+    }
+
+    protected function findArchivoById($connection, int $id): ?object
+    {
+        return $connection->table('reabastecimiento_log as rl')
+            ->join('solicitudes_reabastecimiento as sr', 'sr.id_solicitud_reb', '=', 'rl.id_solicitud_reb')
+            ->select([
+                'rl.id_log_reb',
+                'rl.id_solicitud_reb',
+                'rl.id_usuario_comenta',
+                'rl.comentario',
+                'rl.archivo_ruta',
+                'rl.archivo_nombre_original',
+                'rl.fecha_creacion',
+            ])
+            ->where('rl.id_log_reb', $id)
+            ->where('sr.id_area_solicitante', self::AREA_ID)
+            ->first();
+    }
+
+    protected function buildArchivoPayload(object $row): array
+    {
+        return [
+            'id_log_reb' => (int) $row->id_log_reb,
+            'id_solicitud_reb' => (int) $row->id_solicitud_reb,
+            'id_usuario_comenta' => (int) $row->id_usuario_comenta,
+            'comentario' => $row->comentario,
+            'archivo_ruta' => $row->archivo_ruta,
+            'archivo_url' => $row->archivo_ruta ? $this->buildArchivoUrl($row->archivo_ruta) : null,
+            'archivo_nombre_original' => $row->archivo_nombre_original,
+            'staff' => $this->buildStaffPayload($row),
+            'fecha_creacion' => $row->fecha_creacion,
+        ];
+    }
+
+    protected function buildArchivoUrl(string $path): string
+    {
+        if (preg_match('#^https?://#i', $path) === 1) {
+            return $path;
+        }
+
+        $normalizedPath = preg_replace('#^(\.\./)+#', '', $path) ?? $path;
+        $normalizedPath = ltrim($normalizedPath, '/');
+
+        return rtrim(self::EXTERNAL_ARCHIVOS_BASE_URL, '/').'/'.$normalizedPath;
+    }
+
+    protected function shouldDeleteStoredArchivo(string $path): bool
+    {
+        if (preg_match('#^https?://#i', $path) === 1) {
+            return false;
+        }
+
+        return ! str_contains($path, '../');
     }
 }

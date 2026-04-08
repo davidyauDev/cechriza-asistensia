@@ -104,6 +104,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/reabastecimiento/solicitudes', [ReabastecimientoController::class, 'index'])->name('reabastecimiento.index');
     Route::get('/reabastecimiento/solicitudes/{id}', [ReabastecimientoController::class, 'show'])->whereNumber('id')->name('reabastecimiento.show');
     Route::post('/reabastecimiento/solicitudes', [ReabastecimientoController::class, 'store'])->name('reabastecimiento.store');
+    Route::get('/reabastecimiento/solicitudes/{id}/archivos', [ReabastecimientoController::class, 'indexArchivos'])->whereNumber('id')->name('reabastecimiento.archivos.index');
+    Route::post('/reabastecimiento/solicitudes/{id}/archivos', [ReabastecimientoController::class, 'storeArchivo'])->whereNumber('id')->name('reabastecimiento.archivos.store');
+    Route::post('/reabastecimiento/detalles', [ReabastecimientoController::class, 'storeDetalle'])->name('reabastecimiento.detalles.store');
+    Route::match(['put', 'patch'], '/reabastecimiento/detalles/{id}', [ReabastecimientoController::class, 'updateDetalle'])->whereNumber('id')->name('reabastecimiento.detalles.update');
+    Route::delete('/reabastecimiento/detalles/{id}', [ReabastecimientoController::class, 'destroyDetalle'])->whereNumber('id')->name('reabastecimiento.detalles.destroy');
+    Route::delete('/reabastecimiento/archivos/{id}', [ReabastecimientoController::class, 'destroyArchivo'])->whereNumber('id')->name('reabastecimiento.archivos.destroy');
 
     Route::post('/incidencias', [IncidenciaController::class, 'index']);
     Route::post('/incidencias/store', [IncidenciaController::class, 'store']);
