@@ -9,7 +9,9 @@ use App\Http\Controllers\Api\EmployeeMobilityController;
 use App\Http\Controllers\Api\EmployeeMobilityMonthlyCommentController;
 use App\Http\Controllers\Api\EventoController;
 use App\Http\Controllers\Api\IncidenciaController;
+use App\Http\Controllers\Api\InventarioController;
 use App\Http\Controllers\Api\PersonnelEmployeeController;
+use App\Http\Controllers\Api\ReabastecimientoController;
 use App\Http\Controllers\Api\ReporteAsistenciaController;
 use App\Http\Controllers\Api\SeguimientoTecnicoController;
 use App\Http\Controllers\Api\TardanzaController;
@@ -97,6 +99,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     Route::get('/birthday-greetings-history', [BirthdayGreetingsHistoryController::class, 'index']);
     Route::post('/birthday-greetings-history/retry-failed', [BirthdayGreetingsHistoryController::class, 'retryFailedGreetings']);
+
+    Route::get('/inventario', [InventarioController::class, 'index'])->name('inventario.index');
+    Route::get('/reabastecimiento/solicitudes', [ReabastecimientoController::class, 'index'])->name('reabastecimiento.index');
+    Route::get('/reabastecimiento/solicitudes/{id}', [ReabastecimientoController::class, 'show'])->whereNumber('id')->name('reabastecimiento.show');
+    Route::post('/reabastecimiento/solicitudes', [ReabastecimientoController::class, 'store'])->name('reabastecimiento.store');
 
     Route::post('/incidencias', [IncidenciaController::class, 'index']);
     Route::post('/incidencias/store', [IncidenciaController::class, 'store']);
