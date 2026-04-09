@@ -10,8 +10,10 @@ use App\Http\Controllers\Api\EmployeeMobilityMonthlyCommentController;
 use App\Http\Controllers\Api\EventoController;
 use App\Http\Controllers\Api\IncidenciaController;
 use App\Http\Controllers\Api\InventarioController;
+use App\Http\Controllers\Api\DetalleSolicitudController;
 use App\Http\Controllers\Api\PersonnelEmployeeController;
 use App\Http\Controllers\Api\ReabastecimientoController;
+use App\Http\Controllers\Api\SolicitudController;
 use App\Http\Controllers\Api\ReporteAsistenciaController;
 use App\Http\Controllers\Api\SeguimientoTecnicoController;
 use App\Http\Controllers\Api\TardanzaController;
@@ -101,6 +103,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/birthday-greetings-history/retry-failed', [BirthdayGreetingsHistoryController::class, 'retryFailedGreetings']);
 
     Route::get('/inventario', [InventarioController::class, 'index'])->name('inventario.index');
+    Route::get('/solicitudes', [SolicitudController::class, 'index'])->name('solicitudes.index');
+    Route::get('/solicitudes/{id}', [SolicitudController::class, 'show'])->whereNumber('id')->name('solicitudes.show');
+    Route::post('/solicitudes/detalles/{id}/aprobar', [DetalleSolicitudController::class, 'aprobar'])->whereNumber('id')->name('solicitudes.detalles.aprobar');
+    Route::post('/solicitudes/detalles/{id}/rechazar', [DetalleSolicitudController::class, 'rechazar'])->whereNumber('id')->name('solicitudes.detalles.rechazar');
     Route::get('/reabastecimiento/solicitudes', [ReabastecimientoController::class, 'index'])->name('reabastecimiento.index');
     Route::get('/reabastecimiento/solicitudes/{id}', [ReabastecimientoController::class, 'show'])->whereNumber('id')->name('reabastecimiento.show');
     Route::post('/reabastecimiento/solicitudes', [ReabastecimientoController::class, 'store'])->name('reabastecimiento.store');

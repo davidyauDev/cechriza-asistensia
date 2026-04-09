@@ -14,6 +14,8 @@ class ReabastecimientoControllerTest extends TestCase
         $connection = Mockery::mock();
         $solicitudesTable = Mockery::mock();
         $detallesTable = Mockery::mock();
+        $logTable = Mockery::mock();
+        $flujoTable = Mockery::mock();
 
         $connection->shouldReceive('transaction')
             ->once()
@@ -30,6 +32,16 @@ class ReabastecimientoControllerTest extends TestCase
             ->with('reabastecimiento_detalles')
             ->once()
             ->andReturn($detallesTable);
+
+        $connection->shouldReceive('table')
+            ->with('reabastecimiento_log')
+            ->once()
+            ->andReturn($logTable);
+
+        $connection->shouldReceive('table')
+            ->with('reabastecimiento_flujo')
+            ->once()
+            ->andReturn($flujoTable);
 
         $solicitudesTable->shouldReceive('insertGetId')
             ->once()
@@ -52,6 +64,31 @@ class ReabastecimientoControllerTest extends TestCase
                     && $rows[1]['cantidad_solicitada'] === 2;
             }))
             ->andReturnTrue();
+
+        $logTable->shouldReceive('insertGetId')
+            ->once()
+            ->with(Mockery::on(function (array $payload) {
+                return $payload['id_solicitud_reb'] === 9
+                    && $payload['id_usuario_comenta'] === 163
+                    && $payload['comentario'] === 'Solicitud creada y pendiente de aprobación por Compras.'
+                    && $payload['archivo_ruta'] === null
+                    && $payload['archivo_nombre_original'] === null
+                    && array_key_exists('fecha_creacion', $payload);
+            }))
+            ->andReturn(10);
+
+        $flujoTable->shouldReceive('insertGetId')
+            ->once()
+            ->with(Mockery::on(function (array $payload) {
+                return $payload['id_solicitud_reb'] === 9
+                    && $payload['id_area_responsable'] === 7
+                    && $payload['id_usuario_asignado'] === 185
+                    && $payload['id_estado'] === 1
+                    && $payload['comentarios'] === 'Solicitud creada y pendiente de aprobación por Compras.'
+                    && $payload['archivo'] === null
+                    && array_key_exists('fecha_actualizacion', $payload);
+            }))
+            ->andReturn(11);
 
         $controller = new class($connection) extends ReabastecimientoController
         {

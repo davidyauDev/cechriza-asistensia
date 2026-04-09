@@ -1,0 +1,260 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Traits\ApiResponseTrait;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Throwable;
+
+class SolicitudController extends Controller
+{
+    use ApiResponseTrait;
+
+    private const ESTADO_GENERAL_FILTRADO = 11;
+
+    private const PEDIDO_COMPRA_ESTADO_FILTRADO = 0;
+
+    private const AREA_FILTRO = 'RR.HH.';
+
+    public function index(Request $request): JsonResponse
+    {
+        try {
+            $rows = $this->getConnection()->select(
+                $this->buildIndexSql(),
+                [
+                    self::ESTADO_GENERAL_FILTRADO,
+                    self::PEDIDO_COMPRA_ESTADO_FILTRADO,
+                    self::AREA_FILTRO,
+                ]
+            );
+
+            $payload = collect($rows)
+                ->map(fn (object $row): array => $this->buildIndexPayload($row))
+                ->values()
+                ->all();
+
+            return $this->successResponse($payload, 'Solicitudes consultadas correctamente');
+        } catch (Throwable $e) {
+            report($e);
+
+            return $this->errorResponse('No se pudieron consultar las solicitudes.', 500);
+        }
+    }
+
+    public function show(int $id): JsonResponse
+    {
+        try {
+            $rows = $this->getConnection()->select(
+                $this->buildShowSql(),
+                [$id]
+            );
+
+            if ($rows === []) {
+                return $this->errorResponse('Solicitud no encontrada.', 404);
+            }
+
+            return $this->successResponse(
+                $this->buildShowPayload($rows),
+                'Solicitud consultada correctamente'
+            );
+        } catch (Throwable $e) {
+            report($e);
+
+            return $this->errorResponse('No se pudo consultar el detalle de la solicitud.', 500);
+        }
+    }
+
+    protected function buildIndexSql(): string
+    {
+        return <<<'SQL'
+            SELECT
+                s.id_solicitud,
+                s.id_usuario_solicitante,
+                s.justificacion,
+                s.id_estado_general,
+                s.fecha_registro,
+                e.descripcion AS estado,
+                u.firstname,
+                u.lastname
+            FROM solicitudes s
+            INNER JOIN estados_inventario e ON s.id_estado_general = e.id_estado
+            INNER JOIN ost_staff u ON s.id_usuario_solicitante = u.staff_id
+            WHERE s.id_estado_general = ?
+              AND s.pedido_compra_estado = ?
+              AND EXISTS (
+                  SELECT 1
+                  FROM solicitud_detalles d
+                  LEFT JOIN inventario i ON i.id_inventario = d.id_inventario
+                  LEFT JOIN area a ON a.id_area = COALESCE(NULLIF(d.area_id, 0), i.id_area)
+                  WHERE d.id_solicitud = s.id_solicitud
+                    AND a.descripcion_area = ?
+              )
+            ORDER BY s.fecha_registro DESC
+            SQL;
+    }
+
+    protected function buildShowSql(): string
+    {
+        return <<<'SQL'
+            SELECT
+                d.id_detalle_solicitud,
+                d.id_solicitud,
+                d.id_inventario,
+                d.area_id,
+                a.descripcion_area AS area,
+                i.id_area AS id_area_inventario,
+                i.stock_actual,
+                p.descripcion AS producto,
+                d.cantidad_solicitada AS solicitado,
+                d.cantidad_aprobada AS aprobado,
+                d.cantidad_atendida,
+                d.id_estado_detalle,
+                e.descripcion AS estado,
+                d.observacion_atencion,
+                d.motivo_rechazo AS motivo,
+                d.id_usuario_atendio,
+                d.fecha_atencion,
+                s.id_usuario_solicitante,
+                s.fecha_registro,
+                s.fecha_necesaria,
+                s.fecha_cierre,
+                s.prioridad,
+                s.tipo_entrega_preferida,
+                s.justificacion,
+                u.firstname,
+                u.lastname,
+                u.email
+            FROM solicitudes s
+            INNER JOIN ost_staff u ON u.staff_id = s.id_usuario_solicitante
+            INNER JOIN solicitud_detalles d ON d.id_solicitud = s.id_solicitud
+            INNER JOIN inventario i ON i.id_inventario = d.id_inventario
+            INNER JOIN productos p ON p.id_producto = i.id_producto
+            LEFT JOIN area a ON a.id_area = d.area_id
+            INNER JOIN estados_inventario e ON e.id_estado = d.id_estado_detalle
+            WHERE s.id_solicitud = ?
+            ORDER BY COALESCE(NULLIF(d.area_id, 0), i.id_area) ASC, p.descripcion ASC
+            SQL;
+    }
+
+    /**
+     * @param  array<int, object>  $rows
+     * @return array<string, mixed>
+     */
+    protected function buildShowPayload(array $rows): array
+    {
+        $firstRow = $rows[0];
+
+        return [
+            'solicitud' => $this->buildSolicitudPayload($firstRow, $rows),
+            'detalles' => collect($rows)
+                ->map(fn (object $row): array => $this->buildDetallePayload($row))
+                ->values()
+                ->all(),
+        ];
+    }
+
+    /**
+     * @param  array<int, object>  $rows
+     */
+    protected function buildSolicitudPayload(object $row, array $rows): array
+    {
+        return [
+            'id_solicitud' => (int) $row->id_solicitud,
+            'id_usuario_solicitante' => (int) $row->id_usuario_solicitante,
+            'solicitante' => $this->formatStaffFullName($row),
+            'staff' => [
+                'firstname' => $row->firstname ?? null,
+                'lastname' => $row->lastname ?? null,
+                'email' => $row->email ?? null,
+            ],
+            'justificacion' => $row->justificacion ?? null,
+            'id_estado_general' => isset($row->id_estado_general) ? (int) $row->id_estado_general : null,
+            'estado' => $row->estado ?? null,
+            'fecha_registro' => $row->fecha_registro ?? null,
+            'fecha_necesaria' => $row->fecha_necesaria ?? null,
+            'fecha_cierre' => $row->fecha_cierre ?? null,
+            'prioridad' => $row->prioridad ?? null,
+            'tipo_entrega_preferida' => $row->tipo_entrega_preferida ?? null,
+            'detalles_count' => count($rows),
+        ];
+    }
+
+    protected function buildIndexPayload(object $row): array
+    {
+        return [
+            'id_solicitud' => (int) $row->id_solicitud,
+            'id_usuario_solicitante' => (int) $row->id_usuario_solicitante,
+            'justificacion' => $row->justificacion ?? null,
+            'id_estado_general' => isset($row->id_estado_general) ? (int) $row->id_estado_general : null,
+            'fecha_registro' => $row->fecha_registro ?? null,
+            'estado' => [
+                'id_estado' => isset($row->id_estado_general) ? (int) $row->id_estado_general : null,
+                'descripcion' => $row->estado ?? null,
+            ],
+            'firstname' => $row->firstname ?? null,
+            'lastname' => $row->lastname ?? null,
+            'solicitante' => $this->formatStaffFullName($row),
+            'staff' => [
+                'firstname' => $row->firstname ?? null,
+                'lastname' => $row->lastname ?? null,
+            ],
+        ];
+    }
+
+    protected function buildDetallePayload(object $row): array
+    {
+        return [
+            'id_detalle_solicitud' => (int) $row->id_detalle_solicitud,
+            'id_solicitud' => (int) $row->id_solicitud,
+            'id_inventario' => (int) $row->id_inventario,
+            'area_id' => $row->area_id !== null ? (int) $row->area_id : null,
+            'area' => $row->area ?? null,
+            'id_area_inventario' => $row->id_area_inventario !== null ? (int) $row->id_area_inventario : null,
+            'stock_actual' => $row->stock_actual !== null ? (int) $row->stock_actual : null,
+            'producto' => $row->producto ?? null,
+            'solicitado' => $row->solicitado !== null ? (int) $row->solicitado : null,
+            'aprobado' => $row->aprobado !== null ? (int) $row->aprobado : null,
+            'cantidad_atendida' => $row->cantidad_atendida !== null ? (int) $row->cantidad_atendida : null,
+            'id_estado_detalle' => $row->id_estado_detalle !== null ? (int) $row->id_estado_detalle : null,
+            'estado' => $row->estado ?? null,
+            'observacion_atencion' => $row->observacion_atencion ?? null,
+            'motivo' => $row->motivo ?? null,
+            'id_usuario_atendio' => $row->id_usuario_atendio !== null ? (int) $row->id_usuario_atendio : null,
+            'fecha_atencion' => $row->fecha_atencion ?? null,
+            'id_usuario_solicitante' => $row->id_usuario_solicitante !== null ? (int) $row->id_usuario_solicitante : null,
+            'fecha_registro' => $row->fecha_registro ?? null,
+            'fecha_necesaria' => $row->fecha_necesaria ?? null,
+            'fecha_cierre' => $row->fecha_cierre ?? null,
+            'prioridad' => $row->prioridad ?? null,
+            'tipo_entrega_preferida' => $row->tipo_entrega_preferida ?? null,
+            'justificacion' => $row->justificacion ?? null,
+            'firstname' => $row->firstname ?? null,
+            'lastname' => $row->lastname ?? null,
+            'email' => $row->email ?? null,
+            'solicitante' => $this->formatStaffFullName($row),
+            'staff' => [
+                'firstname' => $row->firstname ?? null,
+                'lastname' => $row->lastname ?? null,
+                'email' => $row->email ?? null,
+            ],
+        ];
+    }
+
+    protected function formatStaffFullName(object $row): ?string
+    {
+        $firstname = trim((string) ($row->firstname ?? ''));
+        $lastname = trim((string) ($row->lastname ?? ''));
+        $fullName = trim($firstname.' '.$lastname);
+
+        return $fullName !== '' ? $fullName : null;
+    }
+
+    protected function getConnection()
+    {
+        return DB::connection('mysql_external');
+    }
+}

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Traits\ApiResponseTrait;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -24,35 +25,67 @@ class ReabastecimientoController extends Controller
 
     private const EXTERNAL_ARCHIVOS_BASE_URL = 'https://osticket.cechriza.com/system/vista/ajax/';
 
+    private const DEFAULT_INITIAL_LOG_COMMENT = 'Solicitud creada y pendiente de aprobación por Compras.';
+
+    private const DEFAULT_INITIAL_FLUJO_AREA_ID = 7;
+
+    private const DEFAULT_INITIAL_FLUJO_USER_ID = 185;
+
+    private const DEFAULT_INITIAL_FLUJO_STATE_ID = 1;
+
     private const TAB_STATE_IDS = [
-        'pendientes' => [1, 9],
+        'pendientes' => [1, 3, 9],
         'procesando' => [4],
         'cerrados' => [7],
     ];
 
     private const STATE_META = [
-        7 => [
+        1 => [
             'key' => 'pendiente_aprobacion_compras',
             'label' => 'Pendiente Aprobacion Compras',
-            'color' => 'green',
+            'color' => 'yellow',
             'tab' => 'pendientes',
         ],
+        5 => [
+            'key' => 'pendiente_entrega',
+            'label' => 'Pendiente de Entrega',
+            'color' => 'yellow',
+            'tab' => 'pendientes',
+        ],
+        4 => [
+            'key' => 'devuelto_edicion',
+            'label' => 'Devuelto para Edicion',
+            'color' => 'orange',
+            'tab' => 'procesando',
+        ],
         6 => [
-            'key' => 'procesando',
-            'label' => 'Procesando',
+            'key' => 'aceptacion_recepcion',
+            'label' => 'Aceptacion de Recepcion',
             'color' => 'blue',
             'tab' => 'procesando',
         ],
-        1 => [
+        9 => [
+            'key' => 'aprobado',
+            'label' => 'Aprobado',
+            'color' => 'green',
+            'tab' => 'procesando',
+        ],
+        2 => [
+            'key' => 'rechazado',
+            'label' => 'Rechazado',
+            'color' => 'red',
+            'tab' => 'cerrados',
+        ],
+        7 => [
             'key' => 'cerrado',
             'label' => 'Cerrado',
             'color' => 'gray',
             'tab' => 'cerrados',
         ],
-        9 => [
-            'key' => 'cerrado',
-            'label' => 'Cerrado',
-            'color' => 'gray',
+        8 => [
+            'key' => 'cancelado',
+            'label' => 'Cancelado',
+            'color' => 'slate',
             'tab' => 'cerrados',
         ],
     ];
@@ -143,6 +176,26 @@ class ReabastecimientoController extends Controller
                 );
 
                 $connection->table('reabastecimiento_detalles')->insert($detalles);
+
+                $now = now();
+                $connection->table(self::LOG_TABLE)->insertGetId([
+                    'id_solicitud_reb' => $solicitudId,
+                    'id_usuario_comenta' => (int) $usuarioId,
+                    'comentario' => self::DEFAULT_INITIAL_LOG_COMMENT,
+                    'archivo_ruta' => null,
+                    'archivo_nombre_original' => null,
+                    'fecha_creacion' => $now,
+                ]);
+
+                $connection->table(self::FLUJO_TABLE)->insertGetId([
+                    'id_solicitud_reb' => $solicitudId,
+                    'id_area_responsable' => self::DEFAULT_INITIAL_FLUJO_AREA_ID,
+                    'id_usuario_asignado' => self::DEFAULT_INITIAL_FLUJO_USER_ID,
+                    'id_estado' => self::DEFAULT_INITIAL_FLUJO_STATE_ID,
+                    'comentarios' => self::DEFAULT_INITIAL_LOG_COMMENT,
+                    'archivo' => null,
+                    'fecha_actualizacion' => $now,
+                ]);
 
                 return [
                     'id_solicitud_reb' => $solicitudId,
@@ -413,17 +466,7 @@ class ReabastecimientoController extends Controller
             }
 
             $archivo = $request->file('archivo');
-            $extension = $archivo?->getClientOriginalExtension();
-            $nombreArchivo = $archivo ? (string) Str::uuid() : null;
-
-            if ($nombreArchivo !== null && $extension) {
-                $nombreArchivo .= '.'.$extension;
-            }
-
-            if ($archivo && $nombreArchivo !== null) {
-                $directorio = 'reabastecimientos/adjuntos/'.$id;
-                $archivoRuta = Storage::disk('public')->putFileAs($directorio, $archivo, $nombreArchivo);
-            }
+            $archivoRuta = $archivo ? $this->storeUploadedFile($archivo, 'reabastecimientos/adjuntos/'.$id) : null;
 
             $now = now();
 
@@ -451,9 +494,7 @@ class ReabastecimientoController extends Controller
 
             return $this->successResponse($result, 'Seguimiento registrado correctamente', 201);
         } catch (Throwable $e) {
-            if ($archivoRuta && Storage::disk('public')->exists($archivoRuta)) {
-                Storage::disk('public')->delete($archivoRuta);
-            }
+            $this->deleteStoredUploadedFile($archivoRuta);
 
             report($e);
 
@@ -506,17 +547,7 @@ class ReabastecimientoController extends Controller
             }
 
             $archivo = $request->file('archivo');
-            $extension = $archivo?->getClientOriginalExtension();
-            $nombreArchivo = $archivo ? (string) Str::uuid() : null;
-
-            if ($nombreArchivo !== null && $extension) {
-                $nombreArchivo .= '.'.$extension;
-            }
-
-            if ($archivo && $nombreArchivo !== null) {
-                $directorio = 'reabastecimiento/seguimiento/'.$id;
-                $archivoRuta = Storage::disk('public')->putFileAs($directorio, $archivo, $nombreArchivo);
-            }
+            $archivoRuta = $archivo ? $this->storeUploadedFile($archivo, 'reabastecimiento/seguimiento/'.$id) : null;
 
             $areaId = $validated['id_area_responsable'] ?? data_get($request->user(), 'department_id') ?? $solicitud->id_area_solicitante;
             $estadoId = $validated['id_estado'] ?? $solicitud->id_estado_general;
@@ -549,9 +580,7 @@ class ReabastecimientoController extends Controller
 
             return $this->successResponse($result, 'Seguimiento registrado correctamente', 201);
         } catch (Throwable $e) {
-            if ($archivoRuta && Storage::disk('public')->exists($archivoRuta)) {
-                Storage::disk('public')->delete($archivoRuta);
-            }
+            $this->deleteStoredUploadedFile($archivoRuta);
 
             report($e);
 
@@ -710,6 +739,39 @@ class ReabastecimientoController extends Controller
         return DB::connection('mysql_external');
     }
 
+    protected function storeUploadedFile(UploadedFile $archivo, string $directorio): string
+    {
+        $extension = $archivo->getClientOriginalExtension();
+        $nombreArchivo = (string) Str::uuid();
+
+        if ($extension !== '') {
+            $nombreArchivo .= '.'.$extension;
+        }
+
+        $absoluteDirectory = public_path($directorio);
+
+        if (! is_dir($absoluteDirectory)) {
+            mkdir($absoluteDirectory, 0775, true);
+        }
+
+        $archivo->move($absoluteDirectory, $nombreArchivo);
+
+        return trim($directorio, '/').'/'.$nombreArchivo;
+    }
+
+    protected function deleteStoredUploadedFile(?string $archivoRuta): void
+    {
+        if (blank($archivoRuta)) {
+            return;
+        }
+
+        $absolutePath = public_path(ltrim($archivoRuta, '/'));
+
+        if (is_file($absolutePath)) {
+            @unlink($absolutePath);
+        }
+    }
+
     /**
      * @return array{
      *     data: array<int, array<string, mixed>>,
@@ -760,7 +822,7 @@ class ReabastecimientoController extends Controller
         $solicitud = $connection->table('solicitudes_reabastecimiento as sr')
             ->leftJoin('area as a', 'a.id_area', '=', 'sr.id_area_solicitante')
             ->leftJoin('ost_staff as os', 'os.staff_id', '=', 'sr.id_usuario_solicitante')
-            ->leftJoin('estados_inventario as ei', 'ei.id_estado', '=', 'sr.id_estado_general')
+            ->leftJoin('estados_reabastecimiento as er', 'er.id_estado_reb', '=', 'sr.id_estado_general')
             ->select([
                 'sr.id_solicitud_reb',
                 'sr.id_usuario_solicitante',
@@ -775,8 +837,8 @@ class ReabastecimientoController extends Controller
                 DB::raw('os.username as staff_username'),
                 DB::raw('os.firstname as staff_firstname'),
                 DB::raw('os.lastname as staff_lastname'),
-                DB::raw('ei.id_estado as estado_id'),
-                DB::raw('ei.descripcion as estado_descripcion'),
+                DB::raw('er.id_estado_reb as estado_id'),
+                DB::raw('er.descripcion as estado_descripcion'),
             ])
             ->where('sr.id_solicitud_reb', $id)
             ->where('sr.id_area_solicitante', self::AREA_ID)
@@ -860,8 +922,8 @@ class ReabastecimientoController extends Controller
                 DB::raw('os.username as staff_username'),
                 DB::raw('os.firstname as staff_firstname'),
                 DB::raw('os.lastname as staff_lastname'),
-                DB::raw('ei.id_estado as estado_id'),
-                DB::raw('ei.descripcion as estado_descripcion'),
+                DB::raw('er.id_estado_reb as estado_id'),
+                DB::raw('er.descripcion as estado_descripcion'),
             ]);
 
         return $query;
@@ -1051,7 +1113,7 @@ class ReabastecimientoController extends Controller
         $query = $connection->table('solicitudes_reabastecimiento as sr')
             ->leftJoin('area as a', 'a.id_area', '=', 'sr.id_area_solicitante')
             ->leftJoin('ost_staff as os', 'os.staff_id', '=', 'sr.id_usuario_solicitante')
-            ->leftJoin('estados_inventario as ei', 'ei.id_estado', '=', 'sr.id_estado_general');
+            ->leftJoin('estados_reabastecimiento as er', 'er.id_estado_reb', '=', 'sr.id_estado_general');
 
         $query->where('sr.id_area_solicitante', self::AREA_ID);
 
