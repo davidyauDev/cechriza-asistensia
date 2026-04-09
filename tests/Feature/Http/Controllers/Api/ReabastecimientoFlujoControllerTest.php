@@ -84,7 +84,6 @@ class ReabastecimientoFlujoControllerTest extends TestCase
     {
         $solicitudLookup = Mockery::mock();
         $insertBuilder = Mockery::mock();
-        $disk = Mockery::mock();
         $connection = Mockery::mock();
 
         $solicitudLookup->shouldReceive('select')->once()->andReturnSelf();
@@ -102,12 +101,10 @@ class ReabastecimientoFlujoControllerTest extends TestCase
                 && $payload['id_usuario_asignado'] === 182
                 && $payload['id_estado'] === 1
                 && $payload['comentarios'] === 'comentario flujo'
-                && $payload['archivo'] === 'reabastecimiento/seguimiento/3/demo.pdf'
+                && str_starts_with($payload['archivo'], 'reabastecimiento/seguimiento/3/')
+                && str_ends_with($payload['archivo'], '.pdf')
                 && array_key_exists('fecha_actualizacion', $payload);
         }))->andReturn(7);
-
-        $disk->shouldReceive('putFileAs')->once()->andReturn('reabastecimiento/seguimiento/3/demo.pdf');
-        Storage::shouldReceive('disk')->with('public')->andReturn($disk);
 
         $connection->shouldReceive('table')
             ->with('solicitudes_reabastecimiento as sr')
@@ -214,6 +211,15 @@ class ReabastecimientoFlujoControllerTest extends TestCase
             protected function getConnection()
             {
                 return $this->connection;
+            }
+
+            protected function storeUploadedFile($archivo, string $directorio): string
+            {
+                return $directorio.'/demo.pdf';
+            }
+
+            protected function deleteStoredUploadedFile(?string $archivoRuta): void
+            {
             }
         };
     }

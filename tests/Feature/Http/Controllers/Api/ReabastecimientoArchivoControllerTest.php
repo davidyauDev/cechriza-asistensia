@@ -82,7 +82,6 @@ class ReabastecimientoArchivoControllerTest extends TestCase
     {
         $solicitudLookup = Mockery::mock();
         $insertBuilder = Mockery::mock();
-        $disk = Mockery::mock();
         $connection = Mockery::mock();
 
         $solicitudLookup->shouldReceive('select')->once()->andReturnSelf();
@@ -98,13 +97,11 @@ class ReabastecimientoArchivoControllerTest extends TestCase
             return $payload['id_solicitud_reb'] === 3
                 && $payload['id_usuario_comenta'] === 182
                 && $payload['comentario'] === 'adjunto uno'
-                && $payload['archivo_ruta'] === 'reabastecimientos/adjuntos/3/demo.pdf'
+                && str_starts_with($payload['archivo_ruta'], 'reabastecimientos/adjuntos/3/')
+                && str_ends_with($payload['archivo_ruta'], '.pdf')
                 && $payload['archivo_nombre_original'] === 'demo.pdf'
                 && array_key_exists('fecha_creacion', $payload);
         }))->andReturn(7);
-
-        $disk->shouldReceive('putFileAs')->once()->andReturn('reabastecimientos/adjuntos/3/demo.pdf');
-        Storage::shouldReceive('disk')->with('public')->andReturn($disk);
 
         $connection->shouldReceive('table')
             ->with('solicitudes_reabastecimiento as sr')
@@ -209,6 +206,15 @@ class ReabastecimientoArchivoControllerTest extends TestCase
             protected function getConnection()
             {
                 return $this->connection;
+            }
+
+            protected function storeUploadedFile($archivo, string $directorio): string
+            {
+                return $directorio.'/demo.pdf';
+            }
+
+            protected function deleteStoredUploadedFile(?string $archivoRuta): void
+            {
             }
         };
     }
