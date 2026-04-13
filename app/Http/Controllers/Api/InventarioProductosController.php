@@ -46,6 +46,7 @@ class InventarioProductosController extends Controller
                 p.descripcion AS producto,
                 a.descripcion_area,
                 a.id_area
+                p.requiere_foto_producto_anterior
             FROM inventario i
             INNER JOIN productos p ON i.id_producto = p.id_producto
             INNER JOIN area a ON i.id_area = a.id_area
