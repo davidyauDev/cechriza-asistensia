@@ -23,12 +23,21 @@ class SolicitudController extends Controller
     public function index(Request $request): JsonResponse
     {
         try {
+            $validated = $request->validate([
+                'id_usuario_solicitante' => ['nullable', 'integer', 'min:1'],
+            ]);
+
+            $idUsuarioSolicitante = isset($validated['id_usuario_solicitante'])
+                ? (int) $validated['id_usuario_solicitante']
+                : null;
+
             $rows = $this->getConnection()->select(
-                $this->buildIndexSql(),
+                $this->buildIndexSql($idUsuarioSolicitante),
                 [
                     self::ESTADO_GENERAL_FILTRADO,
                     self::PEDIDO_COMPRA_ESTADO_FILTRADO,
-                    self::AREA_FILTRO,
+                    ...($idUsuarioSolicitante === null ? [self::AREA_FILTRO] : []),
+                    ...($idUsuarioSolicitante !== null ? [$idUsuarioSolicitante] : []),
                 ]
             );
 
@@ -68,9 +77,9 @@ class SolicitudController extends Controller
         }
     }
 
-    protected function buildIndexSql(): string
+    protected function buildIndexSql(?int $idUsuarioSolicitante = null): string
     {
-        return <<<'SQL'
+        $sql = <<<'SQL'
             SELECT
                 s.id_solicitud,
                 s.id_usuario_solicitante,
@@ -85,6 +94,10 @@ class SolicitudController extends Controller
             INNER JOIN ost_staff u ON s.id_usuario_solicitante = u.staff_id
             WHERE s.id_estado_general = ?
               AND s.pedido_compra_estado = ?
+        SQL;
+
+        if ($idUsuarioSolicitante === null) {
+            $sql .= <<<'SQL'
               AND EXISTS (
                   SELECT 1
                   FROM solicitud_detalles d
@@ -93,8 +106,18 @@ class SolicitudController extends Controller
                   WHERE d.id_solicitud = s.id_solicitud
                     AND a.descripcion_area = ?
               )
+            SQL;
+        }
+
+        if ($idUsuarioSolicitante !== null) {
+            $sql .= "\n              AND s.id_usuario_solicitante = ?";
+        }
+
+        $sql .= <<<'SQL'
             ORDER BY s.fecha_registro DESC
             SQL;
+
+        return $sql;
     }
 
     protected function buildShowSql(): string

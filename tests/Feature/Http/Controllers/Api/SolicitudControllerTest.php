@@ -59,6 +59,54 @@ class SolicitudControllerTest extends TestCase
         $this->assertSame('Pedido de prueba', $payload['data'][0]['justificacion']);
     }
 
+    public function test_index_filters_by_id_usuario_solicitante_when_provided(): void
+    {
+        $connection = Mockery::mock();
+
+        $connection->shouldReceive('select')
+            ->once()
+            ->withArgs(function (string $sql, array $bindings): bool {
+                return str_contains($sql, 'FROM solicitudes s')
+                    && str_contains($sql, 'AND s.id_usuario_solicitante = ?')
+                    && ! str_contains($sql, 'a.descripcion_area = ?')
+                    && $bindings === [11, 0, 163];
+            })
+            ->andReturn([
+                (object) [
+                    'id_solicitud' => 154,
+                    'id_usuario_solicitante' => 163,
+                    'justificacion' => 'Pedido de prueba',
+                    'id_estado_general' => 11,
+                    'fecha_registro' => '2026-04-09 10:15:00',
+                    'estado' => 'Pendiente de Atencion',
+                    'firstname' => 'Alexander',
+                    'lastname' => 'Flores',
+                ],
+            ]);
+
+        $controller = new class($connection) extends SolicitudController
+        {
+            public function __construct(private $connection) {}
+
+            protected function getConnection()
+            {
+                return $this->connection;
+            }
+        };
+
+        $request = Request::create('/api/solicitudes', 'GET', [
+            'id_usuario_solicitante' => 163,
+        ]);
+
+        $response = $controller->index($request);
+        $payload = $response->getData(true);
+
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertTrue($payload['success']);
+        $this->assertSame(154, $payload['data'][0]['id_solicitud']);
+        $this->assertSame(163, $payload['data'][0]['id_usuario_solicitante']);
+    }
+
     public function test_show_returns_solicitud_detail_payload(): void
     {
         $connection = Mockery::mock();
