@@ -83,7 +83,7 @@ class SolicitudCompletaControllerTest extends TestCase
             });
 
         $connection->shouldReceive('transaction')
-            ->once()
+            ->twice()
             ->andReturnUsing(function (callable $callback) {
                 return $callback();
             });
@@ -95,7 +95,7 @@ class SolicitudCompletaControllerTest extends TestCase
 
         $connection->shouldReceive('table')
             ->with('solicitud_detalles')
-            ->once()
+            ->twice()
             ->andReturn($detallesTable);
 
         $connection->shouldReceive('table')
@@ -133,10 +133,33 @@ class SolicitudCompletaControllerTest extends TestCase
                     && $rows[0]['cantidad_solicitada'] === 2
                     && $rows[0]['observacion_atencion'] === null
                     && $rows[0]['area_id'] === 11
+                    && $rows[0]['ruta_imagen'] === null
+                    && $rows[0]['url_imagen'] === null
                     && $rows[1]['id_inventario'] === 202
                     && $rows[1]['cantidad_solicitada'] === 1
                     && $rows[1]['observacion_atencion'] === 'Nota Usuario: Revisar estado'
-                    && $rows[1]['area_id'] === 12;
+                    && $rows[1]['area_id'] === 12
+                    && $rows[1]['ruta_imagen'] === null
+                    && $rows[1]['url_imagen'] === null;
+            }))
+            ->andReturnTrue();
+
+        $detallesTable->shouldReceive('where')
+            ->once()
+            ->with('id_solicitud', 42)
+            ->andReturnSelf();
+
+        $detallesTable->shouldReceive('where')
+            ->once()
+            ->with('id_inventario', 202)
+            ->andReturnSelf();
+
+        $detallesTable->shouldReceive('update')
+            ->once()
+            ->with(Mockery::on(function (array $payload): bool {
+                return str_starts_with($payload['ruta_imagen'], 'uploads/solicitudes/42/sol_42_inv_202_')
+                    && str_ends_with($payload['ruta_imagen'], '.jpg')
+                    && str_contains($payload['url_imagen'], '/storage/uploads/solicitudes/42/');
             }))
             ->andReturnTrue();
 
@@ -200,6 +223,7 @@ class SolicitudCompletaControllerTest extends TestCase
         $this->assertSame('SOL-000042', $payload['ticket']);
         $this->assertCount(1, $payload['uploaded_files']);
         $this->assertStringStartsWith('uploads/solicitudes/42/', $payload['uploaded_files'][0]['path']);
+        $this->assertStringStartsWith('http', $payload['uploaded_files'][0]['url']);
 
         Mail::assertSent(SolicitudRegistradaMail::class, function (SolicitudRegistradaMail $mail): bool {
             return $mail->hasTo('rrhh1@example.com')

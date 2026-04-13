@@ -80,6 +80,8 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                     'id_estado_detalle' => self::ESTADO_INICIAL,
                     'observacion_atencion' => $item['observacion'],
                     'area_id' => (int) $item['id_area'],
+                    'ruta_imagen' => null,
+                    'url_imagen' => null,
                 ];
             }
 
@@ -115,14 +117,18 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
             return $solicitudId;
         });
 
+        $uploadedFiles = [];
+
         try {
             $uploadedFiles = $this->storeFiles($solicitudId, $items);
+            $this->syncDetalleImagenes($connection, $solicitudId, $uploadedFiles);
         } catch (Throwable $e) {
+            $this->deleteStoredFiles($uploadedFiles);
             $this->rollbackSolicitud($connection, $solicitudId);
             throw $e;
         }
 
-        // $this->sendNotifications($connection, $data, $solicitante, $items, $areaIds, $solicitudId, $uploadedFiles);
+        $this->sendNotifications($connection, $data, $solicitante, $items, $areaIds, $solicitudId, $uploadedFiles);
 
         return [
             'ticket' => $this->formatTicket($solicitudId),
@@ -267,11 +273,50 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
             $uploadedFiles[] = [
                 'id_inventario' => (int) $item['id_inventario'],
                 'path' => $path,
+                'url' => $this->buildPublicUrl($path),
                 'original_name' => $item['file']->getClientOriginalName(),
             ];
         }
 
         return $uploadedFiles;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $uploadedFiles
+     */
+    protected function syncDetalleImagenes(object $connection, int $solicitudId, array $uploadedFiles): void
+    {
+        $connection->transaction(function () use ($connection, $solicitudId, $uploadedFiles): void {
+            foreach ($uploadedFiles as $uploadedFile) {
+                $connection->table('solicitud_detalles')
+                    ->where('id_solicitud', $solicitudId)
+                    ->where('id_inventario', (int) $uploadedFile['id_inventario'])
+                    ->update([
+                        'ruta_imagen' => $uploadedFile['path'],
+                        'url_imagen' => $uploadedFile['url'] ?? null,
+                    ]);
+            }
+        });
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $uploadedFiles
+     */
+    protected function deleteStoredFiles(array $uploadedFiles): void
+    {
+        if ($uploadedFiles === []) {
+            return;
+        }
+
+        $disk = Storage::disk('public');
+
+        foreach ($uploadedFiles as $uploadedFile) {
+            $path = $uploadedFile['path'] ?? null;
+
+            if (is_string($path) && $path !== '' && $disk->exists($path)) {
+                $disk->delete($path);
+            }
+        }
     }
 
     /**
@@ -444,5 +489,16 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
     protected function formatTicket(int $solicitudId): string
     {
         return 'SOL-'.str_pad((string) $solicitudId, 6, '0', STR_PAD_LEFT);
+    }
+
+    protected function buildPublicUrl(string $path): ?string
+    {
+        $appUrl = trim((string) config('app.url'), '/');
+
+        if ($appUrl === '') {
+            return null;
+        }
+
+        return $appUrl.'/storage/'.ltrim($path, '/');
     }
 }
