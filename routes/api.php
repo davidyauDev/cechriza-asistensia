@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\EventoController;
 use App\Http\Controllers\Api\IncidenciaController;
 use App\Http\Controllers\Api\InventarioController;
 use App\Http\Controllers\Api\DetalleSolicitudController;
+use App\Http\Controllers\Api\InventarioProductosController;
 use App\Http\Controllers\Api\PersonnelEmployeeController;
 use App\Http\Controllers\Api\ReabastecimientoController;
 use App\Http\Controllers\Api\SolicitudController;
@@ -22,6 +23,8 @@ use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
+
+
 Route::middleware(['auth:sanctum'])->group(function () {
     // Ruta para seguimiento técnico
     Route::post('/register', [UserController::class, 'store']);
@@ -103,6 +106,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/birthday-greetings-history/retry-failed', [BirthdayGreetingsHistoryController::class, 'retryFailedGreetings']);
 
     Route::get('/inventario', [InventarioController::class, 'index'])->name('inventario.index');
+    
     Route::get('/solicitudes', [SolicitudController::class, 'index'])->name('solicitudes.index');
     Route::get('/solicitudes/{id}', [SolicitudController::class, 'show'])->whereNumber('id')->name('solicitudes.show');
     Route::post('/solicitudes/detalles/{id}/aprobar', [DetalleSolicitudController::class, 'aprobar'])->whereNumber('id')->name('solicitudes.detalles.aprobar');
@@ -128,5 +132,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/tardanzas/enviar-correo', [TardanzaController::class, 'enviarCorreoTardanza']);
     Route::get('/seguimiento-tecnico', [SeguimientoTecnicoController::class, 'index']);
     Route::get('/seguimiento-tecnico/notificaciones-dia-anterior', [SeguimientoTecnicoController::class, 'notificacionesDiaAnterior']);
+
+
+    Route::get('/inventario/productos', [InventarioProductosController::class, 'index'])->name('inventario.productos.index');
 
 });
