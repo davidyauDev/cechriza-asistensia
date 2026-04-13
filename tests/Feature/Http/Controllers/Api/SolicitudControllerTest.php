@@ -67,18 +67,20 @@ class SolicitudControllerTest extends TestCase
             ->once()
             ->withArgs(function (string $sql, array $bindings): bool {
                 return str_contains($sql, 'FROM solicitudes s')
-                    && str_contains($sql, 'AND s.id_usuario_solicitante = ?')
+                    && str_contains($sql, 's.id_usuario_solicitante = ?')
+                    && ! str_contains($sql, 's.id_estado_general = ?')
+                    && ! str_contains($sql, 's.pedido_compra_estado = ?')
                     && ! str_contains($sql, 'a.descripcion_area = ?')
-                    && $bindings === [11, 0, 163];
+                    && $bindings === [163];
             })
             ->andReturn([
                 (object) [
                     'id_solicitud' => 154,
                     'id_usuario_solicitante' => 163,
                     'justificacion' => 'Pedido de prueba',
-                    'id_estado_general' => 11,
+                    'id_estado_general' => 13,
                     'fecha_registro' => '2026-04-09 10:15:00',
-                    'estado' => 'Pendiente de Atencion',
+                    'estado' => 'Aprobada',
                     'firstname' => 'Alexander',
                     'lastname' => 'Flores',
                 ],
@@ -105,6 +107,8 @@ class SolicitudControllerTest extends TestCase
         $this->assertTrue($payload['success']);
         $this->assertSame(154, $payload['data'][0]['id_solicitud']);
         $this->assertSame(163, $payload['data'][0]['id_usuario_solicitante']);
+        $this->assertSame(13, $payload['data'][0]['id_estado_general']);
+        $this->assertSame('Aprobada', $payload['data'][0]['estado']['descripcion']);
     }
 
     public function test_show_returns_solicitud_detail_payload(): void

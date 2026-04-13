@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Traits\ApiResponseTrait;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -33,12 +32,15 @@ class SolicitudController extends Controller
 
             $rows = $this->getConnection()->select(
                 $this->buildIndexSql($idUsuarioSolicitante),
-                [
-                    self::ESTADO_GENERAL_FILTRADO,
-                    self::PEDIDO_COMPRA_ESTADO_FILTRADO,
-                    ...($idUsuarioSolicitante === null ? [self::AREA_FILTRO] : []),
-                    ...($idUsuarioSolicitante !== null ? [$idUsuarioSolicitante] : []),
-                ]
+                $idUsuarioSolicitante === null
+                    ? [
+                        self::ESTADO_GENERAL_FILTRADO,
+                        self::PEDIDO_COMPRA_ESTADO_FILTRADO,
+                        self::AREA_FILTRO,
+                    ]
+                    : [
+                        $idUsuarioSolicitante,
+                    ]
             );
 
             $payload = collect($rows)
@@ -79,13 +81,11 @@ class SolicitudController extends Controller
 
     protected function buildIndexSql(?int $idUsuarioSolicitante = null): string
     {
-        $clauses = [
-            's.id_estado_general = ?',
-            's.pedido_compra_estado = ?',
-        ];
-
         if ($idUsuarioSolicitante === null) {
-            $clauses[] = <<<'SQL'
+            $clauses = [
+                's.id_estado_general = ?',
+                's.pedido_compra_estado = ?',
+                <<<'SQL'
 EXISTS (
     SELECT 1
     FROM solicitud_detalles d
@@ -94,9 +94,12 @@ EXISTS (
     WHERE d.id_solicitud = s.id_solicitud
       AND a.descripcion_area = ?
 )
-SQL;
+SQL,
+            ];
         } else {
-            $clauses[] = 's.id_usuario_solicitante = ?';
+            $clauses = [
+                's.id_usuario_solicitante = ?',
+            ];
         }
 
         return <<<'SQL'
@@ -114,8 +117,8 @@ SQL;
             INNER JOIN ost_staff u ON s.id_usuario_solicitante = u.staff_id
             WHERE 
 SQL
-            . implode("\n              AND ", $clauses)
-            . "\n            ORDER BY s.fecha_registro DESC";
+            .implode("\n              AND ", $clauses)
+            ."\n            ORDER BY s.fecha_registro DESC";
     }
 
     protected function buildShowSql(): string
