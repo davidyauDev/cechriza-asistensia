@@ -79,7 +79,27 @@ class SolicitudController extends Controller
 
     protected function buildIndexSql(?int $idUsuarioSolicitante = null): string
     {
-        $sql = <<<'SQL'
+        $clauses = [
+            's.id_estado_general = ?',
+            's.pedido_compra_estado = ?',
+        ];
+
+        if ($idUsuarioSolicitante === null) {
+            $clauses[] = <<<'SQL'
+EXISTS (
+    SELECT 1
+    FROM solicitud_detalles d
+    LEFT JOIN inventario i ON i.id_inventario = d.id_inventario
+    LEFT JOIN area a ON a.id_area = COALESCE(NULLIF(d.area_id, 0), i.id_area)
+    WHERE d.id_solicitud = s.id_solicitud
+      AND a.descripcion_area = ?
+)
+SQL;
+        } else {
+            $clauses[] = 's.id_usuario_solicitante = ?';
+        }
+
+        return <<<'SQL'
             SELECT
                 s.id_solicitud,
                 s.id_usuario_solicitante,
@@ -92,32 +112,10 @@ class SolicitudController extends Controller
             FROM solicitudes s
             INNER JOIN estados_inventario e ON s.id_estado_general = e.id_estado
             INNER JOIN ost_staff u ON s.id_usuario_solicitante = u.staff_id
-            WHERE s.id_estado_general = ?
-              AND s.pedido_compra_estado = ?
-        SQL;
-
-        if ($idUsuarioSolicitante === null) {
-            $sql .= <<<'SQL'
-              AND EXISTS (
-                  SELECT 1
-                  FROM solicitud_detalles d
-                  LEFT JOIN inventario i ON i.id_inventario = d.id_inventario
-                  LEFT JOIN area a ON a.id_area = COALESCE(NULLIF(d.area_id, 0), i.id_area)
-                  WHERE d.id_solicitud = s.id_solicitud
-                    AND a.descripcion_area = ?
-              )
-            SQL;
-        }
-
-        if ($idUsuarioSolicitante !== null) {
-            $sql .= "\n              AND s.id_usuario_solicitante = ?";
-        }
-
-        $sql .= <<<'SQL'
-            ORDER BY s.fecha_registro DESC
-            SQL;
-
-        return $sql;
+            WHERE 
+SQL
+            . implode("\n              AND ", $clauses)
+            . "\n            ORDER BY s.fecha_registro DESC";
     }
 
     protected function buildShowSql(): string
