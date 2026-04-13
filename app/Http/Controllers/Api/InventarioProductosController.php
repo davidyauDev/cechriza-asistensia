@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Traits\ApiResponseTrait;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -12,10 +13,16 @@ class InventarioProductosController extends Controller
 {
     use ApiResponseTrait;
 
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
         try {
-            $inventario = $this->getInventarioProductos();
+            $validated = $request->validate([
+                'id_area' => ['nullable', 'integer', 'min:1'],
+            ]);
+
+            $idArea = isset($validated['id_area']) ? (int) $validated['id_area'] : null;
+
+            $inventario = $this->getInventarioProductos($idArea);
 
             return $this->successResponse($inventario, 'Inventario de productos consultado correctamente');
         } catch (Throwable $e) {
@@ -30,9 +37,9 @@ class InventarioProductosController extends Controller
      *
      * @return array<int, object>
      */
-    protected function getInventarioProductos(): array
+    protected function getInventarioProductos(?int $idArea = null): array
     {
-        return DB::connection('mysql_external')->select(<<<'SQL'
+        $sql = <<<'SQL'
             SELECT
                 i.id_inventario,
                 p.id_producto,
@@ -42,6 +49,15 @@ class InventarioProductosController extends Controller
             FROM inventario i
             INNER JOIN productos p ON i.id_producto = p.id_producto
             INNER JOIN area a ON i.id_area = a.id_area
-        SQL);
+        SQL;
+
+        $bindings = [];
+
+        if ($idArea !== null) {
+            $sql .= "\n            WHERE i.id_area = ?";
+            $bindings[] = $idArea;
+        }
+
+        return DB::connection('mysql_external')->select($sql, $bindings);
     }
 }
