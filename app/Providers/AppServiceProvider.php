@@ -20,6 +20,8 @@ use App\Services\EmployeeConceptService;
 use App\Services\EmployeeConceptServiceInterface;
 use App\Services\EventoService;
 use App\Services\EventoServiceInterface;
+use App\Services\SolicitudCompletaService;
+use App\Services\SolicitudCompletaServiceInterface;
 use App\Services\TechnicianService;
 use App\Services\TechnicianServiceInterface;
 use App\Services\UserService;
@@ -47,6 +49,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(AttendanceServiceInterface::class, AttendanceService::class);
         $this->app->bind(TechnicianServiceInterface::class, TechnicianService::class);
         $this->app->bind(EventoServiceInterface::class, EventoService::class);
+        $this->app->bind(SolicitudCompletaServiceInterface::class, SolicitudCompletaService::class);
     }
 
     /**

@@ -4,26 +4,26 @@ use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BioTimeController;
 use App\Http\Controllers\Api\BirthdayGreetingsHistoryController;
+use App\Http\Controllers\Api\DetalleSolicitudController;
 use App\Http\Controllers\Api\EmployeeConceptController;
 use App\Http\Controllers\Api\EmployeeMobilityController;
 use App\Http\Controllers\Api\EmployeeMobilityMonthlyCommentController;
 use App\Http\Controllers\Api\EventoController;
 use App\Http\Controllers\Api\IncidenciaController;
 use App\Http\Controllers\Api\InventarioController;
-use App\Http\Controllers\Api\DetalleSolicitudController;
 use App\Http\Controllers\Api\InventarioProductosController;
 use App\Http\Controllers\Api\PersonnelEmployeeController;
 use App\Http\Controllers\Api\ReabastecimientoController;
-use App\Http\Controllers\Api\SolicitudController;
 use App\Http\Controllers\Api\ReporteAsistenciaController;
 use App\Http\Controllers\Api\SeguimientoTecnicoController;
+use App\Http\Controllers\Api\SolicitudCompletaController;
+use App\Http\Controllers\Api\SolicitudController;
 use App\Http\Controllers\Api\TardanzaController;
 use App\Http\Controllers\Api\TechnicianController;
 use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
-
 
 Route::middleware(['auth:sanctum'])->group(function () {
     // Ruta para seguimiento técnico
@@ -106,9 +106,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/birthday-greetings-history/retry-failed', [BirthdayGreetingsHistoryController::class, 'retryFailedGreetings']);
 
     Route::get('/inventario', [InventarioController::class, 'index'])->name('inventario.index');
-    
+
     Route::get('/solicitudes', [SolicitudController::class, 'index'])->name('solicitudes.index');
     Route::get('/solicitudes/{id}', [SolicitudController::class, 'show'])->whereNumber('id')->name('solicitudes.show');
+    Route::post('/solicitudes/registrar-completa', [SolicitudCompletaController::class, 'store'])->name('solicitudes.registrar-completa');
     Route::post('/solicitudes/detalles/{id}/aprobar', [DetalleSolicitudController::class, 'aprobar'])->whereNumber('id')->name('solicitudes.detalles.aprobar');
     Route::post('/solicitudes/detalles/{id}/rechazar', [DetalleSolicitudController::class, 'rechazar'])->whereNumber('id')->name('solicitudes.detalles.rechazar');
     Route::get('/reabastecimiento/solicitudes', [ReabastecimientoController::class, 'index'])->name('reabastecimiento.index');
@@ -132,7 +133,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/tardanzas/enviar-correo', [TardanzaController::class, 'enviarCorreoTardanza']);
     Route::get('/seguimiento-tecnico', [SeguimientoTecnicoController::class, 'index']);
     Route::get('/seguimiento-tecnico/notificaciones-dia-anterior', [SeguimientoTecnicoController::class, 'notificacionesDiaAnterior']);
-
 
     Route::get('/inventario/productos', [InventarioProductosController::class, 'index'])->name('inventario.productos.index');
 

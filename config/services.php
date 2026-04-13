@@ -35,4 +35,13 @@ return [
         ],
     ],
 
+    'solicitudes' => [
+        'area_compras_id' => (int) env('SOLICITUD_AREA_COMPRAS_ID', 7),
+        'pedido_compra_notify_email' => env('PEDIDO_COMPRA_NOTIFY_EMAIL'),
+        'smtp_always_cc' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) env('SMTP_ALWAYS_CC', ''))
+        ))),
+    ],
+
 ];
