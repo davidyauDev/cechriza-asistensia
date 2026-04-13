@@ -23,13 +23,13 @@ class SolicitudController extends Controller
     public function index(Request $request): JsonResponse
     {
         try {
-            $validated = $request->validate([
-                'id_usuario_solicitante' => ['nullable', 'integer', 'min:1'],
-            ]);
+            $idUsuarioSolicitante = filter_var(
+                $request->input('id_usuario_solicitante'),
+                FILTER_VALIDATE_INT,
+                ['options' => ['min_range' => 1]]
+            );
 
-            $idUsuarioSolicitante = isset($validated['id_usuario_solicitante'])
-                ? (int) $validated['id_usuario_solicitante']
-                : null;
+            $idUsuarioSolicitante = $idUsuarioSolicitante !== false ? (int) $idUsuarioSolicitante : null;
 
             $rows = $this->getConnection()->select(
                 $this->buildIndexSql($idUsuarioSolicitante),
