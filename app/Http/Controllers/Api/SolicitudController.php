@@ -44,7 +44,7 @@ class SolicitudController extends Controller
             );
 
             $payload = collect($rows)
-                ->map(fn (object $row): array => $this->buildIndexPayload($row))
+                ->map(fn(object $row): array => $this->buildIndexPayload($row))
                 ->values()
                 ->all();
 
@@ -117,8 +117,8 @@ SQL,
             INNER JOIN ost_staff u ON s.id_usuario_solicitante = u.staff_id
             WHERE 
 SQL
-            .implode("\n              AND ", $clauses)
-            ."\n            ORDER BY s.fecha_registro DESC";
+            . implode("\n              AND ", $clauses)
+            . "\n            ORDER BY s.fecha_registro DESC";
     }
 
     protected function buildShowSql(): string
@@ -175,7 +175,7 @@ SQL
         return [
             'solicitud' => $this->buildSolicitudPayload($firstRow, $rows),
             'detalles' => collect($rows)
-                ->map(fn (object $row): array => $this->buildDetallePayload($row))
+                ->map(fn(object $row): array => $this->buildDetallePayload($row))
                 ->values()
                 ->all(),
         ];
@@ -272,7 +272,7 @@ SQL
     {
         $firstname = trim((string) ($row->firstname ?? ''));
         $lastname = trim((string) ($row->lastname ?? ''));
-        $fullName = trim($firstname.' '.$lastname);
+        $fullName = trim($firstname . ' ' . $lastname);
 
         return $fullName !== '' ? $fullName : null;
     }
