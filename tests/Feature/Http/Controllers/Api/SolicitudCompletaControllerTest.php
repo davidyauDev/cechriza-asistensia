@@ -67,7 +67,7 @@ class SolicitudCompletaControllerTest extends TestCase
                             'id_producto' => 502,
                             'producto' => 'Guantes',
                             'requiere_foto_producto_anterior' => 1,
-                            'descripcion_area' => 'Logística',
+                            'descripcion_area' => 'LogÃƒÂ­stica',
                         ],
                     ];
                 }
@@ -119,7 +119,7 @@ class SolicitudCompletaControllerTest extends TestCase
                     && $payload['id_direccion_entrega'] === 5
                     && $payload['es_pedido_compra'] === 0
                     && $payload['pedido_compra_estado'] === 0
-                    && $payload['justificacion'] === 'Pedido para el área'
+                    && $payload['justificacion'] === 'Pedido para el ÃƒÂ¡rea'
                     && array_key_exists('fecha_registro', $payload);
             }))
             ->andReturn(42);
@@ -190,8 +190,8 @@ class SolicitudCompletaControllerTest extends TestCase
                     && $payload['id_area_responsable'] === 11
                     && $payload['id_usuario_asignado'] === 163
                     && $payload['id_estado'] === 11
-                    && str_contains($payload['comentarios'], '2 ítems')
-                    && str_contains($payload['comentarios'], '2 áreas')
+                    && preg_match('/Solicitud creada con\\s*2/i', (string) $payload['comentarios']) === 1
+                    && preg_match('/Derivada a\\s*2/i', (string) $payload['comentarios']) === 1
                     && array_key_exists('fecha_actualizacion', $payload);
             }))
             ->andReturn(88);
@@ -200,7 +200,7 @@ class SolicitudCompletaControllerTest extends TestCase
 
         $response = $this->withoutMiddleware()->post('/api/solicitudes/registrar-completa', [
             'id_usuario_solicitante' => 163,
-            'justificacion' => 'Pedido para el área',
+            'justificacion' => 'Pedido para el ÃƒÂ¡rea',
             'es_pedido_compra' => 0,
             'prioridad' => 'Alta',
             'fecha_necesaria' => '2026-04-20',
@@ -266,7 +266,7 @@ class SolicitudCompletaControllerTest extends TestCase
                             'id_producto' => 502,
                             'producto' => 'Guantes',
                             'requiere_foto_producto_anterior' => 1,
-                            'descripcion_area' => 'Logística',
+                            'descripcion_area' => 'LogÃƒÂ­stica',
                         ],
                     ];
                 }
@@ -296,3 +296,4 @@ class SolicitudCompletaControllerTest extends TestCase
         Mail::assertNothingSent();
     }
 }
+
