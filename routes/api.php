@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\IncidenciaController;
 use App\Http\Controllers\Api\InventarioController;
 use App\Http\Controllers\Api\InventarioProductosController;
 use App\Http\Controllers\Api\PersonnelEmployeeController;
+use App\Http\Controllers\Api\ProductoSolicitudCompraRrhhController;
 use App\Http\Controllers\Api\ReabastecimientoController;
 use App\Http\Controllers\Api\ReporteAsistenciaController;
 use App\Http\Controllers\Api\SeguimientoTecnicoController;
@@ -135,5 +136,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/seguimiento-tecnico/notificaciones-dia-anterior', [SeguimientoTecnicoController::class, 'notificacionesDiaAnterior']);
 
     Route::get('/inventario/productos', [InventarioProductosController::class, 'index'])->name('inventario.productos.index');
+    Route::get('/solicitudes/productos-rrhh', [ProductoSolicitudCompraRrhhController::class, 'index'])->name('solicitudes.productos-rrhh.index');
 
 });
