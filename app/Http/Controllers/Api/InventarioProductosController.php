@@ -51,6 +51,7 @@ class InventarioProductosController extends Controller
             INNER JOIN productos p ON i.id_producto = p.id_producto
             INNER JOIN area a ON i.id_area = a.id_area
             WHERE p.eliminado = 0
+              AND p.tipo = 2
         SQL;
 
         $bindings = [];
