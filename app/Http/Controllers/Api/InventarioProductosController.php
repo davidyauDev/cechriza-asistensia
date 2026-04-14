@@ -17,12 +17,12 @@ class InventarioProductosController extends Controller
     {
         try {
             $validated = $request->validate([
-                'id_area' => ['nullable', 'integer', 'min:1'],
+                'tipo_responsable' => ['nullable', 'string', 'in:SSGG,SSOMA,LOGISTICA'],
             ]);
 
-            $idArea = isset($validated['id_area']) ? (int) $validated['id_area'] : null;
+            $tipoResponsable = $validated['tipo_responsable'] ?? null;
 
-            $inventario = $this->getInventarioProductos($idArea);
+            $inventario = $this->getInventarioProductos($tipoResponsable);
 
             return $this->successResponse($inventario, 'Inventario de productos consultado correctamente');
         } catch (Throwable $e) {
@@ -37,7 +37,7 @@ class InventarioProductosController extends Controller
      *
      * @return array<int, object>
      */
-    protected function getInventarioProductos(?int $idArea = null): array
+    protected function getInventarioProductos(?string $tipoResponsable = null): array
     {
         $sql = <<<'SQL'
             SELECT
@@ -54,9 +54,9 @@ class InventarioProductosController extends Controller
 
         $bindings = [];
 
-        if ($idArea !== null) {
-            $sql .= "\n            WHERE i.id_area = ?";
-            $bindings[] = $idArea;
+        if ($tipoResponsable !== null) {
+            $sql .= "\n            WHERE i.tipo_responsable = ?";
+            $bindings[] = $tipoResponsable;
         }
 
         return DB::connection('mysql_external')->select($sql, $bindings);
