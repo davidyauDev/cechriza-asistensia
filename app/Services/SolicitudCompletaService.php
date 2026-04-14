@@ -87,8 +87,10 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                 ];
             }
 
+            $detalleIdsByInventario = [];
             if ($detalleRows !== []) {
                 $connection->table('solicitud_detalles')->insert($detalleRows);
+                $detalleIdsByInventario = $this->resolveDetalleIdsByInventario($connection, $solicitudId, $items);
             }
 
             $areaRows = [];
@@ -109,7 +111,8 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                 $connection,
                 $items,
                 (int) $data['id_usuario_solicitante'],
-                $productosRrhhPscr
+                $productosRrhhPscr,
+                $detalleIdsByInventario
             );
 
             $comentarios = sprintf(
@@ -476,6 +479,42 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
     }
 
     /**
+     * @param  array<int, array<string, mixed>>  $items
+     * @return array<int, int>
+     */
+    protected function resolveDetalleIdsByInventario(object $connection, int $solicitudId, array $items): array
+    {
+        $inventarioIds = collect($items)
+            ->pluck('id_inventario')
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($inventarioIds === []) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($inventarioIds), '?'));
+        $rows = $connection->select(
+            <<<SQL
+                SELECT id_detalle_solicitud, id_inventario
+                FROM solicitud_detalles
+                WHERE id_solicitud = ?
+                  AND id_inventario IN ({$placeholders})
+            SQL,
+            array_merge([$solicitudId], $inventarioIds)
+        );
+
+        return collect($rows)
+            ->mapWithKeys(function ($row): array {
+                return [(int) $row->id_inventario => (int) $row->id_detalle_solicitud];
+            })
+            ->all();
+    }
+
+    /**
      * @param  array<string, mixed>  $data
      * @param  array<int, int>  $productosRrhhPscr
      */
@@ -555,16 +594,35 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
     /**
      * @param  array<int, array<string, mixed>>  $items
      * @param  array<int, int>  $productIds
+     * @param  array<int, int>  $detalleIdsByInventario
      */
-    protected function registrarProductosRrhhPscr(object $connection, array $items, int $staffId, array $productIds = []): void
+    protected function registrarProductosRrhhPscr(
+        object $connection,
+        array $items,
+        int $staffId,
+        array $productIds = [],
+        array $detalleIdsByInventario = []
+    ): void
     {
-        $productoIdsDesdeItems = collect($items)
-            ->pluck('id_producto')
-            ->map(fn ($id) => (int) $id)
-            ->filter(fn ($id) => in_array($id, self::PRODUCTOS_RRHH_PSCR, true))
-            ->unique()
-            ->values()
-            ->all();
+        $rowsByKey = [];
+
+        foreach ($items as $item) {
+            $idProducto = (int) ($item['id_producto'] ?? 0);
+
+            if (! in_array($idProducto, self::PRODUCTOS_RRHH_PSCR, true)) {
+                continue;
+            }
+
+            $idInventario = (int) ($item['id_inventario'] ?? 0);
+            $idDetalleSolicitud = $detalleIdsByInventario[$idInventario] ?? null;
+            $uniqueKey = $idProducto.'|'.($idDetalleSolicitud === null ? 'null' : (string) $idDetalleSolicitud);
+
+            $rowsByKey[$uniqueKey] = [
+                'id_producto' => $idProducto,
+                'staff_id' => $staffId,
+                'id_detalle_solicitud' => $idDetalleSolicitud,
+            ];
+        }
 
         $productoIdsDesdeRequest = collect($productIds)
             ->map(fn ($id) => (int) $id)
@@ -573,19 +631,25 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
             ->values()
             ->all();
 
-        $productoIds = array_values(array_unique(array_merge($productoIdsDesdeItems, $productoIdsDesdeRequest)));
+        foreach ($productoIdsDesdeRequest as $idProducto) {
+            $yaRegistrado = collect($rowsByKey)
+                ->contains(fn (array $row): bool => (int) $row['id_producto'] === (int) $idProducto);
 
-        if ($productoIds === []) {
-            return;
+            if ($yaRegistrado) {
+                continue;
+            }
+
+            $rowsByKey[$idProducto.'|null'] = [
+                'id_producto' => (int) $idProducto,
+                'staff_id' => $staffId,
+                'id_detalle_solicitud' => null,
+            ];
         }
 
-        $rows = array_map(
-            fn (int $idProducto) => [
-                'id_producto' => $idProducto,
-                'staff_id' => $staffId,
-            ],
-            $productoIds
-        );
+        $rows = array_values($rowsByKey);
+        if ($rows === []) {
+            return;
+        }
 
         $connection->table('producto_solicitud_compra_rrhh')->insert($rows);
     }
