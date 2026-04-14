@@ -50,12 +50,13 @@ class InventarioProductosController extends Controller
             FROM inventario i
             INNER JOIN productos p ON i.id_producto = p.id_producto
             INNER JOIN area a ON i.id_area = a.id_area
+            WHERE p.eliminado = 0
         SQL;
 
         $bindings = [];
 
         if ($tipoResponsable !== null) {
-            $sql .= "\n            WHERE p.tipo_responsable = ?";
+            $sql .= "\n            AND p.tipo_responsable = ?";
             $bindings[] = $tipoResponsable;
         }
 
