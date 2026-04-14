@@ -24,6 +24,8 @@ class StoreSolicitudCompletaRequest extends FormRequest
             'fecha_necesaria' => ['nullable', 'date'],
             'tipo_entrega_preferida' => ['nullable', 'string', 'in:Directo,Delivery'],
             'id_direccion_entrega' => ['nullable', 'integer', 'min:1'],
+            'id_area' => ['nullable', 'array'],
+            'id_area.*' => ['nullable', 'integer', 'min:1'],
         ];
 
         foreach ($categories as $category) {
@@ -31,6 +33,8 @@ class StoreSolicitudCompletaRequest extends FormRequest
             $rules["id_producto_{$category}.*"] = ['nullable', 'integer'];
             $rules["cantidad_{$category}"] = ['nullable', 'array'];
             $rules["cantidad_{$category}.*"] = ['nullable', 'integer'];
+            $rules["id_area_{$category}"] = ['nullable', 'array'];
+            $rules["id_area_{$category}.*"] = ['nullable', 'integer', 'min:1'];
             $rules["observacion_{$category}"] = ['nullable', 'array'];
             $rules["observacion_{$category}.*"] = ['nullable', 'string', 'max:1000'];
             $rules["foto_{$category}"] = ['nullable', 'array'];

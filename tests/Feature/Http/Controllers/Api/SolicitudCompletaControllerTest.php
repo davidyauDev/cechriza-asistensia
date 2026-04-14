@@ -212,6 +212,7 @@ class SolicitudCompletaControllerTest extends TestCase
             'id_producto_rrhh' => [202],
             'cantidad_rrhh' => [1],
             'observacion_rrhh' => ['Revisar estado'],
+            'id_area' => [11, 12],
             'foto_rrhh' => [$file],
         ]);
 
@@ -285,6 +286,7 @@ class SolicitudCompletaControllerTest extends TestCase
             'id_producto_rrhh' => [202],
             'cantidad_rrhh' => [1],
             'observacion_rrhh' => ['Revisar'],
+            'id_area' => [12],
         ]);
 
         $payload = json_decode($response->getContent(), true, 512, JSON_THROW_ON_ERROR);
