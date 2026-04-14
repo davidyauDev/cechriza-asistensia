@@ -16,6 +16,7 @@ use Throwable;
 class SolicitudCompletaService implements SolicitudCompletaServiceInterface
 {
     private const ESTADO_INICIAL = 11;
+    private const PRODUCTOS_RRHH_PSCR = [195, 196, 197, 198, 199];
 
     /**
      * @var array<int, string>
@@ -86,6 +87,11 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
             }
 
             $connection->table('solicitud_detalles')->insert($detalleRows);
+            $this->registrarProductosRrhhPscr(
+                $connection,
+                $items,
+                (int) $data['id_usuario_solicitante']
+            );
 
             $areaRows = [];
             foreach ($areaIds as $areaId) {
@@ -188,6 +194,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                     'category' => $category,
                     'index' => $index,
                     'id_inventario' => $idInventario,
+                    'id_producto' => (int) $inventario->id_producto,
                     'id_area' => (int) $inventario->id_area,
                     'product_name' => (string) ($inventario->producto ?? ''),
                     'requires_photo' => $requiereFoto,
@@ -459,6 +466,34 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
         $value = Arr::get($data, $key, []);
 
         return is_array($value) ? array_values($value) : [];
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $items
+     */
+    protected function registrarProductosRrhhPscr(object $connection, array $items, int $staffId): void
+    {
+        $productoIds = collect($items)
+            ->pluck('id_producto')
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => in_array($id, self::PRODUCTOS_RRHH_PSCR, true))
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($productoIds === []) {
+            return;
+        }
+
+        $rows = array_map(
+            fn (int $idProducto) => [
+                'id_producto' => $idProducto,
+                'staff_id' => $staffId,
+            ],
+            $productoIds
+        );
+
+        $connection->table('producto_solicitud_compra_rrhh')->insert($rows);
     }
 
     protected function sanitizeEmail(string $email): ?string
