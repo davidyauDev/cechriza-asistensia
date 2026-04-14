@@ -30,17 +30,17 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
         $productosRrhhPscr = $this->collectProductosRrhhPscr($data);
 
         if ($solicitante === null) {
-            throw new DomainException('No se encontrÃ³ el usuario solicitante.');
+            throw new DomainException('No se encontrÃƒÂ³ el usuario solicitante.');
         }
 
         if (empty($solicitante->dept_id)) {
-            throw new DomainException('No se pudo resolver el Ã¡rea de origen del solicitante.');
+            throw new DomainException('No se pudo resolver el ÃƒÂ¡rea de origen del solicitante.');
         }
 
         $items = $this->collectItems($connection, $data, $files);
 
         if ($items === [] && $productosRrhhPscr === []) {
-            throw new DomainException('No se encontraron productos vÃ¡lidos para registrar.');
+            throw new DomainException($this->buildNoValidProductsMessage($data, $productosRrhhPscr));
         }
 
         $areaIds = collect($items)
@@ -113,7 +113,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
             );
 
             $comentarios = sprintf(
-                'Solicitud creada con %d Ã­tems. Derivada a %d Ã¡reas.',
+                'Solicitud creada con %d ÃƒÂ­tems. Derivada a %d ÃƒÂ¡reas.',
                 count($items),
                 count($areaIds)
             );
@@ -174,7 +174,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                 }
 
                 if (isset($seenInventarios[$idInventario])) {
-                    throw new DomainException("El inventario {$idInventario} estÃ¡ duplicado en la solicitud.");
+                    throw new DomainException("El inventario {$idInventario} estÃƒÂ¡ duplicado en la solicitud.");
                 }
 
                 $inventario = $this->findInventario($connection, $idInventario);
@@ -192,7 +192,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
 
                 if ($requiereFoto && ! $file instanceof UploadedFile) {
                     $producto = (string) ($inventario->producto ?? $idInventario);
-                    throw new DomainException("El producto {$producto} requiere foto y no se adjuntÃ³ archivo en la categorÃ­a {$category}.");
+                    throw new DomainException("El producto {$producto} requiere foto y no se adjuntÃƒÂ³ archivo en la categorÃƒÂ­a {$category}.");
                 }
 
                 $observacion = trim((string) ($observaciones[$index] ?? ''));
@@ -477,6 +477,63 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
 
     /**
      * @param  array<string, mixed>  $data
+     * @param  array<int, int>  $productosRrhhPscr
+     */
+    protected function buildNoValidProductsMessage(array $data, array $productosRrhhPscr): string
+    {
+        $diagnosticos = [];
+
+        foreach (self::CATEGORIES as $category) {
+            $inventarios = $this->normalizeList($data, "id_producto_{$category}");
+            $cantidades = $this->normalizeList($data, "cantidad_{$category}");
+            $validas = 0;
+            $invalidas = [];
+
+            foreach ($inventarios as $index => $inventarioRaw) {
+                $idInventario = (int) $inventarioRaw;
+                $cantidad = (int) ($cantidades[$index] ?? 0);
+
+                if ($idInventario > 0 && $cantidad > 0) {
+                    $validas++;
+                    continue;
+                }
+
+                $motivos = [];
+                if ($idInventario <= 0) {
+                    $motivos[] = 'id<=0';
+                }
+                if ($cantidad <= 0) {
+                    $motivos[] = 'cantidad<=0';
+                }
+
+                $invalidas[] = sprintf('#%d[%s]', $index, implode(',', $motivos));
+                if (count($invalidas) >= 3) {
+                    break;
+                }
+            }
+
+            $diagnosticos[] = sprintf(
+                '%s(ids=%d,validas=%d,invalidas=%s)',
+                $category,
+                count($inventarios),
+                $validas,
+                $invalidas === [] ? '0' : implode(';', $invalidas)
+            );
+        }
+
+        $keysRecibidas = implode(',', array_keys($data));
+        $pscr = $productosRrhhPscr === [] ? '0' : implode(',', $productosRrhhPscr);
+
+        return sprintf(
+            'No se encontraron productos validos para registrar. Diagnostico: %s. rrhh_pscr_detectados=%s. keys_recibidas=%s.',
+            implode(' | ', $diagnosticos),
+            $pscr,
+            $keysRecibidas === '' ? 'ninguna' : $keysRecibidas
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
      * @return array<int, int>
      */
     protected function collectProductosRrhhPscr(array $data): array
@@ -574,4 +631,6 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
         return $appUrl.'/storage/'.ltrim($path, '/');
     }
 }
+
+
 
