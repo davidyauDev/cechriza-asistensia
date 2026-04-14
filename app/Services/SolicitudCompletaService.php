@@ -27,19 +27,20 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
     {
         $connection = DB::connection('mysql_external');
         $solicitante = $this->findSolicitante($connection, (int) $data['id_usuario_solicitante']);
+        $productosRrhhPscr = $this->collectProductosRrhhPscr($data);
 
         if ($solicitante === null) {
-            throw new DomainException('No se encontró el usuario solicitante.');
+            throw new DomainException('No se encontrÃ³ el usuario solicitante.');
         }
 
         if (empty($solicitante->dept_id)) {
-            throw new DomainException('No se pudo resolver el área de origen del solicitante.');
+            throw new DomainException('No se pudo resolver el Ã¡rea de origen del solicitante.');
         }
 
         $items = $this->collectItems($connection, $data, $files);
 
-        if ($items === []) {
-            throw new DomainException('No se encontraron productos válidos para registrar.');
+        if ($items === [] && $productosRrhhPscr === []) {
+            throw new DomainException('No se encontraron productos vÃ¡lidos para registrar.');
         }
 
         $areaIds = collect($items)
@@ -57,7 +58,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
         $areaIds = array_values(array_unique(array_map('intval', $areaIds)));
         $now = now();
 
-        $solicitudId = $connection->transaction(function () use ($connection, $data, $items, $areaIds, $solicitante, $now): int {
+        $solicitudId = $connection->transaction(function () use ($connection, $data, $items, $areaIds, $solicitante, $now, $productosRrhhPscr): int {
             $solicitudId = (int) $connection->table('solicitudes')->insertGetId([
                 'id_usuario_solicitante' => (int) $data['id_usuario_solicitante'],
                 'id_area_origen' => (int) $solicitante->dept_id,
@@ -86,12 +87,9 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                 ];
             }
 
-            $connection->table('solicitud_detalles')->insert($detalleRows);
-            $this->registrarProductosRrhhPscr(
-                $connection,
-                $items,
-                (int) $data['id_usuario_solicitante']
-            );
+            if ($detalleRows !== []) {
+                $connection->table('solicitud_detalles')->insert($detalleRows);
+            }
 
             $areaRows = [];
             foreach ($areaIds as $areaId) {
@@ -103,10 +101,19 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                 ];
             }
 
-            $connection->table('solicitud_areas')->insert($areaRows);
+            if ($areaRows !== []) {
+                $connection->table('solicitud_areas')->insert($areaRows);
+            }
+
+            $this->registrarProductosRrhhPscr(
+                $connection,
+                $items,
+                (int) $data['id_usuario_solicitante'],
+                $productosRrhhPscr
+            );
 
             $comentarios = sprintf(
-                'Solicitud creada con %d ítems. Derivada a %d áreas.',
+                'Solicitud creada con %d Ã­tems. Derivada a %d Ã¡reas.',
                 count($items),
                 count($areaIds)
             );
@@ -167,17 +174,17 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                 }
 
                 if (isset($seenInventarios[$idInventario])) {
-                    throw new DomainException("El inventario {$idInventario} está duplicado en la solicitud.");
+                    throw new DomainException("El inventario {$idInventario} estÃ¡ duplicado en la solicitud.");
                 }
 
                 $inventario = $this->findInventario($connection, $idInventario);
 
                 if ($inventario === null) {
-                    throw new DomainException("No se encontró el inventario {$idInventario}.");
+                    continue;
                 }
 
                 if (empty($inventario->id_area)) {
-                    throw new DomainException("El inventario {$idInventario} no tiene un área asociada.");
+                    continue;
                 }
 
                 $file = Arr::get($fotos, $index);
@@ -185,7 +192,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
 
                 if ($requiereFoto && ! $file instanceof UploadedFile) {
                     $producto = (string) ($inventario->producto ?? $idInventario);
-                    throw new DomainException("El producto {$producto} requiere foto y no se adjuntó archivo en la categoría {$category}.");
+                    throw new DomainException("El producto {$producto} requiere foto y no se adjuntÃ³ archivo en la categorÃ­a {$category}.");
                 }
 
                 $observacion = trim((string) ($observaciones[$index] ?? ''));
@@ -469,17 +476,47 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
     }
 
     /**
-     * @param  array<int, array<string, mixed>>  $items
+     * @param  array<string, mixed>  $data
+     * @return array<int, int>
      */
-    protected function registrarProductosRrhhPscr(object $connection, array $items, int $staffId): void
+    protected function collectProductosRrhhPscr(array $data): array
     {
-        $productoIds = collect($items)
+        $ids = [];
+
+        foreach (self::CATEGORIES as $category) {
+            $ids = array_merge($ids, $this->normalizeList($data, "id_producto_{$category}"));
+        }
+
+        return collect($ids)
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => in_array($id, self::PRODUCTOS_RRHH_PSCR, true))
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $items
+     * @param  array<int, int>  $productIds
+     */
+    protected function registrarProductosRrhhPscr(object $connection, array $items, int $staffId, array $productIds = []): void
+    {
+        $productoIdsDesdeItems = collect($items)
             ->pluck('id_producto')
             ->map(fn ($id) => (int) $id)
             ->filter(fn ($id) => in_array($id, self::PRODUCTOS_RRHH_PSCR, true))
             ->unique()
             ->values()
             ->all();
+
+        $productoIdsDesdeRequest = collect($productIds)
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => in_array($id, self::PRODUCTOS_RRHH_PSCR, true))
+            ->unique()
+            ->values()
+            ->all();
+
+        $productoIds = array_values(array_unique(array_merge($productoIdsDesdeItems, $productoIdsDesdeRequest)));
 
         if ($productoIds === []) {
             return;
@@ -537,3 +574,4 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
         return $appUrl.'/storage/'.ltrim($path, '/');
     }
 }
+
