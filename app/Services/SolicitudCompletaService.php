@@ -161,16 +161,22 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
     {
         $items = [];
         $seenInventarios = [];
+        $areasGlobales = $this->normalizeList($data, 'id_area');
+        $areaGlobalIndex = 0;
 
         foreach (self::CATEGORIES as $category) {
             $inventarios = $this->normalizeList($data, "id_producto_{$category}");
             $cantidades = $this->normalizeList($data, "cantidad_{$category}");
             $observaciones = $this->normalizeList($data, "observacion_{$category}");
             $fotos = $this->normalizeList($files, "foto_{$category}");
+            $areasCategoria = $this->normalizeList($data, "id_area_{$category}");
 
             foreach ($inventarios as $index => $inventarioRaw) {
                 $idInventario = (int) $inventarioRaw;
                 $cantidad = (int) ($cantidades[$index] ?? 0);
+                $areaDesdeCategoria = (int) ($areasCategoria[$index] ?? 0);
+                $areaDesdeGlobal = (int) ($areasGlobales[$areaGlobalIndex] ?? 0);
+                $areaGlobalIndex++;
 
                 if ($idInventario <= 0 || $cantidad <= 0) {
                     continue;
@@ -186,7 +192,11 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                     continue;
                 }
 
-                if (empty($inventario->id_area)) {
+                $idAreaDetalle = $areaDesdeCategoria > 0
+                    ? $areaDesdeCategoria
+                    : $areaDesdeGlobal;
+
+                if ($idAreaDetalle <= 0) {
                     continue;
                 }
 
@@ -205,7 +215,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                     'index' => $index,
                     'id_inventario' => $idInventario,
                     'id_producto' => (int) $inventario->id_producto,
-                    'id_area' => (int) $inventario->id_area,
+                    'id_area' => $idAreaDetalle,
                     'product_name' => (string) ($inventario->producto ?? ''),
                     'requires_photo' => $requiereFoto,
                     'quantity' => $cantidad,
