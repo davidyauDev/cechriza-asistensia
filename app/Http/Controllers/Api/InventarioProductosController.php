@@ -44,12 +44,14 @@ class InventarioProductosController extends Controller
                 i.id_inventario,
                 p.id_producto,
                 p.descripcion AS producto,
-                a.descripcion_area,
-                a.id_area,
+                CASE
+                    WHEN p.tipo_responsable = 'LOGISTICA' THEN 7
+                    WHEN p.tipo_responsable = 'SSOMA' THEN 11
+                    ELSE 12
+                END AS id_area,
                 p.requiere_foto_producto_anterior
             FROM inventario i
             INNER JOIN productos p ON i.id_producto = p.id_producto
-            INNER JOIN area a ON i.id_area = a.id_area
             WHERE p.eliminado = 0
               AND p.tipo = 2
         SQL;
