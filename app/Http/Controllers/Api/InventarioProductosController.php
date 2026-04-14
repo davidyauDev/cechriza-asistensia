@@ -55,7 +55,7 @@ class InventarioProductosController extends Controller
         $bindings = [];
 
         if ($tipoResponsable !== null) {
-            $sql .= "\n            WHERE i.tipo_responsable = ?";
+            $sql .= "\n            WHERE p.tipo_responsable = ?";
             $bindings[] = $tipoResponsable;
         }
 
