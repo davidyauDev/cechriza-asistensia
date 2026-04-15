@@ -17,6 +17,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
 {
     private const ESTADO_INICIAL = 11;
     private const TIPO_SOLICITUD_COMPRA = 'COMPRA';
+    private const TIPO_SOLICITUD_INTERNO = 'INTERNO';
     private const TIPO_SOLICITUD_MIXTO = 'MIXTO';
     private const PRODUCTOS_RRHH_PSCR = [195, 196, 197, 198, 199];
 
@@ -40,7 +41,11 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
         }
 
         $items = $this->collectItems($connection, $data, $files);
-        $tipoSolicitud = $this->resolveTipoSolicitud($items, $productosRrhhPscr);
+        $tipoSolicitud = $this->resolveTipoSolicitud(
+            $items,
+            $productosRrhhPscr,
+            (int) ($data['es_pedido_compra'] ?? 0) === 1
+        );
 
         if ($items === [] && $productosRrhhPscr === []) {
             throw new DomainException($this->buildNoValidProductsMessage($data, $productosRrhhPscr));
@@ -609,8 +614,12 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
      * @param  array<int, array<string, mixed>>  $items
      * @param  array<int, int>  $productosRrhhPscr
      */
-    protected function resolveTipoSolicitud(array $items, array $productosRrhhPscr): string
+    protected function resolveTipoSolicitud(array $items, array $productosRrhhPscr, bool $esPedidoCompra): string
     {
+        if ($esPedidoCompra) {
+            return self::TIPO_SOLICITUD_COMPRA;
+        }
+
         $itemProductIds = collect($items)
             ->pluck('id_producto')
             ->map(fn ($id) => (int) $id)
@@ -621,7 +630,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
 
         if ($itemProductIds === []) {
             return $productosRrhhPscr !== []
-                ? self::TIPO_SOLICITUD_COMPRA
+                ? self::TIPO_SOLICITUD_INTERNO
                 : self::TIPO_SOLICITUD_MIXTO;
         }
 
@@ -629,7 +638,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
             ->every(fn (int $id): bool => in_array($id, self::PRODUCTOS_RRHH_PSCR, true));
 
         return $allAreRrhhPscr
-            ? self::TIPO_SOLICITUD_COMPRA
+            ? self::TIPO_SOLICITUD_INTERNO
             : self::TIPO_SOLICITUD_MIXTO;
     }
 
@@ -737,6 +746,3 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
         return $appUrl.'/storage/'.ltrim($path, '/');
     }
 }
-
-
-
