@@ -17,6 +17,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
 {
     private const ESTADO_INICIAL = 11;
     private const TIPO_SOLICITUD_COMPRA = 'COMPRA';
+    private const TIPO_SOLICITUD_MIXTO = 'MIXTO';
     private const PRODUCTOS_RRHH_PSCR = [195, 196, 197, 198, 199];
 
     /**
@@ -39,6 +40,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
         }
 
         $items = $this->collectItems($connection, $data, $files);
+        $tipoSolicitud = $this->resolveTipoSolicitud($items, $productosRrhhPscr);
 
         if ($items === [] && $productosRrhhPscr === []) {
             throw new DomainException($this->buildNoValidProductsMessage($data, $productosRrhhPscr));
@@ -59,7 +61,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
         $areaIds = array_values(array_unique(array_map('intval', $areaIds)));
         $now = now();
 
-        $solicitudId = $connection->transaction(function () use ($connection, $data, $items, $areaIds, $solicitante, $now, $productosRrhhPscr): int {
+        $solicitudId = $connection->transaction(function () use ($connection, $data, $items, $areaIds, $solicitante, $now, $productosRrhhPscr, $tipoSolicitud): int {
             $solicitudId = (int) $connection->table('solicitudes')->insertGetId([
                 'id_usuario_solicitante' => (int) $data['id_usuario_solicitante'],
                 'id_area_origen' => (int) $solicitante->dept_id,
@@ -71,7 +73,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                 'id_direccion_entrega' => $data['id_direccion_entrega'] ?? null,
                 'es_pedido_compra' => (int) ($data['es_pedido_compra'] ?? 0),
                 'pedido_compra_estado' => (int) ($data['es_pedido_compra'] ?? 0),
-                'tipo_solicitud' => self::TIPO_SOLICITUD_COMPRA,
+                'tipo_solicitud' => $tipoSolicitud,
                 'justificacion' => $data['justificacion'] ?? null,
             ]);
 
@@ -601,6 +603,34 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
             ->unique()
             ->values()
             ->all();
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $items
+     * @param  array<int, int>  $productosRrhhPscr
+     */
+    protected function resolveTipoSolicitud(array $items, array $productosRrhhPscr): string
+    {
+        $itemProductIds = collect($items)
+            ->pluck('id_producto')
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($itemProductIds === []) {
+            return $productosRrhhPscr !== []
+                ? self::TIPO_SOLICITUD_COMPRA
+                : self::TIPO_SOLICITUD_MIXTO;
+        }
+
+        $allAreRrhhPscr = collect($itemProductIds)
+            ->every(fn (int $id): bool => in_array($id, self::PRODUCTOS_RRHH_PSCR, true));
+
+        return $allAreRrhhPscr
+            ? self::TIPO_SOLICITUD_COMPRA
+            : self::TIPO_SOLICITUD_MIXTO;
     }
 
     /**
