@@ -16,6 +16,7 @@ use Throwable;
 class SolicitudCompletaService implements SolicitudCompletaServiceInterface
 {
     private const ESTADO_INICIAL = 11;
+    private const TIPO_SOLICITUD_COMPRA = 'COMPRA';
     private const PRODUCTOS_RRHH_PSCR = [195, 196, 197, 198, 199];
 
     /**
@@ -70,6 +71,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                 'id_direccion_entrega' => $data['id_direccion_entrega'] ?? null,
                 'es_pedido_compra' => (int) ($data['es_pedido_compra'] ?? 0),
                 'pedido_compra_estado' => (int) ($data['es_pedido_compra'] ?? 0),
+                'tipo_solicitud' => self::TIPO_SOLICITUD_COMPRA,
                 'justificacion' => $data['justificacion'] ?? null,
             ]);
 

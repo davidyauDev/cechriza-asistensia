@@ -47,6 +47,7 @@ class ProductoSolicitudCompraRrhhController extends Controller
                     'sd.area_id',
                     'sd.id_estado_detalle',
                     'sd.observacion_atencion',
+                    'sd.url_imagen',                       
                     's.fecha_registro as solicitud_fecha_registro',
                     's.fecha_necesaria as solicitud_fecha_necesaria',
                     's.prioridad as solicitud_prioridad',
@@ -87,6 +88,7 @@ class ProductoSolicitudCompraRrhhController extends Controller
                         'username' => $row->username ?? null,
                         'firstname' => $row->firstname ?? null,
                         'lastname' => $row->lastname ?? null,
+                        'full_name' => $this->formatStaffFullName($row),
                         'dept_id' => $row->dept_id !== null ? (int) $row->dept_id : null,
                     ],
                     'detalle' => [
@@ -97,6 +99,7 @@ class ProductoSolicitudCompraRrhhController extends Controller
                         'area_id' => $row->area_id !== null ? (int) $row->area_id : null,
                         'id_estado_detalle' => $row->id_estado_detalle !== null ? (int) $row->id_estado_detalle : null,
                         'observacion_atencion' => $row->observacion_atencion ?? null,
+                        'url_imagen' => $row->url_imagen ?? null,
                     ],
                     'solicitud' => [
                         'id_solicitud' => $row->id_solicitud !== null ? (int) $row->id_solicitud : null,
@@ -114,5 +117,14 @@ class ProductoSolicitudCompraRrhhController extends Controller
 
             return $this->errorResponse('No se pudieron consultar los registros.', 500);
         }
+    }
+
+    protected function formatStaffFullName(object $row): ?string
+    {
+        $firstname = trim((string) ($row->firstname ?? ''));
+        $lastname = trim((string) ($row->lastname ?? ''));
+        $fullName = trim($firstname . ' ' . $lastname);
+
+        return $fullName !== '' ? $fullName : null;
     }
 }
