@@ -117,6 +117,8 @@ class SolicitudCompletaControllerTest extends TestCase
                     && $payload['prioridad'] === 'Alta'
                     && $payload['tipo_entrega_preferida'] === 'Directo'
                     && $payload['id_direccion_entrega'] === 5
+                    && $payload['es_provincia'] === 0
+                    && $payload['ubicacion'] === 'LIMA'
                     && $payload['es_pedido_compra'] === 0
                     && $payload['pedido_compra_estado'] === 0
                     && $payload['tipo_solicitud'] === 'MIXTO'
@@ -202,7 +204,9 @@ class SolicitudCompletaControllerTest extends TestCase
         $response = $this->withoutMiddleware()->post('/api/solicitudes/registrar-completa', [
             'id_usuario_solicitante' => 163,
             'justificacion' => 'Pedido para el ÃƒÂ¡rea',
-            'es_pedido_compra' => 0,
+            'es_pedido_compra' => '0',
+            'es_provincia' => '0',
+            'ubicacion' => 'LIMA',
             'prioridad' => 'Alta',
             'fecha_necesaria' => '2026-04-20',
             'tipo_entrega_preferida' => 'Directo',
@@ -283,7 +287,9 @@ class SolicitudCompletaControllerTest extends TestCase
         $response = $this->withoutMiddleware()->post('/api/solicitudes/registrar-completa', [
             'id_usuario_solicitante' => 163,
             'justificacion' => 'Pedido con foto obligatoria',
-            'es_pedido_compra' => 0,
+            'es_pedido_compra' => '0',
+            'es_provincia' => '0',
+            'ubicacion' => 'PROVINCIA',
             'prioridad' => 'Media',
             'id_producto_rrhh' => [202],
             'cantidad_rrhh' => [1],

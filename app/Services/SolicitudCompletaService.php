@@ -33,11 +33,11 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
         $productosRrhhPscr = $this->collectProductosRrhhPscr($data);
 
         if ($solicitante === null) {
-            throw new DomainException('No se encontrÃƒÂ³ el usuario solicitante.');
+            throw new DomainException('No se encontró el usuario solicitante.');
         }
 
         if (empty($solicitante->dept_id)) {
-            throw new DomainException('No se pudo resolver el ÃƒÂ¡rea de origen del solicitante.');
+            throw new DomainException('No se pudo resolver el área de origen del solicitante.');
         }
 
         $items = $this->collectItems($connection, $data, $files);
@@ -165,7 +165,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                 }
 
                 if (isset($seenInventarios[$idInventario])) {
-                    throw new DomainException("El inventario {$idInventario} estÃƒÂ¡ duplicado en la solicitud.");
+                    throw new DomainException("El inventario {$idInventario} está duplicado en la solicitud.");
                 }
 
                 $inventario = $this->findInventario($connection, $idInventario);
@@ -187,7 +187,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
 
                 if ($requiereFoto && ! $file instanceof UploadedFile) {
                     $producto = (string) ($inventario->producto ?? $idInventario);
-                    throw new DomainException("El producto {$producto} requiere foto y no se adjuntÃƒÂ³ archivo en la categorÃƒÂ­a {$category}.");
+                    throw new DomainException("El producto {$producto} requiere foto y no se adjuntó archivo en la categoría {$category}.");
                 }
 
                 $observacion = trim((string) ($observaciones[$index] ?? ''));
@@ -253,6 +253,8 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                 'fecha_necesaria' => $data['fecha_necesaria'] ?? null,
                 'tipo_entrega_preferida' => $data['tipo_entrega_preferida'] ?? 'Directo',
                 'id_direccion_entrega' => $data['id_direccion_entrega'] ?? null,
+                'es_provincia' => (int) ($data['es_provincia'] ?? 0),
+                'ubicacion' => $data['ubicacion'] ?? null,
                 'es_pedido_compra' => $esPedidoCompraInt,
                 'pedido_compra_estado' => $esPedidoCompraInt,
                 'tipo_solicitud' => $tipoSolicitud,
@@ -302,7 +304,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
             );
 
             $comentarios = sprintf(
-                'Solicitud creada con %d ÃƒÂ­tems. Derivada a %d ÃƒÂ¡reas.',
+                'Solicitud creada con %d ítems. Derivada a %d áreas.',
                 count($items),
                 count($areaIds)
             );
