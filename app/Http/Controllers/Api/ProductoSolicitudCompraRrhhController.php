@@ -12,6 +12,8 @@ use Throwable;
 class ProductoSolicitudCompraRrhhController extends Controller
 {
     use ApiResponseTrait;
+    private const TIPO_SOLICITUD_COMPRA = 'COMPRA';
+    private const TIPO_SOLICITUD_INTERNO = 'INTERNO';
 
     public function index(Request $request): JsonResponse
     {
@@ -68,6 +70,11 @@ class ProductoSolicitudCompraRrhhController extends Controller
             if (isset($validated['id_solicitud'])) {
                 $query->where('sd.id_solicitud', (int) $validated['id_solicitud']);
             }
+
+            $query->whereIn('s.tipo_solicitud', [
+                self::TIPO_SOLICITUD_COMPRA,
+                self::TIPO_SOLICITUD_INTERNO,
+            ]);
 
             $rows = $query
                 ->orderByDesc('pscr.id')
