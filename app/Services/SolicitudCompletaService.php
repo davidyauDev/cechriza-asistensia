@@ -41,123 +41,96 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
         }
 
         $items = $this->collectItems($connection, $data, $files);
-        $tipoSolicitud = $this->resolveTipoSolicitud(
-            $items,
-            $productosRrhhPscr,
-            (int) ($data['es_pedido_compra'] ?? 0) === 1
-        );
 
         if ($items === [] && $productosRrhhPscr === []) {
             throw new DomainException($this->buildNoValidProductsMessage($data, $productosRrhhPscr));
         }
 
-        $areaIds = collect($items)
-            ->pluck('id_area')
-            ->filter()
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values()
-            ->all();
+        $itemsPscr = $this->extractPscrItems($items);
+        $itemsNoPscr = $this->extractNonPscrItems($items);
+        $esPedidoCompraOriginal = (int) ($data['es_pedido_compra'] ?? 0) === 1;
 
-        if ((int) $data['es_pedido_compra'] === 1) {
-            $areaIds[] = (int) config('services.solicitudes.area_compras_id', 7);
+        $solicitudesARegistrar = [];
+
+        if ($itemsNoPscr !== []) {
+            $solicitudesARegistrar[] = [
+                'items' => $itemsNoPscr,
+                'productos_rrhh_pscr' => [],
+                'es_pedido_compra' => $esPedidoCompraOriginal,
+            ];
         }
 
-        $areaIds = array_values(array_unique(array_map('intval', $areaIds)));
-        $now = now();
+        if ($itemsPscr !== [] || ($items === [] && $productosRrhhPscr !== [])) {
+            $productosPscr = $itemsPscr !== []
+                ? $this->extractPscrProductIdsFromItems($itemsPscr)
+                : $productosRrhhPscr;
 
-        $solicitudId = $connection->transaction(function () use ($connection, $data, $items, $areaIds, $solicitante, $now, $productosRrhhPscr, $tipoSolicitud): int {
-            $solicitudId = (int) $connection->table('solicitudes')->insertGetId([
-                'id_usuario_solicitante' => (int) $data['id_usuario_solicitante'],
-                'id_area_origen' => (int) $solicitante->dept_id,
-                'id_estado_general' => self::ESTADO_INICIAL,
-                'fecha_registro' => $now,
-                'prioridad' => $data['prioridad'] ?? 'Media',
-                'fecha_necesaria' => $data['fecha_necesaria'] ?? null,
-                'tipo_entrega_preferida' => $data['tipo_entrega_preferida'] ?? 'Directo',
-                'id_direccion_entrega' => $data['id_direccion_entrega'] ?? null,
-                'es_pedido_compra' => (int) ($data['es_pedido_compra'] ?? 0),
-                'pedido_compra_estado' => (int) ($data['es_pedido_compra'] ?? 0),
-                'tipo_solicitud' => $tipoSolicitud,
-                'justificacion' => $data['justificacion'] ?? null,
-            ]);
+            $solicitudesARegistrar[] = [
+                'items' => $itemsPscr,
+                'productos_rrhh_pscr' => $productosPscr,
+                'es_pedido_compra' => true,
+            ];
+        }
 
-            $detalleRows = [];
-            foreach ($items as $item) {
-                $detalleRows[] = [
-                    'id_solicitud' => $solicitudId,
-                    'id_inventario' => (int) $item['id_inventario'],
-                    'cantidad_solicitada' => (int) $item['quantity'],
-                    'id_estado_detalle' => self::ESTADO_INICIAL,
-                    'observacion_atencion' => $item['observacion'],
-                    'area_id' => (int) $item['id_area'],
-                    'ruta_imagen' => null,
-                    'url_imagen' => null,
-                ];
-            }
+        if ($solicitudesARegistrar === []) {
+            $solicitudesARegistrar[] = [
+                'items' => $items,
+                'productos_rrhh_pscr' => $productosRrhhPscr,
+                'es_pedido_compra' => $esPedidoCompraOriginal,
+            ];
+        }
 
-            $detalleIdsByInventario = [];
-            if ($detalleRows !== []) {
-                $connection->table('solicitud_detalles')->insert($detalleRows);
-                $detalleIdsByInventario = $this->resolveDetalleIdsByInventario($connection, $solicitudId, $items);
-            }
-
-            $areaRows = [];
-            foreach ($areaIds as $areaId) {
-                $areaRows[] = [
-                    'id_solicitud' => $solicitudId,
-                    'id_area' => (int) $areaId,
-                    'id_estado_area' => self::ESTADO_INICIAL,
-                    'fecha_recepcion' => $now,
-                ];
-            }
-
-            if ($areaRows !== []) {
-                $connection->table('solicitud_areas')->insert($areaRows);
-            }
-
-            $this->registrarProductosRrhhPscr(
-                $connection,
-                $items,
-                (int) $data['id_usuario_solicitante'],
-                $productosRrhhPscr,
-                $detalleIdsByInventario
-            );
-
-            $comentarios = sprintf(
-                'Solicitud creada con %d ÃƒÂ­tems. Derivada a %d ÃƒÂ¡reas.',
-                count($items),
-                count($areaIds)
-            );
-
-            $connection->table('solicitud_flujo_aprobaciones')->insertGetId([
-                'id_solicitud' => $solicitudId,
-                'id_area_responsable' => (int) $solicitante->dept_id,
-                'id_usuario_asignado' => (int) $data['id_usuario_solicitante'],
-                'id_estado' => self::ESTADO_INICIAL,
-                'comentarios' => $comentarios,
-                'fecha_actualizacion' => $now,
-            ]);
-
-            return $solicitudId;
-        });
-
+        $tickets = [];
         $uploadedFiles = [];
 
-        try {
-            $uploadedFiles = $this->storeFiles($solicitudId, $items);
-            $this->syncDetalleImagenes($connection, $solicitudId, $uploadedFiles);
-        } catch (Throwable $e) {
-            $this->deleteStoredFiles($uploadedFiles);
-            $this->rollbackSolicitud($connection, $solicitudId);
-            throw $e;
+        foreach ($solicitudesARegistrar as $solicitudData) {
+            $registro = $this->persistSolicitud(
+                $connection,
+                $data,
+                $solicitante,
+                $solicitudData['items'],
+                $solicitudData['productos_rrhh_pscr'],
+                (bool) $solicitudData['es_pedido_compra']
+            );
+
+            $solicitudId = (int) $registro['solicitud_id'];
+            $areaIds = $registro['area_ids'];
+            $uploadedFilesSolicitud = [];
+
+            try {
+                $uploadedFilesSolicitud = $this->storeFiles($solicitudId, $solicitudData['items']);
+                $this->syncDetalleImagenes($connection, $solicitudId, $uploadedFilesSolicitud);
+            } catch (Throwable $e) {
+                $this->deleteStoredFiles($uploadedFilesSolicitud);
+                $this->rollbackSolicitud($connection, $solicitudId);
+                throw $e;
+            }
+
+            $notificationData = $data;
+            $notificationData['es_pedido_compra'] = (bool) $solicitudData['es_pedido_compra'] ? 1 : 0;
+
+            $this->sendNotifications(
+                $connection,
+                $notificationData,
+                $solicitante,
+                $solicitudData['items'],
+                $areaIds,
+                $solicitudId,
+                $uploadedFilesSolicitud
+            );
+
+            $tickets[] = $this->formatTicket($solicitudId);
+            $uploadedFiles = array_merge($uploadedFiles, $uploadedFilesSolicitud);
         }
 
-        $this->sendNotifications($connection, $data, $solicitante, $items, $areaIds, $solicitudId, $uploadedFiles);
+        if ($tickets === []) {
+            throw new DomainException('No se pudo registrar la solicitud.');
+        }
 
         return [
-            'ticket' => $this->formatTicket($solicitudId),
+            'ticket' => $tickets[0],
             'uploaded_files' => $uploadedFiles,
+            'tickets' => $tickets,
         ];
     }
 
@@ -237,6 +210,163 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
         }
 
         return $items;
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @param  array<int, array<string, mixed>>  $items
+     * @param  array<int, int>  $productosRrhhPscr
+     * @return array{solicitud_id:int,area_ids:array<int,int>}
+     */
+    protected function persistSolicitud(
+        object $connection,
+        array $data,
+        object $solicitante,
+        array $items,
+        array $productosRrhhPscr,
+        bool $esPedidoCompra
+    ): array {
+        $areaIds = collect($items)
+            ->pluck('id_area')
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($esPedidoCompra) {
+            $areaIds[] = (int) config('services.solicitudes.area_compras_id', 7);
+        }
+
+        $areaIds = array_values(array_unique(array_map('intval', $areaIds)));
+        $tipoSolicitud = $this->resolveTipoSolicitud($items, $productosRrhhPscr, $esPedidoCompra);
+        $esPedidoCompraInt = $esPedidoCompra ? 1 : 0;
+        $now = now();
+
+        $solicitudId = $connection->transaction(function () use ($connection, $data, $items, $areaIds, $solicitante, $productosRrhhPscr, $tipoSolicitud, $esPedidoCompraInt, $now): int {
+            $solicitudId = (int) $connection->table('solicitudes')->insertGetId([
+                'id_usuario_solicitante' => (int) $data['id_usuario_solicitante'],
+                'id_area_origen' => (int) $solicitante->dept_id,
+                'id_estado_general' => self::ESTADO_INICIAL,
+                'fecha_registro' => $now,
+                'prioridad' => $data['prioridad'] ?? 'Media',
+                'fecha_necesaria' => $data['fecha_necesaria'] ?? null,
+                'tipo_entrega_preferida' => $data['tipo_entrega_preferida'] ?? 'Directo',
+                'id_direccion_entrega' => $data['id_direccion_entrega'] ?? null,
+                'es_pedido_compra' => $esPedidoCompraInt,
+                'pedido_compra_estado' => $esPedidoCompraInt,
+                'tipo_solicitud' => $tipoSolicitud,
+                'justificacion' => $data['justificacion'] ?? null,
+            ]);
+
+            $detalleRows = [];
+            foreach ($items as $item) {
+                $detalleRows[] = [
+                    'id_solicitud' => $solicitudId,
+                    'id_inventario' => (int) $item['id_inventario'],
+                    'cantidad_solicitada' => (int) $item['quantity'],
+                    'id_estado_detalle' => self::ESTADO_INICIAL,
+                    'observacion_atencion' => $item['observacion'],
+                    'area_id' => (int) $item['id_area'],
+                    'ruta_imagen' => null,
+                    'url_imagen' => null,
+                ];
+            }
+
+            $detalleIdsByInventario = [];
+            if ($detalleRows !== []) {
+                $connection->table('solicitud_detalles')->insert($detalleRows);
+                $detalleIdsByInventario = $this->resolveDetalleIdsByInventario($connection, $solicitudId, $items);
+            }
+
+            $areaRows = [];
+            foreach ($areaIds as $areaId) {
+                $areaRows[] = [
+                    'id_solicitud' => $solicitudId,
+                    'id_area' => (int) $areaId,
+                    'id_estado_area' => self::ESTADO_INICIAL,
+                    'fecha_recepcion' => $now,
+                ];
+            }
+
+            if ($areaRows !== []) {
+                $connection->table('solicitud_areas')->insert($areaRows);
+            }
+
+            $this->registrarProductosRrhhPscr(
+                $connection,
+                $items,
+                (int) $data['id_usuario_solicitante'],
+                $productosRrhhPscr,
+                $detalleIdsByInventario
+            );
+
+            $comentarios = sprintf(
+                'Solicitud creada con %d ÃƒÂ­tems. Derivada a %d ÃƒÂ¡reas.',
+                count($items),
+                count($areaIds)
+            );
+
+            $connection->table('solicitud_flujo_aprobaciones')->insertGetId([
+                'id_solicitud' => $solicitudId,
+                'id_area_responsable' => (int) $solicitante->dept_id,
+                'id_usuario_asignado' => (int) $data['id_usuario_solicitante'],
+                'id_estado' => self::ESTADO_INICIAL,
+                'comentarios' => $comentarios,
+                'fecha_actualizacion' => $now,
+            ]);
+
+            return $solicitudId;
+        });
+
+        return [
+            'solicitud_id' => $solicitudId,
+            'area_ids' => $areaIds,
+        ];
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $items
+     * @return array<int, array<string, mixed>>
+     */
+    protected function extractPscrItems(array $items): array
+    {
+        return array_values(array_filter(
+            $items,
+            fn (array $item): bool => $this->isPscrProductId((int) ($item['id_producto'] ?? 0))
+        ));
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $items
+     * @return array<int, array<string, mixed>>
+     */
+    protected function extractNonPscrItems(array $items): array
+    {
+        return array_values(array_filter(
+            $items,
+            fn (array $item): bool => ! $this->isPscrProductId((int) ($item['id_producto'] ?? 0))
+        ));
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $items
+     * @return array<int, int>
+     */
+    protected function extractPscrProductIdsFromItems(array $items): array
+    {
+        return collect($items)
+            ->pluck('id_producto')
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id): bool => $this->isPscrProductId($id))
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    protected function isPscrProductId(int $idProducto): bool
+    {
+        return in_array($idProducto, self::PRODUCTOS_RRHH_PSCR, true);
     }
 
     protected function findSolicitante(object $connection, int $staffId): ?object
@@ -604,7 +734,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
 
         return collect($ids)
             ->map(fn ($id) => (int) $id)
-            ->filter(fn ($id) => in_array($id, self::PRODUCTOS_RRHH_PSCR, true))
+            ->filter(fn (int $id): bool => $this->isPscrProductId($id))
             ->unique()
             ->values()
             ->all();
@@ -638,7 +768,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
 
         $hasRrhhPscrIds = $productosRrhhPscr !== []
             || collect($itemProductIds)->contains(
-                fn (int $id): bool => in_array($id, self::PRODUCTOS_RRHH_PSCR, true)
+                fn (int $id): bool => $this->isPscrProductId($id)
             );
 
         $isOnlyArea11 = $itemAreaIds !== []
@@ -655,7 +785,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
         }
 
         $allAreRrhhPscr = collect($itemProductIds)
-            ->every(fn (int $id): bool => in_array($id, self::PRODUCTOS_RRHH_PSCR, true));
+            ->every(fn (int $id): bool => $this->isPscrProductId($id));
 
         return $allAreRrhhPscr
             ? self::TIPO_SOLICITUD_INTERNO
@@ -680,7 +810,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
         foreach ($items as $item) {
             $idProducto = (int) ($item['id_producto'] ?? 0);
 
-            if (! in_array($idProducto, self::PRODUCTOS_RRHH_PSCR, true)) {
+            if (! $this->isPscrProductId($idProducto)) {
                 continue;
             }
 
@@ -697,7 +827,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
 
         $productoIdsDesdeRequest = collect($productIds)
             ->map(fn ($id) => (int) $id)
-            ->filter(fn ($id) => in_array($id, self::PRODUCTOS_RRHH_PSCR, true))
+            ->filter(fn (int $id): bool => $this->isPscrProductId($id))
             ->unique()
             ->values()
             ->all();
@@ -766,3 +896,4 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
         return $appUrl.'/storage/'.ltrim($path, '/');
     }
 }
+
