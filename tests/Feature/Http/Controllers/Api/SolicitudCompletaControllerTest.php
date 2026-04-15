@@ -119,7 +119,7 @@ class SolicitudCompletaControllerTest extends TestCase
                     && $payload['id_direccion_entrega'] === 5
                     && $payload['es_pedido_compra'] === 0
                     && $payload['pedido_compra_estado'] === 0
-                    && $payload['tipo_solicitud'] === 'COMPRA'
+                    && $payload['tipo_solicitud'] === 'MIXTO'
                     && $payload['justificacion'] === 'Pedido para el ÃƒÂ¡rea'
                     && array_key_exists('fecha_registro', $payload);
             }))
