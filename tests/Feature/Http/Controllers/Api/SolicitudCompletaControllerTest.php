@@ -223,6 +223,7 @@ class SolicitudCompletaControllerTest extends TestCase
         $this->assertTrue($payload['success']);
         $this->assertSame('Solicitud registrada correctamente.', $payload['message']);
         $this->assertSame('SOL-000042', $payload['ticket']);
+        $this->assertSame(['SOL-000042'], $payload['tickets']);
         $this->assertCount(1, $payload['uploaded_files']);
         $this->assertStringStartsWith('uploads/solicitudes/42/', $payload['uploaded_files'][0]['path']);
         $this->assertStringStartsWith('http', $payload['uploaded_files'][0]['url']);

@@ -26,6 +26,7 @@ class SolicitudCompletaController extends Controller
                 'success' => true,
                 'message' => 'Solicitud registrada correctamente.',
                 'ticket' => $result['ticket'],
+                'tickets' => $result['tickets'] ?? [$result['ticket']],
                 'uploaded_files' => $result['uploaded_files'] ?? [],
             ], 201);
         } catch (DomainException $e) {
