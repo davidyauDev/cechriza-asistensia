@@ -628,6 +628,26 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
             ->values()
             ->all();
 
+        $itemAreaIds = collect($items)
+            ->pluck('id_area')
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        $hasRrhhPscrIds = $productosRrhhPscr !== []
+            || collect($itemProductIds)->contains(
+                fn (int $id): bool => in_array($id, self::PRODUCTOS_RRHH_PSCR, true)
+            );
+
+        $isOnlyArea11 = $itemAreaIds !== []
+            && collect($itemAreaIds)->every(fn (int $id): bool => $id === 11);
+
+        if (! $hasRrhhPscrIds && $isOnlyArea11) {
+            return self::TIPO_SOLICITUD_INTERNO;
+        }
+
         if ($itemProductIds === []) {
             return $productosRrhhPscr !== []
                 ? self::TIPO_SOLICITUD_INTERNO
