@@ -276,7 +276,7 @@ class IncidenciaController extends Controller
                 'tipo' => 'required|string|max:100',
                 'minutos' => 'nullable|integer|min:0',
                 'segundos' => 'nullable|integer|min:0|max:59',
-                'duracion_segundos' => 'nullable|integer|min:1',
+                'duracion_segundos' => 'nullable|exclude_if:es_recordatorio,1|integer|min:1',
                 'motivo' => 'required|string|max:255',
                 'es_recordatorio' => 'nullable|boolean',
                 'imagen' => $this->reglasImagen(),
@@ -294,12 +294,12 @@ class IncidenciaController extends Controller
                 'DESCANSO_MEDICO',
                 'FALTA_JUSTIFICADA',
             ];
+            $esRecordatorio = (bool) $request->input('es_recordatorio', false);
 
-            $duracionSegundos = $this->resolverDuracionSegundos($request, $tiposSinMinutos);
+            $duracionSegundos = $this->resolverDuracionSegundos($request, $tiposSinMinutos, null, $esRecordatorio);
             $minutos = is_null($duracionSegundos)
                 ? null
                 : intdiv($duracionSegundos, 60);
-            $esRecordatorio = (bool) $request->input('es_recordatorio', false);
 
             $imagenPath = $imagen ? $this->guardarImagen($imagen) : null;
 
@@ -369,7 +369,7 @@ class IncidenciaController extends Controller
                 'tipo' => 'sometimes|string|max:100',
                 'minutos' => 'nullable|integer|min:0',
                 'segundos' => 'nullable|integer|min:0|max:59',
-                'duracion_segundos' => 'nullable|integer|min:1',
+                'duracion_segundos' => 'nullable|exclude_if:es_recordatorio,1|integer|min:1',
                 'motivo' => 'sometimes|required|string|max:255',
                 'es_recordatorio' => 'nullable|boolean',
                 'eliminar_imagen' => 'nullable|boolean',
@@ -395,8 +395,11 @@ class IncidenciaController extends Controller
                 'DESCANSO_MEDICO',
                 'FALTA_JUSTIFICADA',
             ];
+            $esRecordatorio = $request->has('es_recordatorio')
+                ? (bool) $request->input('es_recordatorio')
+                : (bool) ($incidencia->es_recordatorio ?? false);
 
-            $duracionSegundos = $this->resolverDuracionSegundos($request, $tiposSinMinutos, $incidencia);
+            $duracionSegundos = $this->resolverDuracionSegundos($request, $tiposSinMinutos, $incidencia, $esRecordatorio);
             $minutos = is_null($duracionSegundos)
                 ? null
                 : intdiv($duracionSegundos, 60);
@@ -596,8 +599,17 @@ class IncidenciaController extends Controller
             ->hasColumn('incidencias', 'imagen_path');
     }
 
-    private function resolverDuracionSegundos(Request $request, array $tiposSinMinutos, ?object $incidencia = null): ?int
+    private function resolverDuracionSegundos(
+        Request $request,
+        array $tiposSinMinutos,
+        ?object $incidencia = null,
+        bool $esRecordatorio = false
+    ): ?int
     {
+        if ($esRecordatorio) {
+            return null;
+        }
+
         $tipo = $request->input('tipo', $incidencia->tipo ?? null);
 
         if (in_array($tipo, $tiposSinMinutos, true)) {

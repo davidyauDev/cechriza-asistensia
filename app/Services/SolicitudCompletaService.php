@@ -253,7 +253,6 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                 'fecha_necesaria' => $data['fecha_necesaria'] ?? null,
                 'tipo_entrega_preferida' => $data['tipo_entrega_preferida'] ?? 'Directo',
                 'id_direccion_entrega' => $data['id_direccion_entrega'] ?? null,
-                'es_provincia' => (int) ($data['es_provincia'] ?? 0),
                 'ubicacion' => $data['ubicacion'] ?? null,
                 'es_pedido_compra' => $esPedidoCompraInt,
                 'pedido_compra_estado' => $esPedidoCompraInt,
