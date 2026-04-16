@@ -44,7 +44,7 @@ class SolicitudController extends Controller
             );
 
             $payload = collect($rows)
-                ->map(fn(object $row): array => $this->buildIndexPayload($row))
+                ->map(fn (object $row): array => $this->buildIndexPayload($row))
                 ->values()
                 ->all();
 
@@ -117,8 +117,8 @@ SQL,
             INNER JOIN ost_staff u ON s.id_usuario_solicitante = u.staff_id
             WHERE 
 SQL
-            . implode("\n              AND ", $clauses)
-            . "\n            ORDER BY s.fecha_registro DESC";
+            .implode("\n              AND ", $clauses)
+            ."\n            ORDER BY s.fecha_registro DESC";
     }
 
     protected function buildShowSql(): string
@@ -138,6 +138,7 @@ SQL
                 d.cantidad_atendida,
                 d.id_estado_detalle,
                 e.descripcion AS estado,
+                d.url_imagen,
                 d.observacion_atencion,
                 d.motivo_rechazo AS motivo,
                 d.id_usuario_atendio,
@@ -175,7 +176,7 @@ SQL
         return [
             'solicitud' => $this->buildSolicitudPayload($firstRow, $rows),
             'detalles' => collect($rows)
-                ->map(fn(object $row): array => $this->buildDetallePayload($row))
+                ->map(fn (object $row): array => $this->buildDetallePayload($row))
                 ->values()
                 ->all(),
         ];
@@ -245,6 +246,7 @@ SQL
             'cantidad_atendida' => $row->cantidad_atendida !== null ? (int) $row->cantidad_atendida : null,
             'id_estado_detalle' => $row->id_estado_detalle !== null ? (int) $row->id_estado_detalle : null,
             'estado' => $row->estado ?? null,
+            'url_imagen' => $row->url_imagen ?? null,
             'observacion_atencion' => $row->observacion_atencion ?? null,
             'motivo' => $row->motivo ?? null,
             'id_usuario_atendio' => $row->id_usuario_atendio !== null ? (int) $row->id_usuario_atendio : null,
@@ -272,7 +274,7 @@ SQL
     {
         $firstname = trim((string) ($row->firstname ?? ''));
         $lastname = trim((string) ($row->lastname ?? ''));
-        $fullName = trim($firstname . ' ' . $lastname);
+        $fullName = trim($firstname.' '.$lastname);
 
         return $fullName !== '' ? $fullName : null;
     }

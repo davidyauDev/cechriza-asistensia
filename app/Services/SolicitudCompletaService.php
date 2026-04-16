@@ -16,11 +16,19 @@ use Throwable;
 class SolicitudCompletaService implements SolicitudCompletaServiceInterface
 {
     private const ESTADO_INICIAL = 11;
-    private const TIPO_SOLICITUD_COMPRA = 'COMPRA';
-    private const TIPO_SOLICITUD_INTERNO = 'INTERNO';
-    private const TIPO_SOLICITUD_MIXTO = 'MIXTO';
-    private const PRODUCTOS_RRHH_PSCR = [195, 196, 197, 198, 199];
 
+    private const AREA_INTERNO_RRHH = 11;
+
+    private const UBICACION_LIMA = 'LIMA';
+
+    private const TIPO_SOLICITUD_COMPRA = 'COMPRA';
+
+    private const TIPO_SOLICITUD_INTERNO = 'INTERNO';
+
+    private const TIPO_SOLICITUD_MIXTO = 'MIXTO';
+
+    private const PRODUCTOS_RRHH_PSCR = [195, 196, 197, 198, 199];
+ 
     /**
      * @var array<int, string>
      */
@@ -49,12 +57,29 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
         $itemsPscr = $this->extractPscrItems($items);
         $itemsNoPscr = $this->extractNonPscrItems($items);
         $esPedidoCompraOriginal = (int) ($data['es_pedido_compra'] ?? 0) === 1;
+        $esUbicacionLima = $this->isUbicacionLima($data);
+        $itemsNoPscrAreaInterna = $esUbicacionLima
+            ? $this->extractItemsByArea($itemsNoPscr, self::AREA_INTERNO_RRHH)
+            : [];
+        $itemsNoPscrRestantes = $itemsNoPscr;
+
+        if ($itemsNoPscrAreaInterna !== []) {
+            $itemsNoPscrRestantes = $this->excludeItemsByArea($itemsNoPscr, self::AREA_INTERNO_RRHH);
+        }
 
         $solicitudesARegistrar = [];
 
-        if ($itemsNoPscr !== []) {
+        if ($itemsNoPscrAreaInterna !== []) {
             $solicitudesARegistrar[] = [
-                'items' => $itemsNoPscr,
+                'items' => $itemsNoPscrAreaInterna,
+                'productos_rrhh_pscr' => [],
+                'es_pedido_compra' => false,
+            ];
+        }
+
+        if ($itemsNoPscrRestantes !== []) {
+            $solicitudesARegistrar[] = [
+                'items' => $itemsNoPscrRestantes,
                 'productos_rrhh_pscr' => [],
                 'es_pedido_compra' => $esPedidoCompraOriginal,
             ];
@@ -347,6 +372,30 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
         return array_values(array_filter(
             $items,
             fn (array $item): bool => ! $this->isPscrProductId((int) ($item['id_producto'] ?? 0))
+        ));
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $items
+     * @return array<int, array<string, mixed>>
+     */
+    protected function extractItemsByArea(array $items, int $areaId): array
+    {
+        return array_values(array_filter(
+            $items,
+            fn (array $item): bool => (int) ($item['id_area'] ?? 0) === $areaId
+        ));
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $items
+     * @return array<int, array<string, mixed>>
+     */
+    protected function excludeItemsByArea(array $items, int $areaId): array
+    {
+        return array_values(array_filter(
+            $items,
+            fn (array $item): bool => (int) ($item['id_area'] ?? 0) !== $areaId
         ));
     }
 
@@ -684,6 +733,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
 
                 if ($idInventario > 0 && $cantidad > 0) {
                     $validas++;
+
                     continue;
                 }
 
@@ -739,6 +789,16 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
             ->unique()
             ->values()
             ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    protected function isUbicacionLima(array $data): bool
+    {
+        $ubicacion = strtoupper(trim((string) ($data['ubicacion'] ?? '')));
+
+        return $ubicacion === self::UBICACION_LIMA;
     }
 
     /**
@@ -804,8 +864,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
         int $staffId,
         array $productIds = [],
         array $detalleIdsByInventario = []
-    ): void
-    {
+    ): void {
         $rowsByKey = [];
 
         foreach ($items as $item) {
@@ -897,4 +956,3 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
         return $appUrl.'/storage/'.ltrim($path, '/');
     }
 }
-
