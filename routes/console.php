@@ -3,6 +3,7 @@
 use App\Console\Commands\Birthday;
 use App\Console\Commands\DailyAttendanceReport;
 use App\Console\Commands\TechnicianNightlyNoRouteMissingMarksCommand;
+use App\Console\Commands\TechnicianNightlyNoRouteSundayMissingMarksCommand;
 use App\Console\Commands\TechnicianNightlyMissingMarksCommand;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -43,11 +44,21 @@ Schedule::command(TechnicianNightlyMissingMarksCommand::class)
     });
 
 Schedule::command(TechnicianNightlyNoRouteMissingMarksCommand::class)
-    ->dailyAt('23:00')
+    ->cron('0 23 * * 1-6')
     ->timezone(env('APP_TIMEZONE', 'America/Lima'))
     ->onSuccess(function () {
         Log::info('Technician nightly no-route missing marks process completed successfully.');
     })
     ->onFailure(function () {
         Log::error('Technician nightly no-route missing marks process failed.');
+    });
+
+Schedule::command(TechnicianNightlyNoRouteSundayMissingMarksCommand::class)
+    ->weeklyOn(0, '23:00')
+    ->timezone(env('APP_TIMEZONE', 'America/Lima'))
+    ->onSuccess(function () {
+        Log::info('Technician nightly sunday no-route missing marks process completed successfully.');
+    })
+    ->onFailure(function () {
+        Log::error('Technician nightly sunday no-route missing marks process failed.');
     });
