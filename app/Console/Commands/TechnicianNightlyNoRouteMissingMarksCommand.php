@@ -10,7 +10,7 @@ class TechnicianNightlyNoRouteMissingMarksCommand extends Command
 {
     protected $signature = 'technicians:nightly-no-route-missing-marks {--date= : Fecha a procesar en formato Y-m-d} {--dni= : Filtro opcional por DNI}';
 
-    protected $description = 'Genera y registra el concepto 1 para tecnicos sin ruta que no marcaron';
+    protected $description = 'Genera y registra el concepto 4 para tecnicos sin ruta que no marcaron';
 
     private const DEFAULT_TIMEZONE = 'America/Lima';
 

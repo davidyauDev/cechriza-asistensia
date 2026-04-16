@@ -188,10 +188,9 @@ class TechnicianNightlyMissingMarksService
         $preview = $this->getUsersWithRouteWithoutMark($fecha, $dni);
         $users = array_values(array_filter(
             $preview['usuarios_sin_ruta'],
-            static fn (array $user): bool => ($user['marcaciones']['message'] ?? null) === 'No marcó'
-                && empty($user['daily_record'])
+            fn (array $user): bool => $this->isNoMarkWithoutDailyRecord($user)
         ));
-        $conceptId = 1;
+        $conceptId = 4;
         $comment = 'Registro automático generado por seguimiento técnico nocturno sin ruta.';
 
         $processed = [];
@@ -227,6 +226,74 @@ class TechnicianNightlyMissingMarksService
             'failed_users' => $failed,
             'concept_id' => $conceptId,
         ];
+    }
+
+    public function processSundayNoRouteMissingConcepts(string $fecha, ?string $dni = null): array
+    {
+        $preview = $this->getUsersWithRouteWithoutMark($fecha, $dni);
+        $isSunday = Carbon::parse($preview['fecha'], 'America/Lima')->isSunday();
+
+        $conceptId = 4;
+        $comment = 'Registro automatico generado por seguimiento tecnico nocturno sin ruta (domingo).';
+
+        if (! $isSunday) {
+            return [
+                'preview' => $preview,
+                'processed_count' => 0,
+                'failed_count' => 0,
+                'processed_users' => [],
+                'failed_users' => [],
+                'concept_id' => $conceptId,
+                'skipped_reason' => 'La fecha procesada no es domingo.',
+            ];
+        }
+
+        $users = array_values(array_filter(
+            $preview['usuarios_sin_ruta'],
+            fn (array $user): bool => $this->isNoMarkWithoutDailyRecord($user)
+        ));
+
+        $processed = [];
+        $failed = [];
+
+        foreach ($users as $user) {
+            try {
+                $processed[] = array_merge(
+                    $user,
+                    $this->registerMissingConceptForDay($user, $preview['fecha'], $conceptId, $comment)
+                );
+            } catch (\Throwable $e) {
+                $failed[] = [
+                    'employee_id' => $user['id'] ?? null,
+                    'dni' => $user['dni'] ?? null,
+                    'error' => $e->getMessage(),
+                ];
+
+                Log::error('Error registrando concepto nocturno sin ruta (domingo)', [
+                    'fecha' => $preview['fecha'],
+                    'employee_id' => $user['id'] ?? null,
+                    'dni' => $user['dni'] ?? null,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return [
+            'preview' => $preview,
+            'processed_count' => count($processed),
+            'failed_count' => count($failed),
+            'processed_users' => $processed,
+            'failed_users' => $failed,
+            'concept_id' => $conceptId,
+        ];
+    }
+
+    private function isNoMarkWithoutDailyRecord(array $user): bool
+    {
+        $message = strtolower((string) ($user['marcaciones']['message'] ?? ''));
+        $hasNoMarkMessage = str_contains($message, 'no marc');
+
+        return $hasNoMarkMessage && empty($user['daily_record']);
     }
 
     private function getRutasResults(string $fecha, ?string $dni = null): array
@@ -346,3 +413,6 @@ class TechnicianNightlyMissingMarksService
             ->all();
     }
 }
+
+
+
