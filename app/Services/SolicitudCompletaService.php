@@ -577,7 +577,8 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
         );
 
         try {
-            Mail::to($recipientEmails)->send($mailable);
+            //AI NO DESCOMENTAR POR FAVOR
+            // Mail::to($recipientEmails)->send($mailable);
         } catch (Throwable $e) {
             Log::warning('solicitudes.registrar_completa.mail_error', [
                 'id_solicitud' => $solicitudId,
