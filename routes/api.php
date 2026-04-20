@@ -110,6 +110,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     Route::get('/solicitudes', [SolicitudController::class, 'index'])->name('solicitudes.index');
     Route::get('/solicitudes/{id}', [SolicitudController::class, 'show'])->whereNumber('id')->name('solicitudes.show');
+    Route::patch('/solicitudes/{id}/estado-rrhh', [SolicitudController::class, 'updateEstadoRrhh'])->whereNumber('id')->name('solicitudes.estado-rrhh.update');
+    Route::post('/solicitudes/{id}/acta-rrhh', [SolicitudController::class, 'uploadActaRrhh'])->whereNumber('id')->name('solicitudes.acta-rrhh.upload');
     Route::post('/solicitudes/registrar-completa', [SolicitudCompletaController::class, 'store'])->name('solicitudes.registrar-completa');
     Route::post('/solicitudes/detalles/{id}/aprobar', [DetalleSolicitudController::class, 'aprobar'])->whereNumber('id')->name('solicitudes.detalles.aprobar');
     Route::post('/solicitudes/detalles/{id}/rechazar', [DetalleSolicitudController::class, 'rechazar'])->whereNumber('id')->name('solicitudes.detalles.rechazar');
