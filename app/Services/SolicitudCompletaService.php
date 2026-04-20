@@ -166,6 +166,8 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
      */
     protected function collectItems(object $connection, array $data, array $files): array
     {
+        ['data' => $data, 'files' => $files] = $this->normalizeItemsPayload($data, $files);
+
         $items = [];
         $seenInventarios = [];
         $areasGlobales = $this->normalizeList($data, 'id_area');
@@ -235,6 +237,66 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
         }
 
         return $items;
+    }
+
+    /**
+     * Adapta payloads tipo items[n][...] al formato por categorías existente.
+     *
+     * @param  array<string, mixed>  $data
+     * @param  array<string, mixed>  $files
+     * @return array{data: array<string, mixed>, files: array<string, mixed>}
+     */
+    protected function normalizeItemsPayload(array $data, array $files): array
+    {
+        $items = Arr::get($data, 'items');
+        if (! is_array($items) || $items === []) {
+            return ['data' => $data, 'files' => $files];
+        }
+
+        foreach ($items as $index => $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+
+            $category = $this->resolveItemCategory($item);
+
+            $inventarioId = (int) ($item['id_inventario'] ?? $item['id_producto'] ?? 0);
+            $cantidad = (int) ($item['cantidad'] ?? $item['quantity'] ?? 0);
+            $idArea = (int) ($item['id_area'] ?? $item['area_id'] ?? 0);
+            $observacion = trim((string) ($item['observacion'] ?? $item['observation'] ?? ''));
+
+            $data["id_producto_{$category}"][] = $inventarioId;
+            $data["cantidad_{$category}"][] = $cantidad;
+            $data["id_area_{$category}"][] = $idArea;
+            $data["observacion_{$category}"][] = $observacion;
+
+            $file = Arr::get($files, "items.{$index}.imagen");
+            if (! $file instanceof UploadedFile) {
+                $file = Arr::get($files, "items.{$index}.foto");
+            }
+            if (! $file instanceof UploadedFile) {
+                $file = Arr::get($files, "items.{$index}.image");
+            }
+
+            $files["foto_{$category}"][] = $file instanceof UploadedFile ? $file : null;
+        }
+
+        return ['data' => $data, 'files' => $files];
+    }
+
+    /**
+     * @param  array<string, mixed>  $item
+     */
+    protected function resolveItemCategory(array $item): string
+    {
+        $raw = strtolower(trim((string) ($item['categoria'] ?? $item['category'] ?? '')));
+
+        return match ($raw) {
+            'insumo', 'insumos' => 'insumos',
+            'ssgg', 'servicios', 'servicio', 'servicios_generales', 'servicios-generales' => 'ssgg',
+            'rrhh', 'rh', 'rr.h.' => 'rrhh',
+            default => 'insumos',
+        };
     }
 
     /**
