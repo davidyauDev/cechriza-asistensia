@@ -12,6 +12,7 @@ use Throwable;
 class ProductoSolicitudCompraRrhhController extends Controller
 {
     use ApiResponseTrait;
+    private const TIPO_SOLICITUD_MIXTO = 'MIXTO';
     private const TIPO_SOLICITUD_COMPRA = 'COMPRA';
     private const TIPO_SOLICITUD_INTERNO = 'INTERNO';
 
@@ -53,6 +54,7 @@ class ProductoSolicitudCompraRrhhController extends Controller
                     's.fecha_registro as solicitud_fecha_registro',
                     's.fecha_necesaria as solicitud_fecha_necesaria',
                     's.prioridad as solicitud_prioridad',
+                    's.ubicacion as solicitud_ubicacion',
                 ]);
 
             if (isset($validated['staff_id'])) {
@@ -72,6 +74,7 @@ class ProductoSolicitudCompraRrhhController extends Controller
             }
 
             $query->whereIn('s.tipo_solicitud', [
+                self::TIPO_SOLICITUD_MIXTO,
                 self::TIPO_SOLICITUD_COMPRA,
                 self::TIPO_SOLICITUD_INTERNO,
             ]);
@@ -113,6 +116,7 @@ class ProductoSolicitudCompraRrhhController extends Controller
                         'fecha_registro' => $row->solicitud_fecha_registro ?? null,
                         'fecha_necesaria' => $row->solicitud_fecha_necesaria ?? null,
                         'prioridad' => $row->solicitud_prioridad ?? null,
+                        'ubicacion' => $row->solicitud_ubicacion ?? null,
                     ],
                 ])
                 ->values()

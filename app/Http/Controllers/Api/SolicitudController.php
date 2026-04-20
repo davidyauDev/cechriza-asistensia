@@ -13,8 +13,6 @@ class SolicitudController extends Controller
 {
     use ApiResponseTrait;
 
-    private const ESTADO_GENERAL_FILTRADO = 11;
-
     private const PEDIDO_COMPRA_ESTADO_FILTRADO = 0;
 
     private const AREA_FILTRO = 'RR.HH.';
@@ -34,9 +32,10 @@ class SolicitudController extends Controller
                 $this->buildIndexSql($idUsuarioSolicitante),
                 $idUsuarioSolicitante === null
                     ? [
-                        self::ESTADO_GENERAL_FILTRADO,
                         self::PEDIDO_COMPRA_ESTADO_FILTRADO,
                         self::AREA_FILTRO,
+                        'INTERNO',
+                        'MIXTO',
                     ]
                     : [
                         $idUsuarioSolicitante,
@@ -83,7 +82,6 @@ class SolicitudController extends Controller
     {
         if ($idUsuarioSolicitante === null) {
             $clauses = [
-                's.id_estado_general = ?',
                 's.pedido_compra_estado = ?',
                 <<<'SQL'
 EXISTS (
@@ -95,6 +93,7 @@ EXISTS (
       AND a.descripcion_area = ?
 )
 SQL,
+                's.tipo_solicitud IN (?, ?)',
             ];
         } else {
             $clauses = [
@@ -107,6 +106,8 @@ SQL,
                 s.id_solicitud,
                 s.id_usuario_solicitante,
                 s.justificacion,
+                s.tipo_solicitud,
+                s.ubicacion,
                 s.tipo_solicitud,
                 s.id_estado_general,
                 s.fecha_registro,
@@ -149,6 +150,7 @@ SQL
                 s.fecha_necesaria,
                 s.fecha_cierre,
                 s.prioridad,
+                s.ubicacion,
                 s.tipo_entrega_preferida,
                 s.justificacion,
                 u.firstname,
@@ -204,6 +206,7 @@ SQL
             'fecha_necesaria' => $row->fecha_necesaria ?? null,
             'fecha_cierre' => $row->fecha_cierre ?? null,
             'prioridad' => $row->prioridad ?? null,
+            'ubicacion' => $row->ubicacion ?? null,
             'tipo_entrega_preferida' => $row->tipo_entrega_preferida ?? null,
             'detalles_count' => count($rows),
         ];
@@ -218,6 +221,7 @@ SQL
             'tipo_solicitud' => $row->tipo_solicitud ?? null,
             'id_estado_general' => isset($row->id_estado_general) ? (int) $row->id_estado_general : null,
             'fecha_registro' => $row->fecha_registro ?? null,
+            'ubicacion' => $row->ubicacion ?? null,
             'estado' => [
                 'id_estado' => isset($row->id_estado_general) ? (int) $row->id_estado_general : null,
                 'descripcion' => $row->estado ?? null,
@@ -258,6 +262,7 @@ SQL
             'fecha_necesaria' => $row->fecha_necesaria ?? null,
             'fecha_cierre' => $row->fecha_cierre ?? null,
             'prioridad' => $row->prioridad ?? null,
+            'ubicacion' => $row->ubicacion ?? null,
             'tipo_entrega_preferida' => $row->tipo_entrega_preferida ?? null,
             'justificacion' => $row->justificacion ?? null,
             'firstname' => $row->firstname ?? null,
