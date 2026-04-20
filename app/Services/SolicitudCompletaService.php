@@ -177,7 +177,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
             $inventarios = $this->normalizeList($data, "id_producto_{$category}");
             $cantidades = $this->normalizeList($data, "cantidad_{$category}");
             $observaciones = $this->normalizeList($data, "observacion_{$category}");
-            $fotos = $this->normalizeList($files, "foto_{$category}");
+            $fotos = $this->normalizeListPreserveKeys($files, "foto_{$category}");
             $areasCategoria = $this->normalizeList($data, "id_area_{$category}");
 
             foreach ($inventarios as $index => $inventarioRaw) {
@@ -738,6 +738,17 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
         $value = Arr::get($data, $key, []);
 
         return is_array($value) ? array_values($value) : [];
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string|int, mixed>
+     */
+    protected function normalizeListPreserveKeys(array $data, string $key): array
+    {
+        $value = Arr::get($data, $key, []);
+
+        return is_array($value) ? $value : [];
     }
 
     /**
