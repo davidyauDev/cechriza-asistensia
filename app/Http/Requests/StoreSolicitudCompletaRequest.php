@@ -27,6 +27,20 @@ class StoreSolicitudCompletaRequest extends FormRequest
             'id_direccion_entrega' => ['nullable', 'integer', 'min:1'],
             'id_area' => ['nullable', 'array'],
             'id_area.*' => ['nullable', 'integer', 'min:1'],
+            'items' => ['nullable', 'array'],
+            'items.*.categoria' => ['nullable', 'string'],
+            'items.*.category' => ['nullable', 'string'],
+            'items.*.id_inventario' => ['nullable', 'integer', 'min:1'],
+            'items.*.id_producto' => ['nullable', 'integer', 'min:1'],
+            'items.*.cantidad' => ['nullable', 'integer', 'min:1'],
+            'items.*.quantity' => ['nullable', 'integer', 'min:1'],
+            'items.*.id_area' => ['nullable', 'integer', 'min:1'],
+            'items.*.area_id' => ['nullable', 'integer', 'min:1'],
+            'items.*.observacion' => ['nullable', 'string', 'max:1000'],
+            'items.*.observation' => ['nullable', 'string', 'max:1000'],
+            'items.*.imagen' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp,gif', 'max:10240'],
+            'items.*.foto' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp,gif', 'max:10240'],
+            'items.*.image' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp,gif', 'max:10240'],
         ];
 
         foreach ($categories as $category) {
