@@ -7,6 +7,7 @@ use App\Traits\ApiResponseTrait;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Throwable;
 
 class SolicitudController extends Controller
@@ -78,6 +79,94 @@ class SolicitudController extends Controller
         }
     }
 
+    public function updateEstadoRrhh(Request $request, int $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'estado_rrhh' => 'required|string|in:pendiente,derivar_logistica,recojo_oficina',
+            'estado_rrhh_comentario' => 'nullable|string|max:1000',
+        ]);
+
+        try {
+            $connection = $this->getConnection();
+            $solicitud = $connection->select(
+                'SELECT id_solicitud FROM solicitudes WHERE id_solicitud = ? LIMIT 1',
+                [$id]
+            );
+
+            if ($solicitud === []) {
+                return $this->errorResponse('Solicitud no encontrada.', 404);
+            }
+
+            $connection->update(
+                'UPDATE solicitudes
+                 SET estado_rrhh = ?,
+                     estado_rrhh_comentario = ?
+                 WHERE id_solicitud = ?',
+                [
+                    $validated['estado_rrhh'],
+                    $validated['estado_rrhh_comentario'] ?? null,
+                    $id,
+                ]
+            );
+
+            return $this->successResponse([
+                'id_solicitud' => $id,
+                'estado_rrhh' => $validated['estado_rrhh'],
+                'estado_rrhh_comentario' => $validated['estado_rrhh_comentario'] ?? null,
+            ], 'Estado RRHH actualizado correctamente');
+        } catch (Throwable $e) {
+            report($e);
+
+            return $this->errorResponse('No se pudo actualizar el estado RRHH de la solicitud.', 500);
+        }
+    }
+
+    public function uploadActaRrhh(Request $request, int $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'acta_rrhh' => 'required|file|max:10240',
+            'acta_rrhh_comentario' => 'nullable|string|max:1000',
+        ]);
+
+        try {
+            $connection = $this->getConnection();
+            $rows = $connection->select(
+                'SELECT id_solicitud FROM solicitudes WHERE id_solicitud = ? LIMIT 1',
+                [$id]
+            );
+
+            if ($rows === []) {
+                return $this->errorResponse('Solicitud no encontrada.', 404);
+            }
+
+            $file = $request->file('acta_rrhh');
+            $storedPath = $this->storeActaRrhhFile($id, $file);
+            $publicUrl = $this->buildPublicUrl($storedPath);
+
+            $connection->update(
+                'UPDATE solicitudes
+                 SET acta_rrhh_url = ?,
+                     acta_rrhh_comentario = ?
+                 WHERE id_solicitud = ?',
+                [
+                    $publicUrl,
+                    $validated['acta_rrhh_comentario'] ?? null,
+                    $id,
+                ]
+            );
+
+            return $this->successResponse([
+                'id_solicitud' => $id,
+                'acta_rrhh_url' => $publicUrl,
+                'acta_rrhh_comentario' => $validated['acta_rrhh_comentario'] ?? null,
+            ], 'Acta RRHH subida correctamente', 201);
+        } catch (Throwable $e) {
+            report($e);
+
+            return $this->errorResponse('No se pudo subir el acta RRHH.', 500);
+        }
+    }
+
     protected function buildIndexSql(?int $idUsuarioSolicitante = null): string
     {
         if ($idUsuarioSolicitante === null) {
@@ -108,7 +197,8 @@ SQL,
                 s.justificacion,
                 s.tipo_solicitud,
                 s.ubicacion,
-                s.tipo_solicitud,
+                s.estado_rrhh,
+                s.estado_rrhh_comentario,
                 s.id_estado_general,
                 s.fecha_registro,
                 e.descripcion AS estado,
@@ -219,6 +309,8 @@ SQL
             'id_usuario_solicitante' => (int) $row->id_usuario_solicitante,
             'justificacion' => $row->justificacion ?? null,
             'tipo_solicitud' => $row->tipo_solicitud ?? null,
+            'estado_rrhh' => $row->estado_rrhh ?? null,
+            'estado_rrhh_comentario' => $row->estado_rrhh_comentario ?? null,
             'id_estado_general' => isset($row->id_estado_general) ? (int) $row->id_estado_general : null,
             'fecha_registro' => $row->fecha_registro ?? null,
             'ubicacion' => $row->ubicacion ?? null,
@@ -289,5 +381,30 @@ SQL
     protected function getConnection()
     {
         return DB::connection('mysql_external');
+    }
+
+    protected function storeActaRrhhFile(int $solicitudId, $file): string
+    {
+        $directory = 'uploads/solicitudes/'.$solicitudId.'/acta_rrhh';
+        $extension = strtolower((string) ($file->getClientOriginalExtension() ?: $file->extension() ?: 'bin'));
+        $filename = sprintf(
+            'acta_rrhh_%d_%s_%s.%s',
+            $solicitudId,
+            now()->format('YmdHis'),
+            Str::lower(Str::random(8)),
+            $extension
+        );
+
+        return $file->storeAs($directory, $filename, 'public');
+    }
+
+    protected function buildPublicUrl(string $path): ?string
+    {
+        $appUrl = trim((string) config('app.url'), '/');
+        if ($appUrl === '') {
+            return null;
+        }
+
+        return $appUrl.'/storage/'.ltrim($path, '/');
     }
 }
