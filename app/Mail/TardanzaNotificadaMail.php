@@ -130,6 +130,12 @@ class TardanzaNotificadaMail extends Mailable
             return $this->formatearMinutos(($h * 60) + $m);
         }
 
+        if (preg_match('/^\d{1,2}:\d{2}:\d{2}$/', $texto)) {
+            [$h, $m, $s] = array_map('intval', explode(':', $texto, 3));
+            $totalMinutos = intdiv(($h * 3600) + ($m * 60) + $s, 60);
+            return $this->formatearMinutos($totalMinutos);
+        }
+
         return $texto;
     }
 
@@ -147,6 +153,11 @@ class TardanzaNotificadaMail extends Mailable
         if (preg_match('/^\d{1,2}:\d{2}$/', $texto)) {
             [$h, $m] = array_map('intval', explode(':', $texto, 2));
             return max(0, ($h * 60) + $m);
+        }
+
+        if (preg_match('/^\d{1,2}:\d{2}:\d{2}$/', $texto)) {
+            [$h, $m, $s] = array_map('intval', explode(':', $texto, 3));
+            return max(0, intdiv(($h * 3600) + ($m * 60) + $s, 60));
         }
 
         return null;
