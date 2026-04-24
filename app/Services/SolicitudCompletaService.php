@@ -28,7 +28,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
     private const TIPO_SOLICITUD_MIXTO = 'MIXTO';
 
     private const PRODUCTOS_RRHH_PSCR = [195, 196, 197, 198, 199];
-                                                                    
+
     private const SOLICITUD_GASTO_ESTADO_PENDIENTE = 'pendiente';
 
     private const SOLICITUD_GASTO_MONTO_DEFAULT = 0.00;
@@ -89,26 +89,6 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
             ];
         }
 
-        if ($itemsPscr !== [] || ($items === [] && $productosRrhhPscr !== [])) {
-            $productosPscr = $itemsPscr !== []
-                ? $this->extractPscrProductIdsFromItems($itemsPscr)
-                : $productosRrhhPscr;
-
-            $solicitudesARegistrar[] = [
-                'items' => $itemsPscr,
-                'productos_rrhh_pscr' => $productosPscr,
-                'es_pedido_compra' => true,
-            ];
-        }
-
-        if ($solicitudesARegistrar === []) {
-            $solicitudesARegistrar[] = [
-                'items' => $items,
-                'productos_rrhh_pscr' => $productosRrhhPscr,
-                'es_pedido_compra' => $esPedidoCompraOriginal,
-            ];
-        }
-
         $tickets = [];
         $uploadedFiles = [];
 
@@ -150,6 +130,39 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
 
             $tickets[] = $this->formatTicket($solicitudId);
             $uploadedFiles = array_merge($uploadedFiles, $uploadedFilesSolicitud);
+        }
+
+        if ($itemsPscr !== [] || ($items === [] && $productosRrhhPscr !== [])) {
+            $productosPscr = $itemsPscr !== []
+                ? $this->extractPscrProductIdsFromItems($itemsPscr)
+                : $productosRrhhPscr;
+
+            $registroGasto = $this->persistSolicitudGasto(
+                $connection,
+                $data,
+                $solicitante,
+                $itemsPscr,
+                $productosPscr
+            );
+
+            $solicitudGastoId = (int) $registroGasto['solicitud_gasto_id'];
+            $uploadedFilesGasto = [];
+
+            try {
+                $uploadedFilesGasto = $this->storeFiles(
+                    $solicitudGastoId,
+                    $itemsPscr,
+                    'uploads/solicitudes_gasto'
+                );
+                $this->syncSolicitudGastoDetalleImagenes($connection, $solicitudGastoId, $uploadedFilesGasto);
+            } catch (Throwable $e) {
+                $this->deleteStoredFiles($uploadedFilesGasto);
+                $this->rollbackSolicitudGasto($connection, $solicitudGastoId);
+                throw $e;
+            }
+
+            $tickets[] = $this->formatGastoTicket($solicitudGastoId);
+            $uploadedFiles = array_merge($uploadedFiles, $uploadedFilesGasto);
         }
 
         if ($tickets === []) {
@@ -334,7 +347,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
         $esPedidoCompraInt = $esPedidoCompra ? 1 : 0;
         $now = now();
 
-        $solicitudId = $connection->transaction(function () use ($connection, $data, $items, $areaIds, $solicitante, $productosRrhhPscr, $tipoSolicitud, $esPedidoCompraInt, $now): int {
+        $solicitudId = $connection->transaction(function () use ($connection, $data, $items, $areaIds, $solicitante, $tipoSolicitud, $esPedidoCompraInt, $now): int {
             $solicitudId = (int) $connection->table('solicitudes')->insertGetId([
                 'id_usuario_solicitante' => (int) $data['id_usuario_solicitante'],
                 'id_area_origen' => (int) $solicitante->dept_id,
@@ -351,16 +364,6 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                 'justificacion' => $data['justificacion'] ?? null,
             ]);
 
-            if ($productosRrhhPscr !== []) {
-                $this->registrarSolicitudGasto(
-                    $connection,
-                    $data,
-                    $solicitante,
-                    $productosRrhhPscr,
-                    $now
-                );
-            }
-
             $detalleRows = [];
             foreach ($items as $item) {
                 $detalleRows[] = [
@@ -375,10 +378,8 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                 ];
             }
 
-            $detalleIdsByInventario = [];
             if ($detalleRows !== []) {
                 $connection->table('solicitud_detalles')->insert($detalleRows);
-                $detalleIdsByInventario = $this->resolveDetalleIdsByInventario($connection, $solicitudId, $items);
             }
 
             $areaRows = [];
@@ -394,15 +395,6 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
             if ($areaRows !== []) {
                 $connection->table('solicitud_areas')->insert($areaRows);
             }
-
-            $this->registrarProductosRrhhPscr(
-                $connection,
-                $items,
-                (int) $data['id_usuario_solicitante'],
-                $productosRrhhPscr,
-                $detalleIdsByInventario
-            );
-
             $comentarios = sprintf(
                 'Solicitud creada con %d ítems. Derivada a %d áreas.',
                 count($items),
@@ -424,6 +416,58 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
         return [
             'solicitud_id' => $solicitudId,
             'area_ids' => $areaIds,
+        ];
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $items
+     * @param  array<int, int>  $productosRrhhPscr
+     * @return array{solicitud_gasto_id:int}
+     */
+    protected function persistSolicitudGasto(
+        object $connection,
+        array $data,
+        object $solicitante,
+        array $items,
+        array $productosRrhhPscr
+    ): array {
+        $solicitudGastoId = $connection->transaction(function () use (
+            $connection,
+            $data,
+            $solicitante,
+            $items,
+            $productosRrhhPscr
+        ): int {
+            $solicitudGastoId = $this->registrarSolicitudGasto(
+                $connection,
+                $data,
+                $solicitante,
+                $productosRrhhPscr,
+                now()
+            );
+
+            $detalleRows = [];
+            foreach ($items as $item) {
+                $detalleRows[] = [
+                    'solicitud_gasto_id' => $solicitudGastoId,
+                    'id_producto' => (int) $item['id_producto'],
+                    'cantidad' => (int) $item['quantity'],
+                    'precio_estimado' => 0,
+                    'precio_real' => 0,
+                    'descripcion_adicional' => $item['observacion'],
+                    'ruta_imagen' => null,
+                ];
+            }
+
+            if ($detalleRows !== []) {
+                $connection->table('solicitud_gasto_detalles')->insert($detalleRows);
+            }
+
+            return $solicitudGastoId;
+        });
+
+        return [
+            'solicitud_gasto_id' => $solicitudGastoId,
         ];
     }
 
@@ -568,10 +612,10 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
      * @param  array<int, array<string, mixed>>  $items
      * @return array<int, array<string, mixed>>
      */
-    protected function storeFiles(int $solicitudId, array $items): array
+    protected function storeFiles(int $registroId, array $items, string $baseDirectory = 'uploads/solicitudes'): array
     {
         $uploadedFiles = [];
-        $directory = 'uploads/solicitudes/'.$solicitudId;
+        $directory = trim($baseDirectory, '/').'/'.$registroId;
         $disk = Storage::disk('public');
 
         foreach ($items as $item) {
@@ -579,7 +623,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                 continue;
             }
 
-            $filename = $this->buildSafeFileName($solicitudId, (int) $item['id_inventario'], $item['file']);
+            $filename = $this->buildSafeFileName($registroId, (int) $item['id_inventario'], $item['file']);
             $path = trim($directory, '/').'/'.$filename;
             $contents = file_get_contents($item['file']->getRealPath());
 
@@ -609,6 +653,10 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
      */
     protected function syncDetalleImagenes(object $connection, int $solicitudId, array $uploadedFiles): void
     {
+        if ($uploadedFiles === []) {
+            return;
+        }
+
         $connection->transaction(function () use ($connection, $solicitudId, $uploadedFiles): void {
             foreach ($uploadedFiles as $uploadedFile) {
                 $connection->table('solicitud_detalles')
@@ -617,6 +665,27 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                     ->update([
                         'ruta_imagen' => $uploadedFile['path'],
                         'url_imagen' => $uploadedFile['url'] ?? null,
+                    ]);
+            }
+        });
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $uploadedFiles
+     */
+    protected function syncSolicitudGastoDetalleImagenes(object $connection, int $solicitudGastoId, array $uploadedFiles): void
+    {
+        if ($uploadedFiles === []) {
+            return;
+        }
+
+        $connection->transaction(function () use ($connection, $solicitudGastoId, $uploadedFiles): void {
+            foreach ($uploadedFiles as $uploadedFile) {
+                $connection->table('solicitud_gasto_detalles')
+                    ->where('solicitud_gasto_id', $solicitudGastoId)
+                    ->where('id_producto', (int) $uploadedFile['id_inventario'])
+                    ->update([
+                        'ruta_imagen' => $uploadedFile['path'],
                     ]);
             }
         });
@@ -639,6 +708,26 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
             if (is_string($path) && $path !== '' && $disk->exists($path)) {
                 $disk->delete($path);
             }
+        }
+    }
+
+    protected function rollbackSolicitudGasto(object $connection, int $solicitudGastoId): void
+    {
+        try {
+            $connection->transaction(function () use ($connection, $solicitudGastoId): void {
+                $connection->table('solicitud_gasto_detalles')
+                    ->where('solicitud_gasto_id', $solicitudGastoId)
+                    ->delete();
+
+                $connection->table('solicitudes_gasto')
+                    ->where('id', $solicitudGastoId)
+                    ->delete();
+            });
+        } catch (Throwable $e) {
+            Log::error('solicitudes.registrar_completa.rollback_gasto_error', [
+                'id_solicitud_gasto' => $solicitudGastoId,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 
@@ -972,68 +1061,6 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
             : self::TIPO_SOLICITUD_MIXTO;
     }
 
-    /**
-     * @param  array<int, array<string, mixed>>  $items
-     * @param  array<int, int>  $productIds
-     * @param  array<int, int>  $detalleIdsByInventario
-     */
-    protected function registrarProductosRrhhPscr(
-        object $connection,
-        array $items,
-        int $staffId,
-        array $productIds = [],
-        array $detalleIdsByInventario = []
-    ): void {
-        $rowsByKey = [];
-
-        foreach ($items as $item) {
-            $idProducto = (int) ($item['id_producto'] ?? 0);
-
-            if (! $this->isPscrProductId($idProducto)) {
-                continue;
-            }
-
-            $idInventario = (int) ($item['id_inventario'] ?? 0);
-            $idDetalleSolicitud = $detalleIdsByInventario[$idInventario] ?? null;
-            $uniqueKey = $idProducto.'|'.($idDetalleSolicitud === null ? 'null' : (string) $idDetalleSolicitud);
-
-            $rowsByKey[$uniqueKey] = [
-                'id_producto' => $idProducto,
-                'staff_id' => $staffId,
-                'id_detalle_solicitud' => $idDetalleSolicitud,
-            ];
-        }
-
-        $productoIdsDesdeRequest = collect($productIds)
-            ->map(fn ($id) => (int) $id)
-            ->filter(fn (int $id): bool => $this->isPscrProductId($id))
-            ->unique()
-            ->values()
-            ->all();
-
-        foreach ($productoIdsDesdeRequest as $idProducto) {
-            $yaRegistrado = collect($rowsByKey)
-                ->contains(fn (array $row): bool => (int) $row['id_producto'] === (int) $idProducto);
-
-            if ($yaRegistrado) {
-                continue;
-            }
-
-            $rowsByKey[$idProducto.'|null'] = [
-                'id_producto' => (int) $idProducto,
-                'staff_id' => $staffId,
-                'id_detalle_solicitud' => null,
-            ];
-        }
-
-        $rows = array_values($rowsByKey);
-        if ($rows === []) {
-            return;
-        }
-
-        $connection->table('producto_solicitud_compra_rrhh')->insert($rows);
-    }
-
     protected function sanitizeEmail(string $email): ?string
     {
         $email = trim($email);
@@ -1062,6 +1089,11 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
     protected function formatTicket(int $solicitudId): string
     {
         return 'SOL-'.str_pad((string) $solicitudId, 6, '0', STR_PAD_LEFT);
+    }
+
+    protected function formatGastoTicket(int $solicitudGastoId): string
+    {
+        return 'GAS-'.str_pad((string) $solicitudGastoId, 6, '0', STR_PAD_LEFT);
     }
 
     protected function buildPublicUrl(string $path): ?string

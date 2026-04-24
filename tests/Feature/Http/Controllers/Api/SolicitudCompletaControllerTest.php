@@ -376,7 +376,7 @@ class SolicitudCompletaControllerTest extends TestCase
             });
 
         $connection->shouldReceive('transaction')
-            ->times(4)
+            ->times(2)
             ->andReturnUsing(function (callable $callback) {
                 return $callback();
             });
@@ -478,12 +478,8 @@ class SolicitudCompletaControllerTest extends TestCase
         ]);
 
         $connection = Mockery::mock();
-        $solicitudesTable = Mockery::mock();
         $solicitudesGastoTable = Mockery::mock();
-        $detallesTable = Mockery::mock();
-        $areasTable = Mockery::mock();
-        $flujoTable = Mockery::mock();
-        $pscrTable = Mockery::mock();
+        $gastoDetallesTable = Mockery::mock();
         $disk = Mockery::mock();
 
         DB::shouldReceive('connection')
@@ -524,28 +520,14 @@ class SolicitudCompletaControllerTest extends TestCase
                     ];
                 }
 
-                if (str_contains($sql, 'SELECT id_detalle_solicitud, id_inventario')) {
-                    return [
-                        (object) [
-                            'id_detalle_solicitud' => 880,
-                            'id_inventario' => 195,
-                        ],
-                    ];
-                }
-
                 return [];
             });
 
         $connection->shouldReceive('transaction')
-            ->twice()
+            ->once()
             ->andReturnUsing(function (callable $callback) {
                 return $callback();
             });
-
-        $connection->shouldReceive('table')
-            ->with('solicitudes')
-            ->once()
-            ->andReturn($solicitudesTable);
 
         $connection->shouldReceive('table')
             ->with('solicitudes_gasto')
@@ -553,40 +535,9 @@ class SolicitudCompletaControllerTest extends TestCase
             ->andReturn($solicitudesGastoTable);
 
         $connection->shouldReceive('table')
-            ->with('solicitud_detalles')
+            ->with('solicitud_gasto_detalles')
             ->once()
-            ->andReturn($detallesTable);
-
-        $connection->shouldReceive('table')
-            ->with('solicitud_areas')
-            ->once()
-            ->andReturn($areasTable);
-
-        $connection->shouldReceive('table')
-            ->with('solicitud_flujo_aprobaciones')
-            ->once()
-            ->andReturn($flujoTable);
-
-        $connection->shouldReceive('table')
-            ->with('producto_solicitud_compra_rrhh')
-            ->once()
-            ->andReturn($pscrTable);
-
-        $solicitudesTable->shouldReceive('insertGetId')
-            ->once()
-            ->with(Mockery::on(function (array $payload): bool {
-                return $payload['id_usuario_solicitante'] === 163
-                    && $payload['id_area_origen'] === 11
-                    && $payload['id_estado_general'] === 11
-                    && $payload['prioridad'] === 'Alta'
-                    && $payload['tipo_entrega_preferida'] === 'Directo'
-                    && $payload['es_pedido_compra'] === 1
-                    && $payload['pedido_compra_estado'] === 1
-                    && $payload['tipo_solicitud'] === 'COMPRA'
-                    && $payload['justificacion'] === 'Pedido PSCR'
-                    && array_key_exists('fecha_registro', $payload);
-            }))
-            ->andReturn(77);
+            ->andReturn($gastoDetallesTable);
 
         $solicitudesGastoTable->shouldReceive('insertGetId')
             ->once()
@@ -601,47 +552,18 @@ class SolicitudCompletaControllerTest extends TestCase
             }))
             ->andReturn(501);
 
-        $detallesTable->shouldReceive('insert')
+        $gastoDetallesTable->shouldReceive('insert')
             ->once()
             ->with(Mockery::on(function (array $rows): bool {
                 return count($rows) === 1
-                    && $rows[0]['id_solicitud'] === 77
-                    && $rows[0]['id_inventario'] === 195
-                    && $rows[0]['cantidad_solicitada'] === 1
-                    && $rows[0]['ruta_imagen'] === null
-                    && $rows[0]['url_imagen'] === null;
-            }))
-            ->andReturnTrue();
-
-        $areasTable->shouldReceive('insert')
-            ->once()
-            ->with(Mockery::on(function (array $rows): bool {
-                return count($rows) === 2
-                    && $rows[0]['id_area'] === 11
-                    && $rows[1]['id_area'] === 7;
-            }))
-            ->andReturnTrue();
-
-        $pscrTable->shouldReceive('insert')
-            ->once()
-            ->with(Mockery::on(function (array $rows): bool {
-                return count($rows) === 1
+                    && $rows[0]['solicitud_gasto_id'] === 501
                     && $rows[0]['id_producto'] === 195
-                    && $rows[0]['staff_id'] === 163
-                    && $rows[0]['id_detalle_solicitud'] === 880;
+                    && $rows[0]['cantidad'] === 1
+                    && $rows[0]['precio_estimado'] === 0
+                    && $rows[0]['precio_real'] === 0
+                    && $rows[0]['ruta_imagen'] === null;
             }))
             ->andReturnTrue();
-
-        $flujoTable->shouldReceive('insertGetId')
-            ->once()
-            ->with(Mockery::on(function (array $payload): bool {
-                return $payload['id_solicitud'] === 77
-                    && $payload['id_area_responsable'] === 11
-                    && $payload['id_usuario_asignado'] === 163
-                    && $payload['id_estado'] === 11
-                    && array_key_exists('fecha_actualizacion', $payload);
-            }))
-            ->andReturn(91);
 
         $response = $this->withoutMiddleware()->post('/api/solicitudes/registrar-completa', [
             'id_usuario_solicitante' => 163,
@@ -659,7 +581,9 @@ class SolicitudCompletaControllerTest extends TestCase
 
         $this->assertSame(201, $response->getStatusCode());
         $this->assertTrue($payload['success']);
-        $this->assertSame('SOL-000077', $payload['ticket']);
-        $this->assertSame(['SOL-000077'], $payload['tickets']);
+        $this->assertSame('GAS-000501', $payload['ticket']);
+        $this->assertSame(['GAS-000501'], $payload['tickets']);
+        $this->assertSame([], $payload['uploaded_files']);
+        Mail::assertNothingSent();
     }
 }
