@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\Http\Controllers\Api;
 
-use App\Mail\SolicitudRegistradaMail;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -230,11 +229,7 @@ class SolicitudCompletaControllerTest extends TestCase
         $this->assertStringStartsWith('uploads/solicitudes/42/', $payload['uploaded_files'][0]['path']);
         $this->assertStringStartsWith('http', $payload['uploaded_files'][0]['url']);
 
-        Mail::assertSent(SolicitudRegistradaMail::class, function (SolicitudRegistradaMail $mail): bool {
-            return $mail->hasTo('rrhh1@example.com')
-                && $mail->hasTo('logistica1@example.com')
-                && $mail->ticket === 'SOL-000042';
-        });
+        Mail::assertNothingSent();
     }
 
     public function test_registrar_completa_fails_when_required_photo_is_missing(): void
@@ -472,5 +467,199 @@ class SolicitudCompletaControllerTest extends TestCase
         $this->assertSame(11, $rowsDetalles[0][0]['area_id']);
         $this->assertSame(202, $rowsDetalles[1][0]['id_inventario']);
         $this->assertSame(12, $rowsDetalles[1][0]['area_id']);
+    }
+
+    public function test_registrar_completa_pscr_creates_solicitud_gasto_record(): void
+    {
+        Mail::fake();
+        config([
+            'session.driver' => 'array',
+            'services.solicitudes.pedido_compra_notify_email' => 'compras@example.com',
+        ]);
+
+        $connection = Mockery::mock();
+        $solicitudesTable = Mockery::mock();
+        $solicitudesGastoTable = Mockery::mock();
+        $detallesTable = Mockery::mock();
+        $areasTable = Mockery::mock();
+        $flujoTable = Mockery::mock();
+        $pscrTable = Mockery::mock();
+        $disk = Mockery::mock();
+
+        DB::shouldReceive('connection')
+            ->with('mysql_external')
+            ->andReturn($connection);
+
+        \Illuminate\Support\Facades\Storage::shouldReceive('disk')
+            ->with('public')
+            ->andReturn($disk);
+
+        $disk->shouldReceive('put')->never();
+
+        $connection->shouldReceive('select')
+            ->andReturnUsing(function (string $sql, array $bindings): array {
+                if (str_contains($sql, 'FROM ost_staff') && str_contains($sql, 'WHERE staff_id = ?')) {
+                    return [
+                        (object) [
+                            'staff_id' => 163,
+                            'dept_id' => 11,
+                            'firstname' => 'Alexander',
+                            'lastname' => 'Flores',
+                            'email' => 'alexander@example.com',
+                            'role_id' => 1,
+                        ],
+                    ];
+                }
+
+                if (str_contains($sql, 'FROM inventario i') && $bindings === [195]) {
+                    return [
+                        (object) [
+                            'id_inventario' => 195,
+                            'id_area' => 11,
+                            'id_producto' => 195,
+                            'producto' => 'Producto PSCR',
+                            'requiere_foto_producto_anterior' => 0,
+                            'descripcion_area' => 'RR.HH.',
+                        ],
+                    ];
+                }
+
+                if (str_contains($sql, 'SELECT id_detalle_solicitud, id_inventario')) {
+                    return [
+                        (object) [
+                            'id_detalle_solicitud' => 880,
+                            'id_inventario' => 195,
+                        ],
+                    ];
+                }
+
+                return [];
+            });
+
+        $connection->shouldReceive('transaction')
+            ->twice()
+            ->andReturnUsing(function (callable $callback) {
+                return $callback();
+            });
+
+        $connection->shouldReceive('table')
+            ->with('solicitudes')
+            ->once()
+            ->andReturn($solicitudesTable);
+
+        $connection->shouldReceive('table')
+            ->with('solicitudes_gasto')
+            ->once()
+            ->andReturn($solicitudesGastoTable);
+
+        $connection->shouldReceive('table')
+            ->with('solicitud_detalles')
+            ->once()
+            ->andReturn($detallesTable);
+
+        $connection->shouldReceive('table')
+            ->with('solicitud_areas')
+            ->once()
+            ->andReturn($areasTable);
+
+        $connection->shouldReceive('table')
+            ->with('solicitud_flujo_aprobaciones')
+            ->once()
+            ->andReturn($flujoTable);
+
+        $connection->shouldReceive('table')
+            ->with('producto_solicitud_compra_rrhh')
+            ->once()
+            ->andReturn($pscrTable);
+
+        $solicitudesTable->shouldReceive('insertGetId')
+            ->once()
+            ->with(Mockery::on(function (array $payload): bool {
+                return $payload['id_usuario_solicitante'] === 163
+                    && $payload['id_area_origen'] === 11
+                    && $payload['id_estado_general'] === 11
+                    && $payload['prioridad'] === 'Alta'
+                    && $payload['tipo_entrega_preferida'] === 'Directo'
+                    && $payload['es_pedido_compra'] === 1
+                    && $payload['pedido_compra_estado'] === 1
+                    && $payload['tipo_solicitud'] === 'COMPRA'
+                    && $payload['justificacion'] === 'Pedido PSCR'
+                    && array_key_exists('fecha_registro', $payload);
+            }))
+            ->andReturn(77);
+
+        $solicitudesGastoTable->shouldReceive('insertGetId')
+            ->once()
+            ->with(Mockery::on(function (array $payload): bool {
+                return $payload['staff_id'] === 163
+                    && $payload['id_area'] === 7
+                    && $payload['motivo'] === 'Pedido PSCR | PSCR: 195'
+                    && $payload['monto_estimado'] === 0.0
+                    && $payload['monto_real'] === 0.0
+                    && $payload['estado'] === 'pendiente'
+                    && array_key_exists('fecha_solicitud', $payload);
+            }))
+            ->andReturn(501);
+
+        $detallesTable->shouldReceive('insert')
+            ->once()
+            ->with(Mockery::on(function (array $rows): bool {
+                return count($rows) === 1
+                    && $rows[0]['id_solicitud'] === 77
+                    && $rows[0]['id_inventario'] === 195
+                    && $rows[0]['cantidad_solicitada'] === 1
+                    && $rows[0]['ruta_imagen'] === null
+                    && $rows[0]['url_imagen'] === null;
+            }))
+            ->andReturnTrue();
+
+        $areasTable->shouldReceive('insert')
+            ->once()
+            ->with(Mockery::on(function (array $rows): bool {
+                return count($rows) === 2
+                    && $rows[0]['id_area'] === 11
+                    && $rows[1]['id_area'] === 7;
+            }))
+            ->andReturnTrue();
+
+        $pscrTable->shouldReceive('insert')
+            ->once()
+            ->with(Mockery::on(function (array $rows): bool {
+                return count($rows) === 1
+                    && $rows[0]['id_producto'] === 195
+                    && $rows[0]['staff_id'] === 163
+                    && $rows[0]['id_detalle_solicitud'] === 880;
+            }))
+            ->andReturnTrue();
+
+        $flujoTable->shouldReceive('insertGetId')
+            ->once()
+            ->with(Mockery::on(function (array $payload): bool {
+                return $payload['id_solicitud'] === 77
+                    && $payload['id_area_responsable'] === 11
+                    && $payload['id_usuario_asignado'] === 163
+                    && $payload['id_estado'] === 11
+                    && array_key_exists('fecha_actualizacion', $payload);
+            }))
+            ->andReturn(91);
+
+        $response = $this->withoutMiddleware()->post('/api/solicitudes/registrar-completa', [
+            'id_usuario_solicitante' => 163,
+            'justificacion' => 'Pedido PSCR',
+            'es_pedido_compra' => '1',
+            'ubicacion' => 'LIMA',
+            'prioridad' => 'Alta',
+            'id_producto_rrhh' => [195],
+            'cantidad_rrhh' => [1],
+            'observacion_rrhh' => [''],
+            'id_area' => [11],
+        ]);
+
+        $payload = json_decode($response->getContent(), true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertSame(201, $response->getStatusCode());
+        $this->assertTrue($payload['success']);
+        $this->assertSame('SOL-000077', $payload['ticket']);
+        $this->assertSame(['SOL-000077'], $payload['tickets']);
     }
 }

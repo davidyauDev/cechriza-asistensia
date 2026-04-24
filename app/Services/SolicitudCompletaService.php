@@ -28,7 +28,11 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
     private const TIPO_SOLICITUD_MIXTO = 'MIXTO';
 
     private const PRODUCTOS_RRHH_PSCR = [195, 196, 197, 198, 199];
- 
+                                                                    
+    private const SOLICITUD_GASTO_ESTADO_PENDIENTE = 'pendiente';
+
+    private const SOLICITUD_GASTO_MONTO_DEFAULT = 0.00;
+
     /**
      * @var array<int, string>
      */
@@ -347,6 +351,16 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                 'justificacion' => $data['justificacion'] ?? null,
             ]);
 
+            if ($productosRrhhPscr !== []) {
+                $this->registrarSolicitudGasto(
+                    $connection,
+                    $data,
+                    $solicitante,
+                    $productosRrhhPscr,
+                    $now
+                );
+            }
+
             $detalleRows = [];
             foreach ($items as $item) {
                 $detalleRows[] = [
@@ -411,6 +425,37 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
             'solicitud_id' => $solicitudId,
             'area_ids' => $areaIds,
         ];
+    }
+
+    /**
+     * @param  array<int, int>  $productosRrhhPscr
+     */
+    protected function registrarSolicitudGasto(
+        object $connection,
+        array $data,
+        object $solicitante,
+        array $productosRrhhPscr,
+        mixed $fechaSolicitud
+    ): int {
+        $motivo = trim((string) ($data['justificacion'] ?? ''));
+        if ($motivo === '') {
+            $motivo = 'Solicitud de gasto generada desde SolicitudCompletaService';
+        }
+
+        $productos = implode(',', $productosRrhhPscr);
+        $areaId = (int) (config('services.solicitudes.area_compras_id') ?: ($solicitante->dept_id ?? 7));
+
+        return (int) $connection->table('solicitudes_gasto')->insertGetId([
+            'staff_id' => (int) $data['id_usuario_solicitante'],
+            'id_area' => $areaId,
+            'motivo' => $motivo.' | PSCR: '.$productos,
+            'monto_estimado' => self::SOLICITUD_GASTO_MONTO_DEFAULT,
+            'monto_real' => self::SOLICITUD_GASTO_MONTO_DEFAULT,
+            'estado' => self::SOLICITUD_GASTO_ESTADO_PENDIENTE,
+            'fecha_solicitud' => $fechaSolicitud,
+            'fecha_aprobacion' => null,
+            'fecha_reembolso' => null,
+        ]);
     }
 
     /**
@@ -639,7 +684,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
         );
 
         try {
-            //AI NO DESCOMENTAR POR FAVOR
+            // AI NO DESCOMENTAR POR FAVOR
             // Mail::to($recipientEmails)->send($mailable);
         } catch (Throwable $e) {
             Log::warning('solicitudes.registrar_completa.mail_error', [
