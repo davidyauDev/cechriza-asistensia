@@ -10,7 +10,7 @@ use Tests\TestCase;
 
 class SolicitudGastoControllerTest extends TestCase
 {
-    public function test_index_route_is_registered_and_returns_comprobantes_payload(): void
+    public function test_index_route_is_registered_and_returns_solicitudes_gasto_payload(): void
     {
         $this->assertTrue(Route::has('solicitudes-gasto.comprobantes.index'));
 
@@ -19,22 +19,20 @@ class SolicitudGastoControllerTest extends TestCase
         $connection->shouldReceive('select')
             ->once()
             ->withArgs(function (string $sql, array $bindings): bool {
-                return str_contains($sql, 'FROM comprobantes_gasto cg')
-                    && str_contains($sql, 'LEFT JOIN solicitudes_gasto sg ON sg.id = cg.solicitud_gasto_id')
-                    && str_contains($sql, 'ORDER BY cg.id DESC')
+                return str_contains($sql, 'FROM solicitudes_gasto sg')
+                    && str_contains($sql, 'LEFT JOIN (')
+                    && str_contains($sql, 'FROM comprobantes_gasto cg1')
+                    && str_contains($sql, 'ORDER BY sg.id DESC')
                     && $bindings === [];
             })
             ->andReturn([
                 (object) [
-                    'id' => 7,
-                    'solicitud_gasto_id' => 12,
-                    'tipo' => 'BOLETA',
-                    'numero' => 'F001-123',
-                    'monto' => '150.50',
-                    'archivo_url' => 'https://example.test/comprobantes/7.pdf',
+                    'id' => 12,
                     'staff_id' => 163,
                     'id_area' => 11,
                     'motivo' => 'Viaticos',
+                    'monto_estimado' => '200.00',
+                    'monto_real' => '150.50',
                     'estado' => 'aprobada',
                     'fecha_solicitud' => '2026-04-09 10:15:00',
                     'fecha_aprobacion' => '2026-04-10 10:15:00',
@@ -43,6 +41,11 @@ class SolicitudGastoControllerTest extends TestCase
                     'firstname' => 'Raul',
                     'lastname' => 'Castro',
                     'area' => 'RR.HH.',
+                    'comprobante_id' => 7,
+                    'comprobante_tipo' => 'BOLETA',
+                    'comprobante_numero' => 'F001-123',
+                    'comprobante_monto' => '150.50',
+                    'comprobante_archivo_url' => 'https://example.test/comprobantes/7.pdf',
                 ],
             ]);
 
@@ -63,11 +66,14 @@ class SolicitudGastoControllerTest extends TestCase
 
         $this->assertSame(200, $response->getStatusCode());
         $this->assertTrue($payload['success']);
-        $this->assertSame(7, $payload['data'][0]['id']);
+        $this->assertSame(12, $payload['data'][0]['id']);
         $this->assertSame(12, $payload['data'][0]['solicitud_gasto_id']);
+        $this->assertSame(163, $payload['data'][0]['solicitud_gasto']['staff_id']);
         $this->assertSame('Raul Castro', $payload['data'][0]['solicitud_gasto']['solicitante']);
-        $this->assertSame('BOLETA', $payload['data'][0]['tipo']);
-        $this->assertSame(150.5, $payload['data'][0]['monto']);
+        $this->assertSame(200, $payload['data'][0]['monto_estimado']);
+        $this->assertSame(150.5, $payload['data'][0]['monto_real']);
+        $this->assertSame('BOLETA', $payload['data'][0]['comprobante']['tipo']);
+        $this->assertSame('F001-123', $payload['data'][0]['comprobante']['numero']);
     }
 
     public function test_historial_route_is_registered_and_returns_history_payload(): void
@@ -117,7 +123,7 @@ class SolicitudGastoControllerTest extends TestCase
                     'solicitud_gasto_id' => 12,
                     'estado_anterior' => 'pendiente',
                     'estado_nuevo' => 'aprobada',
-                    'comentario' => 'Se aprobó la solicitud.',
+                    'comentario' => 'Se aprobo la solicitud.',
                     'staff_id' => 163,
                     'fecha' => '2026-04-10 11:30:00',
                     'username' => 'raul.castro',
@@ -149,6 +155,6 @@ class SolicitudGastoControllerTest extends TestCase
         $this->assertCount(1, $payload['data']['data']);
         $this->assertSame('pendiente', $payload['data']['data'][0]['estado_anterior']);
         $this->assertSame('aprobada', $payload['data']['data'][0]['estado_nuevo']);
-        $this->assertSame('Se aprobó la solicitud.', $payload['data']['data'][0]['comentario']);
+        $this->assertSame('Se aprobo la solicitud.', $payload['data']['data'][0]['comentario']);
     }
 }

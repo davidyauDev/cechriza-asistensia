@@ -321,7 +321,9 @@ class SolicitudCompletaControllerTest extends TestCase
             ->with('public')
             ->andReturn($disk);
 
-        $disk->shouldReceive('put')->never();
+        $disk->shouldReceive('put')
+            ->withAnyArgs()
+            ->andReturnTrue();
 
         $connection->shouldReceive('select')
             ->andReturnUsing(function (string $sql, array $bindings): array {
@@ -490,7 +492,9 @@ class SolicitudCompletaControllerTest extends TestCase
             ->with('public')
             ->andReturn($disk);
 
-        $disk->shouldReceive('put')->never();
+        $disk->shouldReceive('put')
+            ->withAnyArgs()
+            ->andReturnTrue();
 
         $connection->shouldReceive('select')
             ->andReturnUsing(function (string $sql, array $bindings): array {
@@ -524,7 +528,7 @@ class SolicitudCompletaControllerTest extends TestCase
             });
 
         $connection->shouldReceive('transaction')
-            ->once()
+            ->twice()
             ->andReturnUsing(function (callable $callback) {
                 return $callback();
             });
@@ -536,7 +540,7 @@ class SolicitudCompletaControllerTest extends TestCase
 
         $connection->shouldReceive('table')
             ->with('solicitud_gasto_detalles')
-            ->once()
+            ->twice()
             ->andReturn($gastoDetallesTable);
 
         $solicitudesGastoTable->shouldReceive('insertGetId')
@@ -565,6 +569,26 @@ class SolicitudCompletaControllerTest extends TestCase
             }))
             ->andReturnTrue();
 
+        $gastoDetallesTable->shouldReceive('where')
+            ->once()
+            ->with('solicitud_gasto_id', 501)
+            ->andReturnSelf();
+
+        $gastoDetallesTable->shouldReceive('where')
+            ->once()
+            ->with('id_producto', 195)
+            ->andReturnSelf();
+
+        $gastoDetallesTable->shouldReceive('update')
+            ->once()
+            ->with(Mockery::on(function (array $payload): bool {
+                return str_starts_with($payload['ruta_imagen'], 'uploads/solicitudes_gasto/501/sol_501_inv_195_')
+                    && str_ends_with($payload['ruta_imagen'], '.jpg');
+            }))
+            ->andReturnTrue();
+
+        $pscrFile = UploadedFile::fake()->image('pscr.jpg');
+
         $response = $this->withoutMiddleware()->post('/api/solicitudes/registrar-completa', [
             'id_usuario_solicitante' => 163,
             'justificacion' => 'Pedido PSCR',
@@ -575,6 +599,7 @@ class SolicitudCompletaControllerTest extends TestCase
             'cantidad_rrhh' => [1],
             'observacion_rrhh' => [''],
             'id_area' => [11],
+            'foto_rrhh' => [$pscrFile],
         ]);
 
         $payload = json_decode($response->getContent(), true, 512, JSON_THROW_ON_ERROR);
@@ -583,7 +608,9 @@ class SolicitudCompletaControllerTest extends TestCase
         $this->assertTrue($payload['success']);
         $this->assertSame('GAS-000501', $payload['ticket']);
         $this->assertSame(['GAS-000501'], $payload['tickets']);
-        $this->assertSame([], $payload['uploaded_files']);
+        $this->assertCount(1, $payload['uploaded_files']);
+        $this->assertStringStartsWith('uploads/solicitudes_gasto/501/', $payload['uploaded_files'][0]['path']);
+        $this->assertStringStartsWith('http', $payload['uploaded_files'][0]['url']);
         Mail::assertNothingSent();
     }
 }
