@@ -639,6 +639,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
 
             $uploadedFiles[] = [
                 'id_inventario' => (int) $item['id_inventario'],
+                'id_producto' => (int) $item['id_producto'],
                 'path' => $path,
                 'url' => $this->buildPublicUrl($path),
                 'original_name' => $item['file']->getClientOriginalName(),
@@ -683,7 +684,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
             foreach ($uploadedFiles as $uploadedFile) {
                 $connection->table('solicitud_gasto_detalles')
                     ->where('solicitud_gasto_id', $solicitudGastoId)
-                    ->where('id_producto', (int) $uploadedFile['id_inventario'])
+                    ->where('id_producto', (int) $uploadedFile['id_producto'])
                     ->update([
                         'ruta_imagen' => $uploadedFile['path'],
                     ]);

@@ -85,7 +85,7 @@ class SolicitudGastoController extends Controller
         $bindings = [];
 
         if (isset($filters['solicitud_gasto_id'])) {
-            $clauses[] = 'cg.solicitud_gasto_id = ?';
+            $clauses[] = 'sg.id = ?';
             $bindings[] = (int) $filters['solicitud_gasto_id'];
         }
 
@@ -111,15 +111,12 @@ class SolicitudGastoController extends Controller
 
         $sql = <<<'SQL'
             SELECT
-                cg.id,
-                cg.solicitud_gasto_id,
-                cg.tipo,
-                cg.numero,
-                cg.monto,
-                cg.archivo_url,
+                sg.id,
                 sg.staff_id,
                 sg.id_area,
                 sg.motivo,
+                sg.monto_estimado,
+                sg.monto_real,
                 sg.estado,
                 sg.fecha_solicitud,
                 sg.fecha_aprobacion,
@@ -127,18 +124,31 @@ class SolicitudGastoController extends Controller
                 os.username,
                 os.firstname,
                 os.lastname,
-                a.descripcion_area AS area
-            FROM comprobantes_gasto cg
-            LEFT JOIN solicitudes_gasto sg ON sg.id = cg.solicitud_gasto_id
+                a.descripcion_area AS area,
+                cg.id AS comprobante_id,
+                cg.tipo AS comprobante_tipo,
+                cg.numero AS comprobante_numero,
+                cg.monto AS comprobante_monto,
+                cg.archivo_url AS comprobante_archivo_url
+            FROM solicitudes_gasto sg
             LEFT JOIN ost_staff os ON os.staff_id = sg.staff_id
             LEFT JOIN area a ON a.id_area = sg.id_area
+            LEFT JOIN (
+                SELECT cg1.*
+                FROM comprobantes_gasto cg1
+                INNER JOIN (
+                    SELECT solicitud_gasto_id, MAX(id) AS id
+                    FROM comprobantes_gasto
+                    GROUP BY solicitud_gasto_id
+                ) latest ON latest.id = cg1.id
+            ) cg ON cg.solicitud_gasto_id = sg.id
 SQL;
 
         if ($clauses !== []) {
             $sql .= "\n            WHERE ".implode("\n              AND ", $clauses);
         }
 
-        $sql .= "\n            ORDER BY cg.id DESC";
+        $sql .= "\n            ORDER BY sg.id DESC";
 
         return [$sql, $bindings];
     }
@@ -147,13 +157,11 @@ SQL;
     {
         return [
             'id' => (int) $row->id,
-            'solicitud_gasto_id' => (int) $row->solicitud_gasto_id,
-            'tipo' => $row->tipo,
-            'numero' => $row->numero,
-            'monto' => $row->monto !== null ? (float) $row->monto : null,
-            'archivo_url' => $row->archivo_url,
+            'solicitud_gasto_id' => (int) $row->id,
+            'monto_estimado' => $row->monto_estimado !== null ? (float) $row->monto_estimado : null,
+            'monto_real' => $row->monto_real !== null ? (float) $row->monto_real : null,
             'solicitud_gasto' => [
-                'id' => $row->solicitud_gasto_id !== null ? (int) $row->solicitud_gasto_id : null,
+                'id' => (int) $row->id,
                 'staff_id' => $row->staff_id !== null ? (int) $row->staff_id : null,
                 'solicitante' => $this->formatStaffFullName($row),
                 'username' => $row->username ?? null,
@@ -163,6 +171,13 @@ SQL;
                 'fecha_solicitud' => $row->fecha_solicitud ?? null,
                 'fecha_aprobacion' => $row->fecha_aprobacion ?? null,
                 'fecha_reembolso' => $row->fecha_reembolso ?? null,
+            ],
+            'comprobante' => [
+                'id' => $row->comprobante_id !== null ? (int) $row->comprobante_id : null,
+                'tipo' => $row->comprobante_tipo ?? null,
+                'numero' => $row->comprobante_numero ?? null,
+                'monto' => $row->comprobante_monto !== null ? (float) $row->comprobante_monto : null,
+                'archivo_url' => $row->comprobante_archivo_url ?? null,
             ],
         ];
     }
