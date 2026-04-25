@@ -27,9 +27,16 @@ class SolicitudGastoController extends Controller
             [$sql, $bindings] = $this->buildIndexQuery($validated);
 
             $rows = $this->getConnection()->select($sql, $bindings);
+            $detallesPorSolicitud = $this->getDetallesPorSolicitudIds(
+                $this->getConnection(),
+                collect($rows)->pluck('id')->map(fn ($id) => (int) $id)->all()
+            );
 
             $payload = collect($rows)
-                ->map(fn (object $row): array => $this->buildIndexPayload($row))
+                ->map(fn (object $row): array => $this->buildIndexPayload(
+                    $row,
+                    $detallesPorSolicitud[(int) $row->id] ?? []
+                ))
                 ->values()
                 ->all();
 
@@ -153,7 +160,10 @@ SQL;
         return [$sql, $bindings];
     }
 
-    protected function buildIndexPayload(object $row): array
+    /**
+     * @param  array<int, array<string, mixed>>  $detalles
+     */
+    protected function buildIndexPayload(object $row, array $detalles = []): array
     {
         return [
             'id' => (int) $row->id,
@@ -163,6 +173,7 @@ SQL;
             'solicitud_gasto' => [
                 'id' => (int) $row->id,
                 'staff_id' => $row->staff_id !== null ? (int) $row->staff_id : null,
+                'id_area' => $row->id_area !== null ? (int) $row->id_area : null,
                 'solicitante' => $this->formatStaffFullName($row),
                 'username' => $row->username ?? null,
                 'area' => $row->area ?? null,
@@ -179,6 +190,68 @@ SQL;
                 'monto' => $row->comprobante_monto !== null ? (float) $row->comprobante_monto : null,
                 'archivo_url' => $row->comprobante_archivo_url ?? null,
             ],
+            'solicitud_gasto_detalles' => $detalles,
+        ];
+    }
+
+    /**
+     * @param  array<int, int>  $solicitudGastoIds
+     * @return array<int, array<int, array<string, mixed>>>
+     */
+    protected function getDetallesPorSolicitudIds($connection, array $solicitudGastoIds): array
+    {
+        $solicitudGastoIds = array_values(array_unique(array_filter(
+            array_map('intval', $solicitudGastoIds),
+            fn (int $id): bool => $id > 0
+        )));
+
+        if ($solicitudGastoIds === []) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($solicitudGastoIds), '?'));
+        $rows = $connection->select(
+            <<<SQL
+                SELECT
+                    d.id,
+                    d.solicitud_gasto_id,
+                    d.id_producto,
+                    d.cantidad,
+                    d.precio_estimado,
+                    d.precio_real,
+                    d.descripcion_adicional,
+                    d.ruta_imagen,
+                    p.descripcion AS producto
+                FROM solicitud_gasto_detalles d
+                LEFT JOIN productos p ON p.id_producto = d.id_producto
+                WHERE d.solicitud_gasto_id IN ({$placeholders})
+                ORDER BY d.solicitud_gasto_id DESC, d.id ASC
+SQL,
+            $solicitudGastoIds
+        );
+
+        return collect($rows)
+            ->groupBy(fn (object $row): int => (int) $row->solicitud_gasto_id)
+            ->map(fn ($items): array => collect($items)
+                ->map(fn (object $row): array => $this->buildDetallePayload($row))
+                ->values()
+                ->all())
+            ->all();
+    }
+
+    protected function buildDetallePayload(object $row): array
+    {
+        return [
+            'id' => (int) $row->id,
+            'solicitud_gasto_id' => (int) $row->solicitud_gasto_id,
+            'id_producto' => $row->id_producto !== null ? (int) $row->id_producto : null,
+            'cantidad' => $row->cantidad !== null ? (int) $row->cantidad : null,
+            'precio_estimado' => $row->precio_estimado !== null ? (float) $row->precio_estimado : null,
+            'precio_real' => $row->precio_real !== null ? (float) $row->precio_real : null,
+            'descripcion_adicional' => $row->descripcion_adicional ?? null,
+            'ruta_imagen' => $row->ruta_imagen ?? null,
+            'url_imagen' => $this->buildPublicUrl($row->ruta_imagen ?? null),
+            'producto' => $row->producto ?? null,
         ];
     }
 
@@ -230,6 +303,7 @@ SQL;
         return [
             'id' => (int) $row->id,
             'staff_id' => $row->staff_id !== null ? (int) $row->staff_id : null,
+            'id_area' => $row->id_area !== null ? (int) $row->id_area : null,
             'solicitante' => $this->formatStaffFullName($row),
             'username' => $row->username ?? null,
             'area' => $row->area ?? null,
@@ -286,5 +360,22 @@ SQL,
     protected function getConnection()
     {
         return DB::connection('mysql_external');
+    }
+
+    protected function buildPublicUrl(?string $path): ?string
+    {
+        $path = trim((string) $path);
+
+        if ($path === '') {
+            return null;
+        }
+
+        $appUrl = trim((string) config('app.url'), '/');
+
+        if ($appUrl === '') {
+            return null;
+        }
+
+        return $appUrl.'/storage/'.ltrim($path, '/');
     }
 }
