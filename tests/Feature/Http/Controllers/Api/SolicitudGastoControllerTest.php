@@ -17,37 +17,62 @@ class SolicitudGastoControllerTest extends TestCase
         $connection = Mockery::mock();
 
         $connection->shouldReceive('select')
-            ->once()
-            ->withArgs(function (string $sql, array $bindings): bool {
-                return str_contains($sql, 'FROM solicitudes_gasto sg')
-                    && str_contains($sql, 'LEFT JOIN (')
-                    && str_contains($sql, 'FROM comprobantes_gasto cg1')
-                    && str_contains($sql, 'ORDER BY sg.id DESC')
-                    && $bindings === [];
-            })
-            ->andReturn([
-                (object) [
-                    'id' => 12,
-                    'staff_id' => 163,
-                    'id_area' => 11,
-                    'motivo' => 'Viaticos',
-                    'monto_estimado' => '200.00',
-                    'monto_real' => '150.50',
-                    'estado' => 'aprobada',
-                    'fecha_solicitud' => '2026-04-09 10:15:00',
-                    'fecha_aprobacion' => '2026-04-10 10:15:00',
-                    'fecha_reembolso' => null,
-                    'username' => 'raul.castro',
-                    'firstname' => 'Raul',
-                    'lastname' => 'Castro',
-                    'area' => 'RR.HH.',
-                    'comprobante_id' => 7,
-                    'comprobante_tipo' => 'BOLETA',
-                    'comprobante_numero' => 'F001-123',
-                    'comprobante_monto' => '150.50',
-                    'comprobante_archivo_url' => 'https://example.test/comprobantes/7.pdf',
-                ],
-            ]);
+            ->andReturnUsing(function (string $sql, array $bindings): array {
+                if (str_contains($sql, 'FROM solicitudes_gasto sg')) {
+                    return [
+                        (object) [
+                            'id' => 12,
+                            'staff_id' => 163,
+                            'id_area' => 11,
+                            'motivo' => 'Viaticos',
+                            'monto_estimado' => '200.00',
+                            'monto_real' => '150.50',
+                            'estado' => 'aprobada',
+                            'fecha_solicitud' => '2026-04-09 10:15:00',
+                            'fecha_aprobacion' => '2026-04-10 10:15:00',
+                            'fecha_reembolso' => null,
+                            'username' => 'raul.castro',
+                            'firstname' => 'Raul',
+                            'lastname' => 'Castro',
+                            'area' => 'RR.HH.',
+                            'comprobante_id' => 7,
+                            'comprobante_tipo' => 'BOLETA',
+                            'comprobante_numero' => 'F001-123',
+                            'comprobante_monto' => '150.50',
+                            'comprobante_archivo_url' => 'https://example.test/comprobantes/7.pdf',
+                        ],
+                    ];
+                }
+
+                if (str_contains($sql, 'FROM solicitud_gasto_detalles d') && $bindings === [12]) {
+                    return [
+                        (object) [
+                            'id' => 3,
+                            'solicitud_gasto_id' => 12,
+                            'id_producto' => 195,
+                            'cantidad' => 2,
+                            'precio_estimado' => '25.00',
+                            'precio_real' => '0.00',
+                            'descripcion_adicional' => 'Detalle 1',
+                            'ruta_imagen' => 'uploads/solicitudes_gasto/12/imagen-1.jpg',
+                            'producto' => 'Producto PSCR',
+                        ],
+                        (object) [
+                            'id' => 4,
+                            'solicitud_gasto_id' => 12,
+                            'id_producto' => 196,
+                            'cantidad' => 1,
+                            'precio_estimado' => '15.00',
+                            'precio_real' => '0.00',
+                            'descripcion_adicional' => null,
+                            'ruta_imagen' => null,
+                            'producto' => 'Producto PSCR 2',
+                        ],
+                    ];
+                }
+
+                return [];
+            });
 
         $controller = new class($connection) extends SolicitudGastoController
         {
@@ -74,6 +99,10 @@ class SolicitudGastoControllerTest extends TestCase
         $this->assertSame(150.5, $payload['data'][0]['monto_real']);
         $this->assertSame('BOLETA', $payload['data'][0]['comprobante']['tipo']);
         $this->assertSame('F001-123', $payload['data'][0]['comprobante']['numero']);
+        $this->assertCount(2, $payload['data'][0]['solicitud_gasto_detalles']);
+        $this->assertSame(195, $payload['data'][0]['solicitud_gasto_detalles'][0]['id_producto']);
+        $this->assertSame('uploads/solicitudes_gasto/12/imagen-1.jpg', $payload['data'][0]['solicitud_gasto_detalles'][0]['ruta_imagen']);
+        $this->assertSame('Producto PSCR', $payload['data'][0]['solicitud_gasto_detalles'][0]['producto']);
     }
 
     public function test_historial_route_is_registered_and_returns_history_payload(): void
