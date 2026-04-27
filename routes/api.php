@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\SeguimientoTecnicoController;
 use App\Http\Controllers\Api\SolicitudCompletaController;
 use App\Http\Controllers\Api\SolicitudController;
 use App\Http\Controllers\Api\SolicitudGastoController;
+use App\Http\Controllers\Api\SolicitudGastoRegistroController;
 use App\Http\Controllers\Api\TardanzaController;
 use App\Http\Controllers\Api\TechnicianController;
 use App\Http\Controllers\Api\UserController;
@@ -119,6 +120,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/solicitudes/detalles/{id}/rechazar', [DetalleSolicitudController::class, 'rechazar'])->whereNumber('id')->name('solicitudes.detalles.rechazar');
     Route::get('/solicitudes-gasto/comprobantes', [SolicitudGastoController::class, 'index'])->name('solicitudes-gasto.comprobantes.index');
     Route::get('/solicitudes-gasto/{id}/historial', [SolicitudGastoController::class, 'historial'])->whereNumber('id')->name('solicitudes-gasto.historial');
+    Route::post('/solicitudes-gasto', [SolicitudGastoRegistroController::class, 'store'])->name('solicitudes-gasto.store');
     Route::get('/reabastecimiento/solicitudes', [ReabastecimientoController::class, 'index'])->name('reabastecimiento.index');
     Route::get('/reabastecimiento/solicitudes/{id}', [ReabastecimientoController::class, 'show'])->whereNumber('id')->name('reabastecimiento.show');
     Route::post('/reabastecimiento/solicitudes', [ReabastecimientoController::class, 'store'])->name('reabastecimiento.store');

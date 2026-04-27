@@ -31,7 +31,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
 
     private const SOLICITUD_GASTO_ESTADO_PENDIENTE = 'pendiente';
 
-    private const SOLICITUD_GASTO_MONTO_DEFAULT = 0.00;
+    private const SOLICITUD_GASTO_MONTO_DEFAULT = 130.00;
 
     /**
      * @var array<int, string>
