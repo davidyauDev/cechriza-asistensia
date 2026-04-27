@@ -30,7 +30,8 @@ class SolicitudGastoRegistroController extends Controller
             'fecha_aprobacion' => ['nullable', 'date'],
             'fecha_reembolso' => ['nullable', 'date'],
             'solicitud_gasto_detalles' => ['required', 'array', 'min:1'],
-            'solicitud_gasto_detalles.*.id_producto' => ['required', 'integer', 'min:1', 'exists:mysql_external.productos,id_producto'],
+            'solicitud_gasto_detalles.*.id_producto' => ['nullable', 'integer', 'min:1', 'exists:mysql_external.productos,id_producto', 'required_without:solicitud_gasto_detalles.*.id_inventario'],
+            'solicitud_gasto_detalles.*.id_inventario' => ['nullable', 'integer', 'min:1', 'exists:mysql_external.inventario,id_inventario', 'required_without:solicitud_gasto_detalles.*.id_producto'],
             'solicitud_gasto_detalles.*.cantidad' => ['required', 'integer', 'min:1'],
             'solicitud_gasto_detalles.*.precio_estimado' => ['nullable', 'numeric', 'min:0'],
             'solicitud_gasto_detalles.*.precio_real' => ['nullable', 'numeric', 'min:0'],
@@ -40,6 +41,8 @@ class SolicitudGastoRegistroController extends Controller
 
         try {
             $result = DB::connection('mysql_external')->transaction(function () use ($validated): array {
+                $inventarioMap = $this->loadInventarioProductMap($validated['solicitud_gasto_detalles']);
+
                 $solicitud = new SolicitudGasto();
                 $solicitud->setConnection('mysql_external');
                 $solicitud->fill([
@@ -58,11 +61,13 @@ class SolicitudGastoRegistroController extends Controller
                 $detallesPayload = [];
 
                 foreach ($validated['solicitud_gasto_detalles'] as $detalle) {
+                    $resolvedProductId = $this->resolveDetalleProductId($detalle, $inventarioMap);
+
                     $detalleModel = new SolicitudGastoDetalle();
                     $detalleModel->setConnection('mysql_external');
                     $detalleModel->fill([
                         'solicitud_gasto_id' => (int) $solicitud->id,
-                        'id_producto' => (int) $detalle['id_producto'],
+                        'id_producto' => $resolvedProductId,
                         'cantidad' => (int) $detalle['cantidad'],
                         'precio_estimado' => $this->amountOrDefault($detalle['precio_estimado'] ?? null),
                         'precio_real' => $this->amountOrDefault($detalle['precio_real'] ?? null),
@@ -75,6 +80,7 @@ class SolicitudGastoRegistroController extends Controller
                         'id' => (int) $detalleModel->id,
                         'solicitud_gasto_id' => (int) $detalleModel->solicitud_gasto_id,
                         'id_producto' => (int) $detalleModel->id_producto,
+                        'id_inventario' => isset($detalle['id_inventario']) ? (int) $detalle['id_inventario'] : null,
                         'cantidad' => (int) $detalleModel->cantidad,
                         'precio_estimado' => (float) $detalleModel->precio_estimado,
                         'precio_real' => (float) $detalleModel->precio_real,
@@ -119,5 +125,51 @@ class SolicitudGastoRegistroController extends Controller
         }
 
         return (float) $value;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $detalles
+     * @return array<int, int>
+     */
+    protected function loadInventarioProductMap(array $detalles): array
+    {
+        $inventarioIds = collect($detalles)
+            ->pluck('id_inventario')
+            ->filter(fn ($id): bool => is_numeric($id) && (int) $id > 0)
+            ->map(fn ($id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($inventarioIds === []) {
+            return [];
+        }
+
+        return DB::connection('mysql_external')
+            ->table('inventario')
+            ->whereIn('id_inventario', $inventarioIds)
+            ->pluck('id_producto', 'id_inventario')
+            ->map(fn ($idProducto): int => (int) $idProducto)
+            ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $detalle
+     * @param  array<int, int>  $inventarioMap
+     */
+    protected function resolveDetalleProductId(array $detalle, array $inventarioMap): int
+    {
+        if (isset($detalle['id_producto']) && (int) $detalle['id_producto'] > 0) {
+            return (int) $detalle['id_producto'];
+        }
+
+        $inventarioId = (int) ($detalle['id_inventario'] ?? 0);
+        $productId = $inventarioMap[$inventarioId] ?? 0;
+
+        if ($productId <= 0) {
+            abort(422, "No se pudo resolver id_producto para id_inventario {$inventarioId}.");
+        }
+
+        return $productId;
     }
 }
