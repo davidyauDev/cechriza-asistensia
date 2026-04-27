@@ -61,6 +61,18 @@ return [
             'local_domain' => env('MAIL_ALT_EHLO_DOMAIN', parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST)),
         ],
 
+        'smtp_test' => [
+            'transport' => env('MAIL_TEST_MAILER', 'smtp'),
+            'scheme' => env('MAIL_TEST_SCHEME') ?: (env('MAIL_TEST_ENCRYPTION') === 'ssl' ? 'smtps' : null),
+            'url' => env('MAIL_TEST_URL'),
+            'host' => env('MAIL_TEST_HOST', '127.0.0.1'),
+            'port' => env('MAIL_TEST_PORT', 2525),
+            'username' => env('MAIL_TEST_USERNAME'),
+            'password' => env('MAIL_TEST_PASSWORD'),
+            'timeout' => null,
+            'local_domain' => env('MAIL_TEST_EHLO_DOMAIN', parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST)),
+        ],
+
         'ses' => [
             'transport' => 'ses',
         ],
@@ -130,6 +142,11 @@ return [
     'from_alt' => [
         'address' => env('MAIL_ALT_FROM_ADDRESS'),
         'name' => env('MAIL_ALT_FROM_NAME'),
+    ],
+
+    'from_test' => [
+        'address' => env('MAIL_TEST_FROM_ADDRESS'),
+        'name' => env('MAIL_TEST_FROM_NAME'),
     ],
 
 ];
