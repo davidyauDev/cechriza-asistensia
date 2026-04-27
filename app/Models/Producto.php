@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\SolicitudGasto\SolicitudGastoDetalle;
 use Illuminate\Database\Eloquent\Model;
 
 class Producto extends Model

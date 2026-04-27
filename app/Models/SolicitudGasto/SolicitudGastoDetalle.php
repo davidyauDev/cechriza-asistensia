@@ -1,11 +1,14 @@
 <?php
 
-namespace App\Models;
+namespace App\Models\SolicitudGasto;
 
+use App\Models\Producto;
 use Illuminate\Database\Eloquent\Model;
 
 class SolicitudGastoDetalle extends Model
 {
+    protected $connection = 'external_mysql';
+
     protected $table = 'solicitud_gasto_detalles';
 
     protected $fillable = [
