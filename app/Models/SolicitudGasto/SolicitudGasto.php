@@ -1,7 +1,9 @@
 <?php
 
-namespace App\Models;
+namespace App\Models\SolicitudGasto;
 
+use App\Models\Area;
+use App\Models\Staff;
 use Illuminate\Database\Eloquent\Model;
 
 class SolicitudGasto extends Model

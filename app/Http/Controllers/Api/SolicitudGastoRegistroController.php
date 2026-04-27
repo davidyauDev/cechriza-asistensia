@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\SolicitudGasto;
-use App\Models\SolicitudGastoDetalle;
+use App\Models\SolicitudGasto\SolicitudGasto;
+use App\Models\SolicitudGasto\SolicitudGastoDetalle;
 use App\Traits\ApiResponseTrait;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,13 +15,15 @@ class SolicitudGastoRegistroController extends Controller
 {
     use ApiResponseTrait;
 
+    private const DEFAULT_MONTO = 130.00;
+
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'staff_id' => ['required', 'integer', 'min:1', 'exists:mysql_external.ost_staff,staff_id'],
             'id_area' => ['required', 'integer', 'min:1', 'exists:mysql_external.area,id_area'],
             'motivo' => ['required', 'string', 'max:255'],
-            'monto_estimado' => ['required', 'numeric', 'min:0'],
+            'monto_estimado' => ['nullable', 'numeric', 'min:0'],
             'monto_real' => ['nullable', 'numeric', 'min:0'],
             'estado' => ['nullable', 'string', 'max:30'],
             'fecha_solicitud' => ['nullable', 'date'],
@@ -30,7 +32,7 @@ class SolicitudGastoRegistroController extends Controller
             'solicitud_gasto_detalles' => ['required', 'array', 'min:1'],
             'solicitud_gasto_detalles.*.id_producto' => ['required', 'integer', 'min:1', 'exists:mysql_external.productos,id_producto'],
             'solicitud_gasto_detalles.*.cantidad' => ['required', 'integer', 'min:1'],
-            'solicitud_gasto_detalles.*.precio_estimado' => ['required', 'numeric', 'min:0'],
+            'solicitud_gasto_detalles.*.precio_estimado' => ['nullable', 'numeric', 'min:0'],
             'solicitud_gasto_detalles.*.precio_real' => ['nullable', 'numeric', 'min:0'],
             'solicitud_gasto_detalles.*.descripcion_adicional' => ['nullable', 'string', 'max:1000'],
             'solicitud_gasto_detalles.*.ruta_imagen' => ['nullable', 'string', 'max:2048'],
@@ -44,8 +46,8 @@ class SolicitudGastoRegistroController extends Controller
                     'staff_id' => (int) $validated['staff_id'],
                     'id_area' => (int) $validated['id_area'],
                     'motivo' => $validated['motivo'],
-                    'monto_estimado' => (float) $validated['monto_estimado'],
-                    'monto_real' => isset($validated['monto_real']) ? (float) $validated['monto_real'] : 0.00,
+                    'monto_estimado' => $this->amountOrDefault($validated['monto_estimado'] ?? null),
+                    'monto_real' => $this->amountOrDefault($validated['monto_real'] ?? null),
                     'estado' => $validated['estado'] ?? 'pendiente',
                     'fecha_solicitud' => $validated['fecha_solicitud'] ?? now(),
                     'fecha_aprobacion' => $validated['fecha_aprobacion'] ?? null,
@@ -62,8 +64,8 @@ class SolicitudGastoRegistroController extends Controller
                         'solicitud_gasto_id' => (int) $solicitud->id,
                         'id_producto' => (int) $detalle['id_producto'],
                         'cantidad' => (int) $detalle['cantidad'],
-                        'precio_estimado' => (float) $detalle['precio_estimado'],
-                        'precio_real' => isset($detalle['precio_real']) ? (float) $detalle['precio_real'] : 0.00,
+                        'precio_estimado' => $this->amountOrDefault($detalle['precio_estimado'] ?? null),
+                        'precio_real' => $this->amountOrDefault($detalle['precio_real'] ?? null),
                         'descripcion_adicional' => $detalle['descripcion_adicional'] ?? null,
                         'ruta_imagen' => $detalle['ruta_imagen'] ?? null,
                     ]);
@@ -102,8 +104,20 @@ class SolicitudGastoRegistroController extends Controller
         } catch (Throwable $e) {
             report($e);
 
+            if (config('app.debug')) {
+                return $this->errorResponse('No se pudo registrar la solicitud de gasto: '.$e->getMessage(), 500);
+            }
+
             return $this->errorResponse('No se pudo registrar la solicitud de gasto.', 500);
         }
     }
-}
 
+    protected function amountOrDefault(mixed $value): float
+    {
+        if ($value === null || $value === '') {
+            return self::DEFAULT_MONTO;
+        }
+
+        return (float) $value;
+    }
+}
