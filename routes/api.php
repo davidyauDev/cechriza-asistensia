@@ -152,6 +152,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/', [SolicitudCompraWorkflowController::class, 'index'])->name('rrhh.solicitudes-compra.index');
         Route::post('/{id}/enviar-gerencia', [SolicitudCompraWorkflowController::class, 'enviarGerencia'])->whereNumber('id')->name('rrhh.solicitudes-compra.enviar-gerencia');
         Route::post('/{id}/aprobar-final', [SolicitudCompraWorkflowController::class, 'aprobarFinal'])->whereNumber('id')->name('rrhh.solicitudes-compra.aprobar-final');
+        Route::post('/{id}/rechazar-rrhh', [SolicitudCompraWorkflowController::class, 'rechazarRrhh'])->whereNumber('id')->name('rrhh.solicitudes-compra.rechazar-rrhh');
         Route::post('/{id}/rechazar', [SolicitudCompraWorkflowController::class, 'rechazar'])->whereNumber('id')->name('rrhh.solicitudes-compra.rechazar');
     });
 
