@@ -8,7 +8,10 @@ use App\Models\SolicitudGasto\SolicitudGastoDetalle;
 use App\Traits\ApiResponseTrait;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Throwable;
 
 class SolicitudGastoRegistroController extends Controller
@@ -38,10 +41,13 @@ class SolicitudGastoRegistroController extends Controller
             'solicitud_gasto_detalles.*.precio_real' => ['nullable', 'numeric', 'min:0'],
             'solicitud_gasto_detalles.*.descripcion_adicional' => ['nullable', 'string', 'max:1000'],
             'solicitud_gasto_detalles.*.ruta_imagen' => ['nullable', 'string', 'max:2048'],
+            'solicitud_gasto_detalles.*.archivo' => ['nullable', 'file', 'max:10240', 'mimes:jpg,jpeg,png,webp,pdf'],
         ]);
 
+        $storedPaths = [];
+
         try {
-            $result = DB::connection('mysql_external')->transaction(function () use ($validated): array {
+            $result = DB::connection('mysql_external')->transaction(function () use ($validated, $request, &$storedPaths): array {
                 $inventarioMap = $this->loadInventarioProductMap($validated['solicitud_gasto_detalles']);
                 $estadoId = $this->resolveEstadoIdDefault();
 
@@ -63,8 +69,16 @@ class SolicitudGastoRegistroController extends Controller
 
                 $detallesPayload = [];
 
-                foreach ($validated['solicitud_gasto_detalles'] as $detalle) {
+                foreach ($validated['solicitud_gasto_detalles'] as $index => $detalle) {
                     $resolvedProductId = $this->resolveDetalleProductId($detalle, $inventarioMap);
+                    $rutaImagen = $detalle['ruta_imagen'] ?? null;
+                    $archivo = $request->file("solicitud_gasto_detalles.$index.archivo");
+
+                    if ($archivo instanceof UploadedFile) {
+                        $storedPath = $this->storeDetalleImagen((int) $solicitud->id, $archivo);
+                        $storedPaths[] = $storedPath;
+                        $rutaImagen = $storedPath;
+                    }
 
                     $detalleModel = new SolicitudGastoDetalle();
                     $detalleModel->setConnection('mysql_external');
@@ -75,7 +89,7 @@ class SolicitudGastoRegistroController extends Controller
                         'precio_estimado' => $this->amountOrDefault($detalle['precio_estimado'] ?? null),
                         'precio_real' => $this->amountOrDefault($detalle['precio_real'] ?? null),
                         'descripcion_adicional' => $detalle['descripcion_adicional'] ?? null,
-                        'ruta_imagen' => $detalle['ruta_imagen'] ?? null,
+                        'ruta_imagen' => $rutaImagen,
                     ]);
                     $detalleModel->save();
 
@@ -112,6 +126,12 @@ class SolicitudGastoRegistroController extends Controller
 
             return $this->successResponse($result, 'Solicitud de gasto registrada correctamente', 201);
         } catch (Throwable $e) {
+            foreach ($storedPaths as $path) {
+                if (is_string($path) && $path !== '' && Storage::disk('public')->exists($path)) {
+                    Storage::disk('public')->delete($path);
+                }
+            }
+
             report($e);
 
             if (config('app.debug')) {
@@ -191,5 +211,20 @@ class SolicitudGastoRegistroController extends Controller
         }
 
         return (int) $estadoId;
+    }
+
+    protected function storeDetalleImagen(int $solicitudGastoId, UploadedFile $file): string
+    {
+        $directory = 'uploads/solicitudes-gasto/'.$solicitudGastoId.'/detalles';
+        $extension = strtolower((string) ($file->getClientOriginalExtension() ?: $file->extension() ?: 'bin'));
+        $filename = sprintf(
+            'detalle_%d_%s_%s.%s',
+            $solicitudGastoId,
+            now()->format('YmdHis'),
+            Str::lower(Str::random(8)),
+            $extension
+        );
+
+        return $file->storeAs($directory, $filename, 'public');
     }
 }

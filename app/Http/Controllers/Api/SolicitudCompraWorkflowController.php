@@ -184,6 +184,7 @@ class SolicitudCompraWorkflowController extends Controller
                     ->where('id', $id)
                     ->update([
                         'estado' => self::STATE_PENDING_GERENCIA,
+                        'estado_id' => 8,
                     ]);
 
                 $this->insertSeguimiento(
