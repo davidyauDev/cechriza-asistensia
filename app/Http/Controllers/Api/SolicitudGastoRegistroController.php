@@ -16,6 +16,7 @@ class SolicitudGastoRegistroController extends Controller
     use ApiResponseTrait;
 
     private const DEFAULT_MONTO = 130.00;
+    private const DEFAULT_ESTADO_CODIGO = 'pendiente_rrhh';
 
     public function store(Request $request): JsonResponse
     {
@@ -42,6 +43,7 @@ class SolicitudGastoRegistroController extends Controller
         try {
             $result = DB::connection('mysql_external')->transaction(function () use ($validated): array {
                 $inventarioMap = $this->loadInventarioProductMap($validated['solicitud_gasto_detalles']);
+                $estadoId = $this->resolveEstadoIdDefault();
 
                 $solicitud = new SolicitudGasto();
                 $solicitud->setConnection('mysql_external');
@@ -51,6 +53,7 @@ class SolicitudGastoRegistroController extends Controller
                     'motivo' => $validated['motivo'],
                     'monto_estimado' => $this->amountOrDefault($validated['monto_estimado'] ?? null),
                     'monto_real' => $this->amountOrDefault($validated['monto_real'] ?? null),
+                    'estado_id' => $estadoId,
                     'estado' => $validated['estado'] ?? 'pendiente',
                     'fecha_solicitud' => $validated['fecha_solicitud'] ?? now(),
                     'fecha_aprobacion' => $validated['fecha_aprobacion'] ?? null,
@@ -94,6 +97,7 @@ class SolicitudGastoRegistroController extends Controller
                         'id' => (int) $solicitud->id,
                         'staff_id' => (int) $solicitud->staff_id,
                         'id_area' => (int) $solicitud->id_area,
+                        'estado_id' => $solicitud->estado_id !== null ? (int) $solicitud->estado_id : null,
                         'motivo' => $solicitud->motivo,
                         'monto_estimado' => (float) $solicitud->monto_estimado,
                         'monto_real' => (float) $solicitud->monto_real,
@@ -171,5 +175,21 @@ class SolicitudGastoRegistroController extends Controller
         }
 
         return $productId;
+    }
+
+    protected function resolveEstadoIdDefault(): int
+    {
+        $estadoId = DB::connection('mysql_external')
+            ->table('solicitud_gasto_estados')
+            ->where('codigo', self::DEFAULT_ESTADO_CODIGO)
+            ->where('activo', 1)
+            ->orderBy('orden')
+            ->value('id');
+
+        if (! is_numeric($estadoId) || (int) $estadoId <= 0) {
+            abort(422, 'No se encontró un estado inicial activo para solicitudes de gasto.');
+        }
+
+        return (int) $estadoId;
     }
 }

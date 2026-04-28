@@ -18,6 +18,7 @@ class SolicitudGasto extends Model
         'motivo',
         'monto_estimado',
         'monto_real',
+        'estado_id',
         'estado',
         'fecha_solicitud',
         'fecha_aprobacion',
