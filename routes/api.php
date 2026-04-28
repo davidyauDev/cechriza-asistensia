@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BioTimeController;
 use App\Http\Controllers\Api\BirthdayGreetingsHistoryController;
+use App\Http\Controllers\Api\ComprobanteGastoRegistroController;
 use App\Http\Controllers\Api\DetalleSolicitudController;
 use App\Http\Controllers\Api\EmployeeConceptController;
 use App\Http\Controllers\Api\EmployeeMobilityController;
@@ -119,6 +120,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/solicitudes/detalles/{id}/aprobar', [DetalleSolicitudController::class, 'aprobar'])->whereNumber('id')->name('solicitudes.detalles.aprobar');
     Route::post('/solicitudes/detalles/{id}/rechazar', [DetalleSolicitudController::class, 'rechazar'])->whereNumber('id')->name('solicitudes.detalles.rechazar');
     Route::get('/solicitudes-gasto/comprobantes', [SolicitudGastoController::class, 'index'])->name('solicitudes-gasto.comprobantes.index');
+    Route::post('/solicitudes-gasto/comprobantes', [ComprobanteGastoRegistroController::class, 'store'])->name('solicitudes-gasto.comprobantes.store');
     Route::get('/solicitudes-gasto/{id}/historial', [SolicitudGastoController::class, 'historial'])->whereNumber('id')->name('solicitudes-gasto.historial');
     Route::post('/solicitudes-gasto', [SolicitudGastoRegistroController::class, 'store'])->name('solicitudes-gasto.store');
     Route::get('/reabastecimiento/solicitudes', [ReabastecimientoController::class, 'index'])->name('reabastecimiento.index');
