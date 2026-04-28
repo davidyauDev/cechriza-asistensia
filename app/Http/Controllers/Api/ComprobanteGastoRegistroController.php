@@ -7,7 +7,10 @@ use App\Models\SolicitudGasto\ComprobanteGasto;
 use App\Traits\ApiResponseTrait;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Throwable;
 
 class ComprobanteGastoRegistroController extends Controller
@@ -21,11 +24,18 @@ class ComprobanteGastoRegistroController extends Controller
             'tipo' => ['required', 'string', 'max:50'],
             'numero' => ['required', 'string', 'max:100'],
             'monto' => ['required', 'numeric', 'min:0'],
-            'archivo_url' => ['nullable', 'string', 'max:2048'],
+            'archivo' => ['required', 'file', 'max:10240', 'mimes:jpg,jpeg,png,pdf,webp'],
         ]);
 
+        $storedPath = null;
+
         try {
-            $payload = DB::connection('mysql_external')->transaction(function () use ($validated): array {
+            /** @var UploadedFile $archivo */
+            $archivo = $request->file('archivo');
+            $storedPath = $this->storeComprobanteFile((int) $validated['solicitud_gasto_id'], $archivo);
+            $publicUrl = $this->buildPublicUrl($storedPath);
+
+            $payload = DB::connection('mysql_external')->transaction(function () use ($validated, $publicUrl): array {
                 $comprobante = new ComprobanteGasto();
                 $comprobante->setConnection('mysql_external');
                 $comprobante->fill([
@@ -33,7 +43,7 @@ class ComprobanteGastoRegistroController extends Controller
                     'tipo' => $validated['tipo'],
                     'numero' => $validated['numero'],
                     'monto' => (float) $validated['monto'],
-                    'archivo_url' => $validated['archivo_url'] ?? null,
+                    'archivo_url' => $publicUrl,
                 ]);
                 $comprobante->save();
 
@@ -49,6 +59,10 @@ class ComprobanteGastoRegistroController extends Controller
 
             return $this->successResponse($payload, 'Comprobante de gasto registrado correctamente', 201);
         } catch (Throwable $e) {
+            if ($storedPath !== null && Storage::disk('public')->exists($storedPath)) {
+                Storage::disk('public')->delete($storedPath);
+            }
+
             report($e);
 
             if (config('app.debug')) {
@@ -57,5 +71,31 @@ class ComprobanteGastoRegistroController extends Controller
 
             return $this->errorResponse('No se pudo registrar el comprobante de gasto.', 500);
         }
+    }
+
+    protected function storeComprobanteFile(int $solicitudGastoId, UploadedFile $file): string
+    {
+        $directory = 'uploads/solicitudes-gasto/'.$solicitudGastoId.'/comprobantes';
+        $extension = strtolower((string) ($file->getClientOriginalExtension() ?: $file->extension() ?: 'bin'));
+        $filename = sprintf(
+            'comprobante_%d_%s_%s.%s',
+            $solicitudGastoId,
+            now()->format('YmdHis'),
+            Str::lower(Str::random(8)),
+            $extension
+        );
+
+        return $file->storeAs($directory, $filename, 'public');
+    }
+
+    protected function buildPublicUrl(string $path): ?string
+    {
+        $appUrl = trim((string) config('app.url'), '/');
+
+        if ($appUrl === '') {
+            return null;
+        }
+
+        return $appUrl.'/storage/'.ltrim($path, '/');
     }
 }
