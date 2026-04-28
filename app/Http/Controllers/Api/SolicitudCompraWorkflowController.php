@@ -304,7 +304,7 @@ class SolicitudCompraWorkflowController extends Controller
         }
     }
 
-    public function rechazar(Request $request, int $id): JsonResponse
+    public function rechazarRrhh(Request $request, int $id): JsonResponse
     {
         $validated = $request->validate([
             'comentario' => ['nullable', 'string', 'max:1000'],
@@ -364,6 +364,7 @@ class SolicitudCompraWorkflowController extends Controller
                     ->where('id', $id)
                     ->update([
                         'estado' => self::STATE_REJECTED,
+                        'estado_id' => 10,
                     ]);
 
                 $this->insertSeguimiento(
@@ -400,6 +401,11 @@ class SolicitudCompraWorkflowController extends Controller
 
             return $this->errorResponse('No se pudo rechazar la solicitud.', 500);
         }
+    }
+
+    public function rechazar(Request $request, int $id): JsonResponse
+    {
+        return $this->rechazarRrhh($request, $id);
     }
 
     /**
