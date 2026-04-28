@@ -20,7 +20,7 @@ class SolicitudGastoController extends Controller
             'staff_id' => 'nullable|integer|min:1',
             'tipo' => 'nullable|string|max:50',
             'numero' => 'nullable|string|max:100',
-            'estado' => 'nullable|string|max:50',
+            'estado_id' => 'nullable|integer|min:1',
         ]);
 
         try {
@@ -111,9 +111,9 @@ class SolicitudGastoController extends Controller
             $bindings[] = '%'.$filters['numero'].'%';
         }
 
-        if (isset($filters['estado'])) {
-            $clauses[] = 'sg.estado = ?';
-            $bindings[] = $filters['estado'];
+        if (isset($filters['estado_id'])) {
+            $clauses[] = 'sg.estado_id = ?';
+            $bindings[] = (int) $filters['estado_id'];
         }
 
         $sql = <<<'SQL'
