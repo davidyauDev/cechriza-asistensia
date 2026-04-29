@@ -18,6 +18,7 @@ class SolicitudGastoController extends Controller
         $validated = $request->validate([
             'solicitud_gasto_id' => 'nullable|integer|min:1',
             'staff_id' => 'nullable|integer|min:1',
+            'id_area' => 'nullable|integer|min:1',
             'tipo' => 'nullable|string|max:50',
             'numero' => 'nullable|string|max:100',
             'estado_id' => 'nullable|integer|min:1',
@@ -101,6 +102,11 @@ class SolicitudGastoController extends Controller
             $bindings[] = (int) $filters['staff_id'];
         }
 
+        if (isset($filters['id_area'])) {
+            $clauses[] = 'sg.id_area = ?';
+            $bindings[] = (int) $filters['id_area'];
+        }
+
         if (isset($filters['tipo'])) {
             $clauses[] = 'cg.tipo = ?';
             $bindings[] = $filters['tipo'];
@@ -121,6 +127,7 @@ class SolicitudGastoController extends Controller
                 sg.id,
                 sg.staff_id,
                 sg.id_area,
+                sg.estado_id,
                 sg.motivo,
                 sg.monto_estimado,
                 sg.monto_real,
@@ -132,6 +139,14 @@ class SolicitudGastoController extends Controller
                 os.firstname,
                 os.lastname,
                 a.descripcion_area AS area,
+                sge.id AS estado_rel_id,
+                sge.codigo AS estado_rel_codigo,
+                sge.nombre AS estado_rel_nombre,
+                sge.tipo AS estado_rel_tipo,
+                sge.activo AS estado_rel_activo,
+                sge.orden AS estado_rel_orden,
+                sge.es_aprobacion AS estado_rel_es_aprobacion,
+                sge.es_rechazo AS estado_rel_es_rechazo,
                 cg.id AS comprobante_id,
                 cg.tipo AS comprobante_tipo,
                 cg.numero AS comprobante_numero,
@@ -140,6 +155,7 @@ class SolicitudGastoController extends Controller
             FROM solicitudes_gasto sg
             LEFT JOIN ost_staff os ON os.staff_id = sg.staff_id
             LEFT JOIN area a ON a.id_area = sg.id_area
+            LEFT JOIN solicitud_gasto_estados sge ON sge.id = sg.estado_id
             LEFT JOIN (
                 SELECT cg1.*
                 FROM comprobantes_gasto cg1
@@ -174,11 +190,22 @@ SQL;
                 'id' => (int) $row->id,
                 'staff_id' => $row->staff_id !== null ? (int) $row->staff_id : null,
                 'id_area' => $row->id_area !== null ? (int) $row->id_area : null,
+                'estado_id' => $row->estado_id !== null ? (int) $row->estado_id : null,
                 'solicitante' => $this->formatStaffFullName($row),
                 'username' => $row->username ?? null,
                 'area' => $row->area ?? null,
                 'motivo' => $row->motivo ?? null,
                 'estado' => $row->estado ?? null,
+                'estado_detalle' => [
+                    'id' => $row->estado_rel_id !== null ? (int) $row->estado_rel_id : null,
+                    'codigo' => $row->estado_rel_codigo ?? null,
+                    'nombre' => $row->estado_rel_nombre ?? null,
+                    'tipo' => $row->estado_rel_tipo ?? null,
+                    'activo' => $row->estado_rel_activo !== null ? (int) $row->estado_rel_activo : null,
+                    'orden' => $row->estado_rel_orden !== null ? (int) $row->estado_rel_orden : null,
+                    'es_aprobacion' => $row->estado_rel_es_aprobacion !== null ? (int) $row->estado_rel_es_aprobacion : null,
+                    'es_rechazo' => $row->estado_rel_es_rechazo !== null ? (int) $row->estado_rel_es_rechazo : null,
+                ],
                 'fecha_solicitud' => $row->fecha_solicitud ?? null,
                 'fecha_aprobacion' => $row->fecha_aprobacion ?? null,
                 'fecha_reembolso' => $row->fecha_reembolso ?? null,
