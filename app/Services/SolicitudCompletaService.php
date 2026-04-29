@@ -176,9 +176,11 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                     continue;
                 }
 
-                $inventario = $this->findInventario($connection, $idReferencia);
+                // Compatibilidad: el cliente puede enviar id_producto en el campo id_inventario.
+                // Priorizamos buscar por id_producto y, si no existe, intentamos por id_inventario.
+                $inventario = $this->findInventarioByProducto($connection, $idReferencia);
                 if ($inventario === null) {
-                    $inventario = $this->findInventarioByProducto($connection, $idReferencia);
+                    $inventario = $this->findInventario($connection, $idReferencia);
                 }
 
                 if ($inventario === null) {
@@ -250,7 +252,8 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
 
             $category = $this->resolveItemCategory($item);
 
-            $inventarioId = (int) ($item['id_inventario'] ?? $item['id_producto'] ?? 0);
+            // Priorizamos id_producto para resolver el inventario real.
+            $inventarioId = (int) ($item['id_producto'] ?? $item['id_inventario'] ?? 0);
             $cantidad = (int) ($item['cantidad'] ?? $item['quantity'] ?? 0);
             $idArea = (int) ($item['id_area'] ?? $item['area_id'] ?? 0);
             $observacion = trim((string) ($item['observacion'] ?? $item['observation'] ?? ''));
