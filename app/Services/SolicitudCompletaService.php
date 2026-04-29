@@ -27,11 +27,11 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
 
     private const TIPO_SOLICITUD_MIXTO = 'MIXTO';
 
-    private const PRODUCTOS_RRHH_PSCR = [195, 196, 197, 198, 199];
+    private const GASTO_AREA_ALMACEN_GENERAL = 1;
 
-    private const SOLICITUD_GASTO_ESTADO_PENDIENTE = 'pendiente';
+    private const GASTO_MOTIVO_DEFAULT = 'Solicitud general de almacen';
 
-    private const SOLICITUD_GASTO_MONTO_DEFAULT = 130.00;
+    private const GASTO_ESTADO_DEFAULT = 'pendiente';
 
     /**
      * @var array<int, string>
@@ -42,7 +42,6 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
     {
         $connection = DB::connection('mysql_external');
         $solicitante = $this->findSolicitante($connection, (int) $data['id_usuario_solicitante']);
-        $productosRrhhPscr = $this->collectProductosRrhhPscr($data);
 
         if ($solicitante === null) {
             throw new DomainException('No se encontró el usuario solicitante.');
@@ -54,21 +53,19 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
 
         $items = $this->collectItems($connection, $data, $files);
 
-        if ($items === [] && $productosRrhhPscr === []) {
-            throw new DomainException($this->buildNoValidProductsMessage($data, $productosRrhhPscr));
+        if ($items === []) {
+            throw new DomainException($this->buildNoValidProductsMessage($data));
         }
 
-        $itemsPscr = $this->extractPscrItems($items);
-        $itemsNoPscr = $this->extractNonPscrItems($items);
         $esPedidoCompraOriginal = (int) ($data['es_pedido_compra'] ?? 0) === 1;
         $esUbicacionLima = $this->isUbicacionLima($data);
         $itemsNoPscrAreaInterna = $esUbicacionLima
-            ? $this->extractItemsByArea($itemsNoPscr, self::AREA_INTERNO_RRHH)
+            ? $this->extractItemsByArea($items, self::AREA_INTERNO_RRHH)
             : [];
-        $itemsNoPscrRestantes = $itemsNoPscr;
+        $itemsNoPscrRestantes = $items;
 
         if ($itemsNoPscrAreaInterna !== []) {
-            $itemsNoPscrRestantes = $this->excludeItemsByArea($itemsNoPscr, self::AREA_INTERNO_RRHH);
+            $itemsNoPscrRestantes = $this->excludeItemsByArea($items, self::AREA_INTERNO_RRHH);
         }
 
         $solicitudesARegistrar = [];
@@ -76,7 +73,6 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
         if ($itemsNoPscrAreaInterna !== []) {
             $solicitudesARegistrar[] = [
                 'items' => $itemsNoPscrAreaInterna,
-                'productos_rrhh_pscr' => [],
                 'es_pedido_compra' => false,
             ];
         }
@@ -84,7 +80,6 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
         if ($itemsNoPscrRestantes !== []) {
             $solicitudesARegistrar[] = [
                 'items' => $itemsNoPscrRestantes,
-                'productos_rrhh_pscr' => [],
                 'es_pedido_compra' => $esPedidoCompraOriginal,
             ];
         }
@@ -98,7 +93,6 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                 $data,
                 $solicitante,
                 $solicitudData['items'],
-                $solicitudData['productos_rrhh_pscr'],
                 (bool) $solicitudData['es_pedido_compra']
             );
 
@@ -128,41 +122,16 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                 $uploadedFilesSolicitud
             );
 
-            $tickets[] = $this->formatTicket($solicitudId);
-            $uploadedFiles = array_merge($uploadedFiles, $uploadedFilesSolicitud);
-        }
-
-        if ($itemsPscr !== [] || ($items === [] && $productosRrhhPscr !== [])) {
-            $productosPscr = $itemsPscr !== []
-                ? $this->extractPscrProductIdsFromItems($itemsPscr)
-                : $productosRrhhPscr;
-
-            $registroGasto = $this->persistSolicitudGasto(
+            $solicitudGastoId = $this->persistSolicitudGastoDesdeSolicitud(
                 $connection,
-                $data,
-                $solicitante,
-                $itemsPscr,
-                $productosPscr
+                (int) $data['id_usuario_solicitante'],
+                $solicitudData['items'],
+                $uploadedFilesSolicitud
             );
 
-            $solicitudGastoId = (int) $registroGasto['solicitud_gasto_id'];
-            $uploadedFilesGasto = [];
-
-            try {
-                $uploadedFilesGasto = $this->storeFiles(
-                    $solicitudGastoId,
-                    $itemsPscr,
-                    'uploads/solicitudes_gasto'
-                );
-                $this->syncSolicitudGastoDetalleImagenes($connection, $solicitudGastoId, $uploadedFilesGasto);
-            } catch (Throwable $e) {
-                $this->deleteStoredFiles($uploadedFilesGasto);
-                $this->rollbackSolicitudGasto($connection, $solicitudGastoId);
-                throw $e;
-            }
-
+            $tickets[] = $this->formatTicket($solicitudId);
             $tickets[] = $this->formatGastoTicket($solicitudGastoId);
-            $uploadedFiles = array_merge($uploadedFiles, $uploadedFilesGasto);
+            $uploadedFiles = array_merge($uploadedFiles, $uploadedFilesSolicitud);
         }
 
         if ($tickets === []) {
@@ -323,7 +292,6 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
     /**
      * @param  array<string, mixed>  $data
      * @param  array<int, array<string, mixed>>  $items
-     * @param  array<int, int>  $productosRrhhPscr
      * @return array{solicitud_id:int,area_ids:array<int,int>}
      */
     protected function persistSolicitud(
@@ -331,7 +299,6 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
         array $data,
         object $solicitante,
         array $items,
-        array $productosRrhhPscr,
         bool $esPedidoCompra
     ): array {
         $areaIds = collect($items)
@@ -347,7 +314,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
         }
 
         $areaIds = array_values(array_unique(array_map('intval', $areaIds)));
-        $tipoSolicitud = $this->resolveTipoSolicitud($items, $productosRrhhPscr, $esPedidoCompra);
+        $tipoSolicitud = $this->resolveTipoSolicitud($items, $esPedidoCompra);
         $esPedidoCompraInt = $esPedidoCompra ? 1 : 0;
         $now = now();
 
@@ -425,41 +392,47 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
 
     /**
      * @param  array<int, array<string, mixed>>  $items
-     * @param  array<int, int>  $productosRrhhPscr
-     * @return array{solicitud_gasto_id:int}
+     * @param  array<int, array<string, mixed>>  $uploadedFiles
      */
-    protected function persistSolicitudGasto(
+    protected function persistSolicitudGastoDesdeSolicitud(
         object $connection,
-        array $data,
-        object $solicitante,
+        int $staffId,
         array $items,
-        array $productosRrhhPscr
-    ): array {
-        $solicitudGastoId = $connection->transaction(function () use (
-            $connection,
-            $data,
-            $solicitante,
-            $items,
-            $productosRrhhPscr
-        ): int {
-            $solicitudGastoId = $this->registrarSolicitudGasto(
-                $connection,
-                $data,
-                $solicitante,
-                $productosRrhhPscr,
-                now()
-            );
+        array $uploadedFiles
+    ): int {
+        return $connection->transaction(function () use ($connection, $staffId, $items, $uploadedFiles): int {
+            $solicitudGastoId = (int) $connection->table('solicitudes_gasto')->insertGetId([
+                'staff_id' => $staffId,
+                'id_area' => self::GASTO_AREA_ALMACEN_GENERAL,
+                'motivo' => self::GASTO_MOTIVO_DEFAULT,
+                'monto_estimado' => 0.0,
+                'monto_real' => 0.0,
+                'estado' => self::GASTO_ESTADO_DEFAULT,
+                'fecha_solicitud' => now()->format('Y-m-d H:i:s'),
+                'fecha_aprobacion' => null,
+                'fecha_reembolso' => null,
+            ]);
+
+            $rutaPorProducto = collect($uploadedFiles)
+                ->filter(fn (array $file): bool => isset($file['id_producto']) && (int) $file['id_producto'] > 0)
+                ->mapWithKeys(fn (array $file): array => [(int) $file['id_producto'] => ($file['path'] ?? null)])
+                ->all();
 
             $detalleRows = [];
             foreach ($items as $item) {
+                $idProducto = (int) ($item['id_producto'] ?? 0);
+                if ($idProducto <= 0) {
+                    continue;
+                }
+
                 $detalleRows[] = [
                     'solicitud_gasto_id' => $solicitudGastoId,
-                    'id_producto' => (int) $item['id_producto'],
-                    'cantidad' => (int) $item['quantity'],
-                    'precio_estimado' => 0,
-                    'precio_real' => 0,
-                    'descripcion_adicional' => $item['observacion'],
-                    'ruta_imagen' => null,
+                    'id_producto' => $idProducto,
+                    'cantidad' => (int) ($item['quantity'] ?? 0),
+                    'precio_estimado' => 0.0,
+                    'precio_real' => 0.0,
+                    'descripcion_adicional' => $item['observacion'] ?? null,
+                    'ruta_imagen' => $rutaPorProducto[$idProducto] ?? null,
                 ];
             }
 
@@ -469,66 +442,8 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
 
             return $solicitudGastoId;
         });
-
-        return [
-            'solicitud_gasto_id' => $solicitudGastoId,
-        ];
     }
 
-    /**
-     * @param  array<int, int>  $productosRrhhPscr
-     */
-    protected function registrarSolicitudGasto(
-        object $connection,
-        array $data,
-        object $solicitante,
-        array $productosRrhhPscr,
-        mixed $fechaSolicitud
-    ): int {
-        $motivo = trim((string) ($data['justificacion'] ?? ''));
-        if ($motivo === '') {
-            $motivo = 'Solicitud de gasto generada desde SolicitudCompletaService';
-        }
-
-        $productos = implode(',', $productosRrhhPscr);
-        $areaId = (int) (config('services.solicitudes.area_compras_id') ?: ($solicitante->dept_id ?? 7));
-
-        return (int) $connection->table('solicitudes_gasto')->insertGetId([
-            'staff_id' => (int) $data['id_usuario_solicitante'],
-            'id_area' => $areaId,
-            'motivo' => $motivo.' | PSCR: '.$productos,
-            'monto_estimado' => self::SOLICITUD_GASTO_MONTO_DEFAULT,
-            'monto_real' => self::SOLICITUD_GASTO_MONTO_DEFAULT,
-            'estado' => self::SOLICITUD_GASTO_ESTADO_PENDIENTE,
-            'fecha_solicitud' => $fechaSolicitud,
-            'fecha_aprobacion' => null,
-            'fecha_reembolso' => null,
-        ]);
-    }
-
-    /**
-     * @param  array<int, array<string, mixed>>  $items
-     * @return array<int, array<string, mixed>>
-     */
-    protected function extractPscrItems(array $items): array
-    {
-        return array_values(array_filter(
-            $items,
-            fn (array $item): bool => $this->isPscrProductId((int) ($item['id_producto'] ?? 0))
-        ));
-    }
-
-    /**
-     * @param  array<int, array<string, mixed>>  $items
-     * @return array<int, array<string, mixed>>
-     */
-    protected function extractNonPscrItems(array $items): array
-    {
-        return array_values(array_filter(
-            $items,
-            fn (array $item): bool => ! $this->isPscrProductId((int) ($item['id_producto'] ?? 0))
-        ));
-    }
 
     /**
      * @param  array<int, array<string, mixed>>  $items
@@ -552,26 +467,6 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
             $items,
             fn (array $item): bool => (int) ($item['id_area'] ?? 0) !== $areaId
         ));
-    }
-
-    /**
-     * @param  array<int, array<string, mixed>>  $items
-     * @return array<int, int>
-     */
-    protected function extractPscrProductIdsFromItems(array $items): array
-    {
-        return collect($items)
-            ->pluck('id_producto')
-            ->map(fn ($id) => (int) $id)
-            ->filter(fn (int $id): bool => $this->isPscrProductId($id))
-            ->unique()
-            ->values()
-            ->all();
-    }
-
-    protected function isPscrProductId(int $idProducto): bool
-    {
-        return in_array($idProducto, self::PRODUCTOS_RRHH_PSCR, true);
     }
 
     protected function findSolicitante(object $connection, int $staffId): ?object
@@ -703,27 +598,6 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
     /**
      * @param  array<int, array<string, mixed>>  $uploadedFiles
      */
-    protected function syncSolicitudGastoDetalleImagenes(object $connection, int $solicitudGastoId, array $uploadedFiles): void
-    {
-        if ($uploadedFiles === []) {
-            return;
-        }
-
-        $connection->transaction(function () use ($connection, $solicitudGastoId, $uploadedFiles): void {
-            foreach ($uploadedFiles as $uploadedFile) {
-                $connection->table('solicitud_gasto_detalles')
-                    ->where('solicitud_gasto_id', $solicitudGastoId)
-                    ->where('id_producto', (int) $uploadedFile['id_producto'])
-                    ->update([
-                        'ruta_imagen' => $uploadedFile['path'],
-                    ]);
-            }
-        });
-    }
-
-    /**
-     * @param  array<int, array<string, mixed>>  $uploadedFiles
-     */
     protected function deleteStoredFiles(array $uploadedFiles): void
     {
         if ($uploadedFiles === []) {
@@ -738,26 +612,6 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
             if (is_string($path) && $path !== '' && $disk->exists($path)) {
                 $disk->delete($path);
             }
-        }
-    }
-
-    protected function rollbackSolicitudGasto(object $connection, int $solicitudGastoId): void
-    {
-        try {
-            $connection->transaction(function () use ($connection, $solicitudGastoId): void {
-                $connection->table('solicitud_gasto_detalles')
-                    ->where('solicitud_gasto_id', $solicitudGastoId)
-                    ->delete();
-
-                $connection->table('solicitudes_gasto')
-                    ->where('id', $solicitudGastoId)
-                    ->delete();
-            });
-        } catch (Throwable $e) {
-            Log::error('solicitudes.registrar_completa.rollback_gasto_error', [
-                'id_solicitud_gasto' => $solicitudGastoId,
-                'error' => $e->getMessage(),
-            ]);
         }
     }
 
@@ -953,9 +807,8 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
 
     /**
      * @param  array<string, mixed>  $data
-     * @param  array<int, int>  $productosRrhhPscr
      */
-    protected function buildNoValidProductsMessage(array $data, array $productosRrhhPscr): string
+    protected function buildNoValidProductsMessage(array $data): string
     {
         $diagnosticos = [];
 
@@ -999,34 +852,11 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
         }
 
         $keysRecibidas = implode(',', array_keys($data));
-        $pscr = $productosRrhhPscr === [] ? '0' : implode(',', $productosRrhhPscr);
-
         return sprintf(
-            'No se encontraron productos validos para registrar. Diagnostico: %s. rrhh_pscr_detectados=%s. keys_recibidas=%s.',
+            'No se encontraron productos validos para registrar. Diagnostico: %s. keys_recibidas=%s.',
             implode(' | ', $diagnosticos),
-            $pscr,
             $keysRecibidas === '' ? 'ninguna' : $keysRecibidas
         );
-    }
-
-    /**
-     * @param  array<string, mixed>  $data
-     * @return array<int, int>
-     */
-    protected function collectProductosRrhhPscr(array $data): array
-    {
-        $ids = [];
-
-        foreach (self::CATEGORIES as $category) {
-            $ids = array_merge($ids, $this->normalizeList($data, "id_producto_{$category}"));
-        }
-
-        return collect($ids)
-            ->map(fn ($id) => (int) $id)
-            ->filter(fn (int $id): bool => $this->isPscrProductId($id))
-            ->unique()
-            ->values()
-            ->all();
     }
 
     /**
@@ -1041,21 +871,12 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
 
     /**
      * @param  array<int, array<string, mixed>>  $items
-     * @param  array<int, int>  $productosRrhhPscr
      */
-    protected function resolveTipoSolicitud(array $items, array $productosRrhhPscr, bool $esPedidoCompra): string
+    protected function resolveTipoSolicitud(array $items, bool $esPedidoCompra): string
     {
         if ($esPedidoCompra) {
             return self::TIPO_SOLICITUD_COMPRA;
         }
-
-        $itemProductIds = collect($items)
-            ->pluck('id_producto')
-            ->map(fn ($id) => (int) $id)
-            ->filter(fn ($id) => $id > 0)
-            ->unique()
-            ->values()
-            ->all();
 
         $itemAreaIds = collect($items)
             ->pluck('id_area')
@@ -1065,30 +886,14 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
             ->values()
             ->all();
 
-        $hasRrhhPscrIds = $productosRrhhPscr !== []
-            || collect($itemProductIds)->contains(
-                fn (int $id): bool => $this->isPscrProductId($id)
-            );
-
         $isOnlyArea11 = $itemAreaIds !== []
             && collect($itemAreaIds)->every(fn (int $id): bool => $id === 11);
 
-        if (! $hasRrhhPscrIds && $isOnlyArea11) {
+        if ($isOnlyArea11) {
             return self::TIPO_SOLICITUD_INTERNO;
         }
 
-        if ($itemProductIds === []) {
-            return $productosRrhhPscr !== []
-                ? self::TIPO_SOLICITUD_INTERNO
-                : self::TIPO_SOLICITUD_MIXTO;
-        }
-
-        $allAreRrhhPscr = collect($itemProductIds)
-            ->every(fn (int $id): bool => $this->isPscrProductId($id));
-
-        return $allAreRrhhPscr
-            ? self::TIPO_SOLICITUD_INTERNO
-            : self::TIPO_SOLICITUD_MIXTO;
+        return self::TIPO_SOLICITUD_MIXTO;
     }
 
     protected function sanitizeEmail(string $email): ?string
