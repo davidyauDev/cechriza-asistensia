@@ -218,7 +218,7 @@ class SolicitudCompraWorkflowController extends Controller
         } catch (Throwable $e) {
             report($e);
 
-            return $this->errorResponse('No se pudo enviar la solicitud a gerencia.', 500);
+            return $this->errorResponse('No se pudo enviar la solicitud a gerencia: '.$e->getMessage(), 500);
         }
     }
 
