@@ -28,15 +28,22 @@ class SolicitudGastoController extends Controller
             [$sql, $bindings] = $this->buildIndexQuery($validated);
 
             $rows = $this->getConnection()->select($sql, $bindings);
+            $solicitudIds = collect($rows)->pluck('id')->map(fn ($id) => (int) $id)->all();
+
             $detallesPorSolicitud = $this->getDetallesPorSolicitudIds(
                 $this->getConnection(),
-                collect($rows)->pluck('id')->map(fn ($id) => (int) $id)->all()
+                $solicitudIds
+            );
+            $seguimientosPorSolicitud = $this->getSeguimientosPorSolicitudIds(
+                $this->getConnection(),
+                $solicitudIds
             );
 
             $payload = collect($rows)
                 ->map(fn (object $row): array => $this->buildIndexPayload(
                     $row,
-                    $detallesPorSolicitud[(int) $row->id] ?? []
+                    $detallesPorSolicitud[(int) $row->id] ?? [],
+                    $seguimientosPorSolicitud[(int) $row->id] ?? []
                 ))
                 ->values()
                 ->all();
@@ -178,8 +185,9 @@ SQL;
 
     /**
      * @param  array<int, array<string, mixed>>  $detalles
+     * @param  array<int, array<string, mixed>>  $seguimientos
      */
-    protected function buildIndexPayload(object $row, array $detalles = []): array
+    protected function buildIndexPayload(object $row, array $detalles = [], array $seguimientos = []): array
     {
         return [
             'id' => (int) $row->id,
@@ -218,6 +226,7 @@ SQL;
                 'archivo_url' => $row->comprobante_archivo_url ?? null,
             ],
             'solicitud_gasto_detalles' => $detalles,
+            'seguimientos_solicitud_gasto' => $seguimientos,
         ];
     }
 
@@ -280,6 +289,54 @@ SQL,
             'url_imagen' => $this->buildPublicUrl($row->ruta_imagen ?? null),
             'producto' => $row->producto ?? null,
         ];
+    }
+
+    /**
+     * @param  array<int, int>  $solicitudGastoIds
+     * @return array<int, array<int, array<string, mixed>>>
+     */
+    protected function getSeguimientosPorSolicitudIds($connection, array $solicitudGastoIds): array
+    {
+        $solicitudGastoIds = array_values(array_unique(array_filter(
+            array_map('intval', $solicitudGastoIds),
+            fn (int $id): bool => $id > 0
+        )));
+
+        if ($solicitudGastoIds === []) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($solicitudGastoIds), '?'));
+        $rows = $connection->select(
+            <<<SQL
+                SELECT
+                    ssg.id,
+                    ssg.solicitud_gasto_id,
+                    ssg.estado_anterior,
+                    ssg.estado_nuevo,
+                    ssg.comentario,
+                    ssg.staff_id,
+                    ssg.fecha,
+                    os.username,
+                    os.firstname,
+                    os.lastname,
+                    a.descripcion_area AS area
+                FROM seguimientos_solicitud_gasto ssg
+                LEFT JOIN ost_staff os ON os.staff_id = ssg.staff_id
+                LEFT JOIN area a ON a.id_area = os.id_area
+                WHERE ssg.solicitud_gasto_id IN ({$placeholders})
+                ORDER BY ssg.solicitud_gasto_id DESC, ssg.fecha DESC, ssg.id DESC
+SQL,
+            $solicitudGastoIds
+        );
+
+        return collect($rows)
+            ->groupBy(fn (object $row): int => (int) $row->solicitud_gasto_id)
+            ->map(fn ($items): array => collect($items)
+                ->map(fn (object $row): array => $this->buildHistorialPayload($row))
+                ->values()
+                ->all())
+            ->all();
     }
 
     protected function buildHistorialQuery(): string
