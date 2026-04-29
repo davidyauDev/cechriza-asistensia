@@ -561,7 +561,8 @@ class SolicitudCompraWorkflowController extends Controller
                     $filename = $imagen['filename'];
 
                     if ($path !== null && Storage::disk('public')->exists($path)) {
-                        $message->attachFromStorageDisk('public', $path, $filename);
+                        $absolutePath = Storage::disk('public')->path($path);
+                        $message->attach($absolutePath, ['as' => $filename]);
                     }
                 }
             }
