@@ -43,8 +43,17 @@ class SolicitudController extends Controller
                     ]
             );
 
+            $solicitudIds = collect($rows)->pluck('id_solicitud')->map(fn ($id): int => (int) $id)->all();
+            $detallesPorSolicitud = $this->getDetallesPorSolicitudIds(
+                $this->getConnection(),
+                $solicitudIds
+            );
+
             $payload = collect($rows)
-                ->map(fn (object $row): array => $this->buildIndexPayload($row))
+                ->map(fn (object $row): array => $this->buildIndexPayload(
+                    $row,
+                    $detallesPorSolicitud[(int) $row->id_solicitud] ?? []
+                ))
                 ->values()
                 ->all();
 
@@ -302,7 +311,7 @@ SQL
         ];
     }
 
-    protected function buildIndexPayload(object $row): array
+    protected function buildIndexPayload(object $row, array $detalles = []): array
     {
         return [
             'id_solicitud' => (int) $row->id_solicitud,
@@ -325,7 +334,78 @@ SQL
                 'firstname' => $row->firstname ?? null,
                 'lastname' => $row->lastname ?? null,
             ],
+            'detalles' => $detalles,
         ];
+    }
+
+    /**
+     * @param  array<int, int>  $solicitudIds
+     * @return array<int, array<int, array<string, mixed>>>
+     */
+    protected function getDetallesPorSolicitudIds($connection, array $solicitudIds): array
+    {
+        $solicitudIds = array_values(array_unique(array_filter(
+            array_map('intval', $solicitudIds),
+            fn (int $id): bool => $id > 0
+        )));
+
+        if ($solicitudIds === []) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($solicitudIds), '?'));
+        $rows = $connection->select(
+            <<<SQL
+                SELECT
+                    d.id_detalle_solicitud,
+                    d.id_solicitud,
+                    d.id_inventario,
+                    d.area_id,
+                    a.descripcion_area AS area,
+                    i.id_area AS id_area_inventario,
+                    i.stock_actual,
+                    p.descripcion AS producto,
+                    d.cantidad_solicitada AS solicitado,
+                    d.cantidad_aprobada AS aprobado,
+                    d.cantidad_atendida,
+                    d.id_estado_detalle,
+                    e.descripcion AS estado,
+                    d.url_imagen,
+                    d.observacion_atencion,
+                    d.motivo_rechazo AS motivo,
+                    d.id_usuario_atendio,
+                    d.fecha_atencion,
+                    s.id_usuario_solicitante,
+                    s.fecha_registro,
+                    s.fecha_necesaria,
+                    s.fecha_cierre,
+                    s.prioridad,
+                    s.ubicacion,
+                    s.tipo_entrega_preferida,
+                    s.justificacion,
+                    u.firstname,
+                    u.lastname,
+                    u.email
+                FROM solicitud_detalles d
+                INNER JOIN solicitudes s ON s.id_solicitud = d.id_solicitud
+                INNER JOIN ost_staff u ON u.staff_id = s.id_usuario_solicitante
+                INNER JOIN inventario i ON i.id_inventario = d.id_inventario
+                INNER JOIN productos p ON p.id_producto = i.id_producto
+                LEFT JOIN area a ON a.id_area = d.area_id
+                INNER JOIN estados_inventario e ON e.id_estado = d.id_estado_detalle
+                WHERE d.id_solicitud IN ({$placeholders})
+                ORDER BY d.id_solicitud DESC, COALESCE(NULLIF(d.area_id, 0), i.id_area) ASC, p.descripcion ASC
+SQL,
+            $solicitudIds
+        );
+
+        return collect($rows)
+            ->groupBy(fn (object $row): int => (int) $row->id_solicitud)
+            ->map(fn ($items): array => collect($items)
+                ->map(fn (object $row): array => $this->buildDetallePayload($row))
+                ->values()
+                ->all())
+            ->all();
     }
 
     protected function buildDetallePayload(object $row): array

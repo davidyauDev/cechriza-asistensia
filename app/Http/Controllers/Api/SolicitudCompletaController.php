@@ -14,7 +14,6 @@ class SolicitudCompletaController extends Controller
     public function __construct(
         private readonly SolicitudCompletaServiceInterface $service
     ) {
-        //
     }
 
     public function store(StoreSolicitudCompletaRequest $request): JsonResponse
