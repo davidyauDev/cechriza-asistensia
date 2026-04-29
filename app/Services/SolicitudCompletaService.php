@@ -196,26 +196,30 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
             $observaciones = $this->normalizeList($data, "observacion_{$category}");
             $fotos = $this->normalizeListPreserveKeys($files, "foto_{$category}");
             $areasCategoria = $this->normalizeList($data, "id_area_{$category}");
-
             foreach ($inventarios as $index => $inventarioRaw) {
-                $idInventario = (int) $inventarioRaw;
+                $idReferencia = (int) $inventarioRaw;
                 $cantidad = (int) ($cantidades[$index] ?? 0);
                 $areaDesdeCategoria = (int) ($areasCategoria[$index] ?? 0);
                 $areaDesdeGlobal = (int) ($areasGlobales[$areaGlobalIndex] ?? 0);
                 $areaGlobalIndex++;
 
-                if ($idInventario <= 0 || $cantidad <= 0) {
+                if ($idReferencia <= 0 || $cantidad <= 0) {
                     continue;
                 }
 
-                if (isset($seenInventarios[$idInventario])) {
-                    throw new DomainException("El inventario {$idInventario} está duplicado en la solicitud.");
+                $inventario = $this->findInventario($connection, $idReferencia);
+                if ($inventario === null) {
+                    $inventario = $this->findInventarioByProducto($connection, $idReferencia);
                 }
-
-                $inventario = $this->findInventario($connection, $idInventario);
 
                 if ($inventario === null) {
                     continue;
+                }
+
+                $idInventario = (int) $inventario->id_inventario;
+
+                if (isset($seenInventarios[$idInventario])) {
+                    throw new DomainException("El inventario {$idInventario} esta duplicado en la solicitud.");
                 }
 
                 $idAreaDetalle = $areaDesdeCategoria > 0
@@ -607,6 +611,31 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
 
         return $rows[0] ?? null;
     }
+
+    protected function findInventarioByProducto(object $connection, int $idProducto): ?object
+    {
+        $rows = $connection->select(
+            <<<'SQL'
+                SELECT
+                    i.id_inventario,
+                    i.id_area,
+                    i.id_producto,
+                    p.descripcion AS producto,
+                    p.requiere_foto_producto_anterior,
+                    a.descripcion_area
+                FROM inventario i
+                INNER JOIN productos p ON p.id_producto = i.id_producto
+                LEFT JOIN area a ON a.id_area = i.id_area
+                WHERE i.id_producto = ?
+                ORDER BY i.id_inventario ASC
+                LIMIT 1
+            SQL,
+            [$idProducto]
+        );
+
+        return $rows[0] ?? null;
+    }
+
 
     /**
      * @param  array<int, array<string, mixed>>  $items
