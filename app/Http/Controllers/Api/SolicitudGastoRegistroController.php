@@ -49,7 +49,7 @@ class SolicitudGastoRegistroController extends Controller
         try {
             $result = DB::connection('mysql_external')->transaction(function () use ($validated, $request, &$storedPaths): array {
                 $inventarioMap = $this->loadInventarioProductMap($validated['solicitud_gasto_detalles']);
-                $estadoId = $this->resolveEstadoIdDefault();
+                $estadoId = $this->resolveEstadoIdByArea((int) $validated['id_area']);
 
                 $solicitud = new SolicitudGasto();
                 $solicitud->setConnection('mysql_external');
@@ -211,6 +211,15 @@ class SolicitudGastoRegistroController extends Controller
         }
 
         return (int) $estadoId;
+    }
+
+    protected function resolveEstadoIdByArea(int $idArea): int
+    {
+        if ($idArea !== 11) {
+            return 12;
+        }
+
+        return $this->resolveEstadoIdDefault();
     }
 
     protected function storeDetalleImagen(int $solicitudGastoId, UploadedFile $file): string
