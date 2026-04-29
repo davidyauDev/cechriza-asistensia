@@ -143,10 +143,7 @@ class SolicitudCompraWorkflowController extends Controller
             'staff_id' => ['nullable', 'integer', 'min:1', 'exists:mysql_external.ost_staff,staff_id'],
         ]);
 
-        $user = $request->user();
-        if (! $this->isRrhhUser($user)) {
-            return $this->errorResponse('No autorizado. Solo RRHH puede enviar a gerencia.', 403);
-        }
+        
 
         $connection = $this->getConnection();
 
