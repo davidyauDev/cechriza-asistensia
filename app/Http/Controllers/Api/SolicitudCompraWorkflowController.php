@@ -143,7 +143,8 @@ class SolicitudCompraWorkflowController extends Controller
             'staff_id' => ['nullable', 'integer', 'min:1', 'exists:mysql_external.ost_staff,staff_id'],
         ]);
 
-        
+        $user = $request->user();
+      
 
         $connection = $this->getConnection();
 
