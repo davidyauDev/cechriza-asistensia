@@ -119,6 +119,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/solicitudes/registrar-completa', [SolicitudCompletaController::class, 'store'])->name('solicitudes.registrar-completa');
     Route::post('/solicitudes/detalles/{id}/aprobar', [DetalleSolicitudController::class, 'aprobar'])->whereNumber('id')->name('solicitudes.detalles.aprobar');
     Route::post('/solicitudes/detalles/{id}/rechazar', [DetalleSolicitudController::class, 'rechazar'])->whereNumber('id')->name('solicitudes.detalles.rechazar');
+    Route::patch('/solicitudes/detalles/{id}/derivar-logistica', [DetalleSolicitudController::class, 'derivarLogistica'])->whereNumber('id')->name('solicitudes.detalles.derivar-logistica');
     Route::get('/solicitudes-gasto/comprobantes', [SolicitudGastoController::class, 'index'])->name('solicitudes-gasto.comprobantes.index');
     Route::post('/solicitudes-gasto/comprobantes', [ComprobanteGastoRegistroController::class, 'store'])->name('solicitudes-gasto.comprobantes.store');
     Route::get('/solicitudes-gasto/{id}/historial', [SolicitudGastoController::class, 'historial'])->whereNumber('id')->name('solicitudes-gasto.historial');

@@ -205,7 +205,34 @@ class DetalleSolicitudController extends Controller
             return $this->errorResponse('No se pudo rechazar el detalle de solicitud.', 500);
         }
     }
+    public function derivarLogistica(int $detalleId): JsonResponse
+    {
+        try {
+            $connection = $this->getConnection();
+            $detalle = $this->findDetalleById($connection, $detalleId);
 
+            if (! $detalle) {
+                return $this->errorResponse('Detalle de solicitud no encontrado.', 404);
+            }
+
+            $connection->update(
+                'UPDATE solicitud_detalles
+                 SET derivado_a_logistica = 1
+                 WHERE id_detalle_solicitud = ?',
+                [$detalleId]
+            );
+
+            return $this->successResponse([
+                'id_detalle_solicitud' => (int) $detalle->id_detalle_solicitud,
+                'id_solicitud' => (int) $detalle->id_solicitud,
+                'derivado_a_logistica' => true,
+            ], 'Detalle derivado a logistica correctamente');
+        } catch (Throwable $e) {
+            report($e);
+
+            return $this->errorResponse('No se pudo derivar el detalle a logistica.', 500);
+        }
+    }
     protected function findDetalleById($connection, int $detalleId): ?object
     {
         $rows = $connection->select(
@@ -243,3 +270,4 @@ class DetalleSolicitudController extends Controller
         return DB::connection('mysql_external');
     }
 }
+
