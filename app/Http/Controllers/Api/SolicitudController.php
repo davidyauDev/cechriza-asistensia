@@ -208,6 +208,7 @@ SQL,
                 s.ubicacion,
                 s.estado_rrhh,
                 s.estado_rrhh_comentario,
+                s.acta_rrhh_url,
                 s.id_estado_general,
                 s.fecha_registro,
                 e.descripcion AS estado,
@@ -239,7 +240,8 @@ SQL
                 d.cantidad_aprobada AS aprobado,
                 d.cantidad_atendida,
                 d.id_estado_detalle,
-                e.descripcion AS estado,
+                    d.derivado_a_logistica,
+                    e.descripcion AS estado,
                 d.url_imagen,
                 d.observacion_atencion,
                 d.motivo_rechazo AS motivo,
@@ -321,6 +323,7 @@ SQL
             'tipo_solicitud' => $row->tipo_solicitud ?? null,
             'estado_rrhh' => $row->estado_rrhh ?? null,
             'estado_rrhh_comentario' => $row->estado_rrhh_comentario ?? null,
+            'acta_rrhh_url' => $row->acta_rrhh_url ?? null,
             'id_estado_general' => isset($row->id_estado_general) ? (int) $row->id_estado_general : null,
             'fecha_registro' => $row->fecha_registro ?? null,
             'ubicacion' => $row->ubicacion ?? null,
@@ -371,6 +374,7 @@ SQL
                     d.cantidad_aprobada AS aprobado,
                     d.cantidad_atendida,
                     d.id_estado_detalle,
+                    d.derivado_a_logistica,
                     e.descripcion AS estado,
                     d.url_imagen,
                     d.observacion_atencion,
@@ -491,3 +495,4 @@ SQL,
         return $appUrl.'/storage/'.ltrim($path, '/');
     }
 }
+
