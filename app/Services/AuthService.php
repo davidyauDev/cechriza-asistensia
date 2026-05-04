@@ -31,7 +31,6 @@ class AuthService implements AuthServiceInterface
 
     public function logout(): void
     {
-        // Assuming we have access to the currently authenticated user
         $user = auth()->user();
         if ($user) {
             $user->currentAccessToken()->delete();

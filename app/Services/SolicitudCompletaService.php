@@ -21,17 +21,9 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
 
     private const UBICACION_LIMA = 'LIMA';
 
-    private const TIPO_SOLICITUD_COMPRA = 'COMPRA';
-
     private const TIPO_SOLICITUD_INTERNO = 'INTERNO';
 
     private const TIPO_SOLICITUD_MIXTO = 'MIXTO';
-
-    private const GASTO_AREA_ALMACEN_GENERAL = 1;
-
-    private const GASTO_MOTIVO_DEFAULT = 'Solicitud general de almacen';
-
-    private const GASTO_ESTADO_DEFAULT = 'pendiente';
 
     /**
      * @var array<int, string>
@@ -57,7 +49,6 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
             throw new DomainException($this->buildNoValidProductsMessage($data));
         }
 
-        $esPedidoCompraOriginal = (int) ($data['es_pedido_compra'] ?? 0) === 1;
         $esUbicacionLima = $this->isUbicacionLima($data);
         $itemsNoPscrAreaInterna = $esUbicacionLima
             ? $this->extractItemsByArea($items, self::AREA_INTERNO_RRHH)
@@ -71,29 +62,22 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
         $solicitudesARegistrar = [];
 
         if ($itemsNoPscrAreaInterna !== []) {
-            $solicitudesARegistrar[] = [
-                'items' => $itemsNoPscrAreaInterna,
-                'es_pedido_compra' => false,
-            ];
+            $solicitudesARegistrar[] = $itemsNoPscrAreaInterna;
         }
 
         if ($itemsNoPscrRestantes !== []) {
-            $solicitudesARegistrar[] = [
-                'items' => $itemsNoPscrRestantes,
-                'es_pedido_compra' => $esPedidoCompraOriginal,
-            ];
+            $solicitudesARegistrar[] = $itemsNoPscrRestantes;
         }
 
         $tickets = [];
         $uploadedFiles = [];
 
-        foreach ($solicitudesARegistrar as $solicitudData) {
+        foreach ($solicitudesARegistrar as $solicitudItems) {
             $registro = $this->persistSolicitud(
                 $connection,
                 $data,
                 $solicitante,
-                $solicitudData['items'],
-                (bool) $solicitudData['es_pedido_compra']
+                $solicitudItems
             );
 
             $solicitudId = (int) $registro['solicitud_id'];
@@ -101,7 +85,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
             $uploadedFilesSolicitud = [];
 
             try {
-                $uploadedFilesSolicitud = $this->storeFiles($solicitudId, $solicitudData['items']);
+                $uploadedFilesSolicitud = $this->storeFiles($solicitudId, $solicitudItems);
                 $this->syncDetalleImagenes($connection, $solicitudId, $uploadedFilesSolicitud);
             } catch (Throwable $e) {
                 $this->deleteStoredFiles($uploadedFilesSolicitud);
@@ -109,28 +93,17 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                 throw $e;
             }
 
-            $notificationData = $data;
-            $notificationData['es_pedido_compra'] = (bool) $solicitudData['es_pedido_compra'] ? 1 : 0;
-
             $this->sendNotifications(
                 $connection,
-                $notificationData,
+                $data,
                 $solicitante,
-                $solicitudData['items'],
+                $solicitudItems,
                 $areaIds,
                 $solicitudId,
                 $uploadedFilesSolicitud
             );
 
-            $solicitudGastoId = $this->persistSolicitudGastoDesdeSolicitud(
-                $connection,
-                (int) $data['id_usuario_solicitante'],
-                $solicitudData['items'],
-                $uploadedFilesSolicitud
-            );
-
             $tickets[] = $this->formatTicket($solicitudId);
-            $tickets[] = $this->formatGastoTicket($solicitudGastoId);
             $uploadedFiles = array_merge($uploadedFiles, $uploadedFilesSolicitud);
         }
 
@@ -301,8 +274,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
         object $connection,
         array $data,
         object $solicitante,
-        array $items,
-        bool $esPedidoCompra
+        array $items
     ): array {
         $areaIds = collect($items)
             ->pluck('id_area')
@@ -312,16 +284,11 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
             ->values()
             ->all();
 
-        if ($esPedidoCompra) {
-            $areaIds[] = (int) config('services.solicitudes.area_compras_id', 7);
-        }
-
         $areaIds = array_values(array_unique(array_map('intval', $areaIds)));
-        $tipoSolicitud = $this->resolveTipoSolicitud($items, $esPedidoCompra);
-        $esPedidoCompraInt = $esPedidoCompra ? 1 : 0;
+        $tipoSolicitud = $this->resolveTipoSolicitud($items);
         $now = now();
 
-        $solicitudId = $connection->transaction(function () use ($connection, $data, $items, $areaIds, $solicitante, $tipoSolicitud, $esPedidoCompraInt, $now): int {
+        $solicitudId = $connection->transaction(function () use ($connection, $data, $items, $areaIds, $solicitante, $tipoSolicitud, $now): int {
             $solicitudId = (int) $connection->table('solicitudes')->insertGetId([
                 'id_usuario_solicitante' => (int) $data['id_usuario_solicitante'],
                 'id_area_origen' => (int) $solicitante->dept_id,
@@ -332,8 +299,8 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                 'tipo_entrega_preferida' => $data['tipo_entrega_preferida'] ?? 'Directo',
                 'id_direccion_entrega' => $data['id_direccion_entrega'] ?? null,
                 'ubicacion' => $data['ubicacion'] ?? null,
-                'es_pedido_compra' => $esPedidoCompraInt,
-                'pedido_compra_estado' => $esPedidoCompraInt,
+                'es_pedido_compra' => 0,
+                'pedido_compra_estado' => 0,
                 'tipo_solicitud' => $tipoSolicitud,
                 'justificacion' => $data['justificacion'] ?? null,
             ]);
@@ -392,61 +359,6 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
             'area_ids' => $areaIds,
         ];
     }
-
-    /**
-     * @param  array<int, array<string, mixed>>  $items
-     * @param  array<int, array<string, mixed>>  $uploadedFiles
-     */
-    protected function persistSolicitudGastoDesdeSolicitud(
-        object $connection,
-        int $staffId,
-        array $items,
-        array $uploadedFiles
-    ): int {
-        return $connection->transaction(function () use ($connection, $staffId, $items, $uploadedFiles): int {
-            $solicitudGastoId = (int) $connection->table('solicitudes_gasto')->insertGetId([
-                'staff_id' => $staffId,
-                'id_area' => self::GASTO_AREA_ALMACEN_GENERAL,
-                'motivo' => self::GASTO_MOTIVO_DEFAULT,
-                'monto_estimado' => 0.0,
-                'monto_real' => 0.0,
-                'estado' => self::GASTO_ESTADO_DEFAULT,
-                'fecha_solicitud' => now()->format('Y-m-d H:i:s'),
-                'fecha_aprobacion' => null,
-                'fecha_reembolso' => null,
-            ]);
-
-            $rutaPorProducto = collect($uploadedFiles)
-                ->filter(fn (array $file): bool => isset($file['id_producto']) && (int) $file['id_producto'] > 0)
-                ->mapWithKeys(fn (array $file): array => [(int) $file['id_producto'] => ($file['path'] ?? null)])
-                ->all();
-
-            $detalleRows = [];
-            foreach ($items as $item) {
-                $idProducto = (int) ($item['id_producto'] ?? 0);
-                if ($idProducto <= 0) {
-                    continue;
-                }
-
-                $detalleRows[] = [
-                    'solicitud_gasto_id' => $solicitudGastoId,
-                    'id_producto' => $idProducto,
-                    'cantidad' => (int) ($item['quantity'] ?? 0),
-                    'precio_estimado' => 0.0,
-                    'precio_real' => 0.0,
-                    'descripcion_adicional' => $item['observacion'] ?? null,
-                    'ruta_imagen' => $rutaPorProducto[$idProducto] ?? null,
-                ];
-            }
-
-            if ($detalleRows !== []) {
-                $connection->table('solicitud_gasto_detalles')->insert($detalleRows);
-            }
-
-            return $solicitudGastoId;
-        });
-    }
-
 
     /**
      * @param  array<int, array<string, mixed>>  $items
@@ -625,12 +537,11 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
      */
     protected function sendNotifications(object $connection, array $data, object $solicitante, array $items, array $areaIds, int $solicitudId, array $uploadedFiles): void
     {
-        $recipientEmails = $this->resolveRecipientEmails($connection, (int) $data['es_pedido_compra'], $areaIds);
+        $recipientEmails = $this->resolveRecipientEmails($connection, $areaIds);
 
         if ($recipientEmails === []) {
             Log::warning('solicitudes.registrar_completa.sin_destinatarios', [
                 'id_solicitud' => $solicitudId,
-                'es_pedido_compra' => (int) $data['es_pedido_compra'],
                 'areas' => $areaIds,
             ]);
 
@@ -651,7 +562,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
             ],
             areas: $areaIds,
             items: $items,
-            isPurchaseOrder: (int) $data['es_pedido_compra'] === 1,
+            isPurchaseOrder: false,
             justificacion: $data['justificacion'] ?? null,
             uploadedFiles: $uploadedFiles,
             ccRecipients: $this->resolveCcRecipients(),
@@ -674,14 +585,8 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
      * @param  array<int, int>  $areaIds
      * @return array<int, string>
      */
-    protected function resolveRecipientEmails(object $connection, int $esPedidoCompra, array $areaIds): array
+    protected function resolveRecipientEmails(object $connection, array $areaIds): array
     {
-        if ($esPedidoCompra === 1) {
-            return array_values(array_filter([
-                $this->sanitizeEmail((string) config('services.solicitudes.pedido_compra_notify_email')),
-            ]));
-        }
-
         if ($areaIds === []) {
             return [];
         }
@@ -875,12 +780,8 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
     /**
      * @param  array<int, array<string, mixed>>  $items
      */
-    protected function resolveTipoSolicitud(array $items, bool $esPedidoCompra): string
+    protected function resolveTipoSolicitud(array $items): string
     {
-        if ($esPedidoCompra) {
-            return self::TIPO_SOLICITUD_COMPRA;
-        }
-
         $itemAreaIds = collect($items)
             ->pluck('id_area')
             ->map(fn ($id) => (int) $id)
@@ -927,11 +828,6 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
     protected function formatTicket(int $solicitudId): string
     {
         return 'SOL-'.str_pad((string) $solicitudId, 6, '0', STR_PAD_LEFT);
-    }
-
-    protected function formatGastoTicket(int $solicitudGastoId): string
-    {
-        return 'GAS-'.str_pad((string) $solicitudGastoId, 6, '0', STR_PAD_LEFT);
     }
 
     protected function buildPublicUrl(string $path): ?string
