@@ -4,9 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreMemoryMatchScoreRequest;
-use App\Models\MemoryMatchScore;
 use App\Traits\ApiResponseTrait;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class MemoryMatchScoreController extends Controller
 {
@@ -18,11 +18,15 @@ class MemoryMatchScoreController extends Controller
         $score = $this->calculateScore($validated['elapsed_seconds'], $validated['moves']);
         $playedAt = $validated['played_at'] ?? now();
         $userId = (int) $validated['user_id'];
+        $connection = DB::connection('external_mysql');
 
-        $current = MemoryMatchScore::query()->find($userId);
+        $current = $connection
+            ->table('memory_match_leaderboard')
+            ->where('user_id', $userId)
+            ->first();
 
         if (! $current) {
-            MemoryMatchScore::query()->create([
+            $connection->table('memory_match_leaderboard')->insert([
                 'user_id' => $userId,
                 'user_name' => $validated['user_name'],
                 'best_score' => $score,
@@ -30,6 +34,8 @@ class MemoryMatchScoreController extends Controller
                 'best_elapsed_seconds' => $validated['elapsed_seconds'],
                 'matched_pairs' => $validated['matched_pairs'],
                 'last_played_at' => $playedAt,
+                'created_at' => now(),
+                'updated_at' => now(),
             ]);
         } else {
             $isBetter = $this->isCandidateBetter(
@@ -44,6 +50,7 @@ class MemoryMatchScoreController extends Controller
             $update = [
                 'user_name' => $validated['user_name'],
                 'last_played_at' => $playedAt,
+                'updated_at' => now(),
             ];
 
             if ($isBetter) {
@@ -53,13 +60,16 @@ class MemoryMatchScoreController extends Controller
                 $update['matched_pairs'] = $validated['matched_pairs'];
             }
 
-            MemoryMatchScore::query()
+            $connection->table('memory_match_leaderboard')
                 ->where('user_id', $userId)
                 ->update($update);
         }
 
         $rank = $this->rankByUserId($userId);
-        $best = MemoryMatchScore::query()->find($userId);
+        $best = $connection
+            ->table('memory_match_leaderboard')
+            ->where('user_id', $userId)
+            ->first();
 
         return $this->successResponse([
             'user_id' => $userId,
@@ -80,7 +90,8 @@ class MemoryMatchScoreController extends Controller
 
         $limit = (int) ($validated['limit'] ?? 20);
 
-        $rows = MemoryMatchScore::query()
+        $rows = DB::connection('external_mysql')
+            ->table('memory_match_leaderboard')
             ->orderByDesc('best_score')
             ->orderBy('best_elapsed_seconds')
             ->orderBy('best_moves')
@@ -88,7 +99,7 @@ class MemoryMatchScoreController extends Controller
             ->limit($limit)
             ->get()
             ->values()
-            ->map(function (MemoryMatchScore $score, int $index) {
+            ->map(function (object $score, int $index) {
                 return [
                     'rank_position' => $index + 1,
                     'user_id' => $score->user_id,
@@ -97,7 +108,7 @@ class MemoryMatchScoreController extends Controller
                     'elapsed_seconds' => (int) $score->best_elapsed_seconds,
                     'moves' => (int) $score->best_moves,
                     'matched_pairs' => $score->matched_pairs,
-                    'played_at' => optional($score->last_played_at)->toISOString(),
+                    'played_at' => $score->last_played_at,
                 ];
             });
 
@@ -109,7 +120,10 @@ class MemoryMatchScoreController extends Controller
 
     public function myScore(int $userId)
     {
-        $bestScore = MemoryMatchScore::query()->find($userId);
+        $bestScore = DB::connection('external_mysql')
+            ->table('memory_match_leaderboard')
+            ->where('user_id', $userId)
+            ->first();
 
         if (! $bestScore) {
             return $this->errorResponse('No se encontraron puntajes para el usuario.', 404);
@@ -134,13 +148,18 @@ class MemoryMatchScoreController extends Controller
 
     private function rankByUserId(int $userId): ?int
     {
-        $best = MemoryMatchScore::query()->find($userId);
+        $connection = DB::connection('external_mysql');
+        $best = $connection
+            ->table('memory_match_leaderboard')
+            ->where('user_id', $userId)
+            ->first();
 
         if (! $best) {
             return null;
         }
 
-        $count = MemoryMatchScore::query()
+        $count = $connection
+            ->table('memory_match_leaderboard')
             ->where(function ($where) use ($best) {
                 $where->where('best_score', '>', $best->best_score)
                     ->orWhere(function ($tie1) use ($best) {
