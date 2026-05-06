@@ -71,15 +71,23 @@ class MemoryMatchScoreController extends Controller
             ->where('user_id', $userId)
             ->first();
 
-        return $this->successResponse([
+        $data = [
+            'id' => $best?->user_id ? (int) $best->user_id : $userId,
             'user_id' => $userId,
-            'user_name' => $validated['user_name'],
+            'user_name' => (string) ($best->user_name ?? $validated['user_name']),
             'last_game_score' => $score,
-            'best_score' => (int) $best->best_score,
-            'best_elapsed_seconds' => (int) $best->best_elapsed_seconds,
-            'best_moves' => (int) $best->best_moves,
+            'best_score' => isset($best->best_score) ? (int) $best->best_score : null,
+            'best_elapsed_seconds' => isset($best->best_elapsed_seconds) ? (int) $best->best_elapsed_seconds : null,
+            'best_moves' => isset($best->best_moves) ? (int) $best->best_moves : null,
             'rank' => $rank,
-        ], 'Puntaje registrado correctamente.', 201);
+            'played_at' => is_string($playedAt) ? $playedAt : $playedAt->format('Y-m-d H:i:s'),
+        ];
+
+        $message = $rank === null
+            ? 'Score registrado correctamente. Rank pendiente de calcular'
+            : 'Score registrado correctamente';
+
+        return $this->successResponse($data, $message, 201);
     }
 
     public function leaderboard(Request $request)
@@ -126,7 +134,7 @@ class MemoryMatchScoreController extends Controller
             ->first();
 
         if (! $bestScore) {
-            return $this->errorResponse('No se encontraron puntajes para el usuario.', 404);
+            return $this->successResponse(null, 'Sin score registrado');
         }
 
         $rank = $this->rankByUserId($userId);
