@@ -18,7 +18,7 @@ class MemoryMatchScoreController extends Controller
         $score = $this->calculateScore($validated['elapsed_seconds'], $validated['moves']);
         $playedAt = $validated['played_at'] ?? now();
         $userId = (int) $validated['user_id'];
-        $connection = DB::connection('external_mysql');
+        $connection = DB::connection('mysql_external');
 
         $current = $connection
             ->table('memory_match_leaderboard')
@@ -90,7 +90,7 @@ class MemoryMatchScoreController extends Controller
 
         $limit = (int) ($validated['limit'] ?? 20);
 
-        $rows = DB::connection('external_mysql')
+        $rows = DB::connection('mysql_external')
             ->table('memory_match_leaderboard')
             ->orderByDesc('best_score')
             ->orderBy('best_elapsed_seconds')
@@ -120,7 +120,7 @@ class MemoryMatchScoreController extends Controller
 
     public function myScore(int $userId)
     {
-        $bestScore = DB::connection('external_mysql')
+        $bestScore = DB::connection('mysql_external')
             ->table('memory_match_leaderboard')
             ->where('user_id', $userId)
             ->first();
@@ -148,7 +148,7 @@ class MemoryMatchScoreController extends Controller
 
     private function rankByUserId(int $userId): ?int
     {
-        $connection = DB::connection('external_mysql');
+        $connection = DB::connection('mysql_external');
         $best = $connection
             ->table('memory_match_leaderboard')
             ->where('user_id', $userId)
