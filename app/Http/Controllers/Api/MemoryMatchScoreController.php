@@ -19,25 +19,30 @@ class MemoryMatchScoreController extends Controller
         $playedAt = $validated['played_at'] ?? now();
         $userId = (int) $validated['user_id'];
         $connection = DB::connection('mysql_external');
+        $now = now();
 
-        $current = $connection
-            ->table('memory_match_leaderboard')
-            ->where('user_id', $userId)
-            ->first();
+        $connection->transaction(function () use ($connection, $validated, $score, $playedAt, $userId, $now): void {
+            $current = $connection
+                ->table('memory_match_leaderboard')
+                ->where('user_id', $userId)
+                ->lockForUpdate()
+                ->first();
 
-        if (! $current) {
-            $connection->table('memory_match_leaderboard')->insert([
-                'user_id' => $userId,
-                'user_name' => $validated['user_name'],
-                'best_score' => $score,
-                'best_moves' => $validated['moves'],
-                'best_elapsed_seconds' => $validated['elapsed_seconds'],
-                'matched_pairs' => $validated['matched_pairs'],
-                'last_played_at' => $playedAt,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-        } else {
+            if (! $current) {
+                $connection->table('memory_match_leaderboard')->insert([
+                    'user_id' => $userId,
+                    'user_name' => $validated['user_name'],
+                    'best_score' => $score,
+                    'best_moves' => $validated['moves'],
+                    'best_elapsed_seconds' => $validated['elapsed_seconds'],
+                    'matched_pairs' => $validated['matched_pairs'],
+                    'last_played_at' => $playedAt,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+                return;
+            }
+
             $isBetter = $this->isCandidateBetter(
                 $score,
                 (int) $validated['elapsed_seconds'],
@@ -50,7 +55,7 @@ class MemoryMatchScoreController extends Controller
             $update = [
                 'user_name' => $validated['user_name'],
                 'last_played_at' => $playedAt,
-                'updated_at' => now(),
+                'updated_at' => $now,
             ];
 
             if ($isBetter) {
@@ -63,11 +68,12 @@ class MemoryMatchScoreController extends Controller
             $connection->table('memory_match_leaderboard')
                 ->where('user_id', $userId)
                 ->update($update);
-        }
+        });
 
         $rank = $this->rankByUserId($userId);
         $best = $connection
             ->table('memory_match_leaderboard')
+            ->useWritePdo()
             ->where('user_id', $userId)
             ->first();
 
@@ -100,6 +106,7 @@ class MemoryMatchScoreController extends Controller
 
         $rows = DB::connection('mysql_external')
             ->table('memory_match_leaderboard')
+            ->useWritePdo()
             ->orderByDesc('best_score')
             ->orderBy('best_elapsed_seconds')
             ->orderBy('best_moves')
@@ -130,6 +137,7 @@ class MemoryMatchScoreController extends Controller
     {
         $bestScore = DB::connection('mysql_external')
             ->table('memory_match_leaderboard')
+            ->useWritePdo()
             ->where('user_id', $userId)
             ->first();
 
@@ -159,6 +167,7 @@ class MemoryMatchScoreController extends Controller
         $connection = DB::connection('mysql_external');
         $best = $connection
             ->table('memory_match_leaderboard')
+            ->useWritePdo()
             ->where('user_id', $userId)
             ->first();
 
