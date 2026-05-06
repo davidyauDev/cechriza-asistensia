@@ -6,21 +6,25 @@ use Illuminate\Database\Eloquent\Model;
 
 class MemoryMatchScore extends Model
 {
+    protected $connection = 'external_mysql';
+    protected $table = 'memory_match_leaderboard';
+    protected $primaryKey = 'user_id';
+    public $incrementing = false;
+    protected $keyType = 'int';
 
-      protected $connection = 'external_mysql';
-        protected $table = 'memory_match_scores';
     protected $fillable = [
         'user_id',
         'user_name',
-        'moves',
-        'elapsed_seconds',
+        'best_score',
+        'best_moves',
+        'best_elapsed_seconds',
         'matched_pairs',
-        'score',
-        'played_at',
+        'last_played_at',
     ];
 
     protected $casts = [
-        'played_at' => 'datetime',
+        'last_played_at' => 'datetime',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
     ];
 }
-

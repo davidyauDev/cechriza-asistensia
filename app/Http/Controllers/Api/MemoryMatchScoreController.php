@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreMemoryMatchScoreRequest;
 use App\Models\MemoryMatchScore;
 use App\Traits\ApiResponseTrait;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 
 class MemoryMatchScoreController extends Controller
@@ -17,22 +16,58 @@ class MemoryMatchScoreController extends Controller
     {
         $validated = $request->validated();
         $score = $this->calculateScore($validated['elapsed_seconds'], $validated['moves']);
+        $playedAt = $validated['played_at'] ?? now();
+        $userId = (int) $validated['user_id'];
 
-        MemoryMatchScore::create([
-            'user_id' => $validated['user_id'],
-            'user_name' => $validated['user_name'],
-            'moves' => $validated['moves'],
-            'elapsed_seconds' => $validated['elapsed_seconds'],
-            'matched_pairs' => $validated['matched_pairs'],
-            'score' => $score,
-            'played_at' => $validated['played_at'] ?? now(),
-        ]);
+        $current = MemoryMatchScore::query()->find($userId);
 
-        $rank = $this->rankByUserId((int) $validated['user_id']);
+        if (! $current) {
+            MemoryMatchScore::query()->create([
+                'user_id' => $userId,
+                'user_name' => $validated['user_name'],
+                'best_score' => $score,
+                'best_moves' => $validated['moves'],
+                'best_elapsed_seconds' => $validated['elapsed_seconds'],
+                'matched_pairs' => $validated['matched_pairs'],
+                'last_played_at' => $playedAt,
+            ]);
+        } else {
+            $isBetter = $this->isCandidateBetter(
+                $score,
+                (int) $validated['elapsed_seconds'],
+                (int) $validated['moves'],
+                (int) $current->best_score,
+                (int) $current->best_elapsed_seconds,
+                (int) $current->best_moves
+            );
+
+            $update = [
+                'user_name' => $validated['user_name'],
+                'last_played_at' => $playedAt,
+            ];
+
+            if ($isBetter) {
+                $update['best_score'] = $score;
+                $update['best_elapsed_seconds'] = $validated['elapsed_seconds'];
+                $update['best_moves'] = $validated['moves'];
+                $update['matched_pairs'] = $validated['matched_pairs'];
+            }
+
+            MemoryMatchScore::query()
+                ->where('user_id', $userId)
+                ->update($update);
+        }
+
+        $rank = $this->rankByUserId($userId);
+        $best = MemoryMatchScore::query()->find($userId);
 
         return $this->successResponse([
-            'user_id' => (int) $validated['user_id'],
-            'score' => $score,
+            'user_id' => $userId,
+            'user_name' => $validated['user_name'],
+            'last_game_score' => $score,
+            'best_score' => (int) $best->best_score,
+            'best_elapsed_seconds' => (int) $best->best_elapsed_seconds,
+            'best_moves' => (int) $best->best_moves,
             'rank' => $rank,
         ], 'Puntaje registrado correctamente.', 201);
     }
@@ -45,7 +80,11 @@ class MemoryMatchScoreController extends Controller
 
         $limit = (int) ($validated['limit'] ?? 20);
 
-        $rows = $this->orderedBestScoresQuery()
+        $rows = MemoryMatchScore::query()
+            ->orderByDesc('best_score')
+            ->orderBy('best_elapsed_seconds')
+            ->orderBy('best_moves')
+            ->orderBy('user_id')
             ->limit($limit)
             ->get()
             ->values()
@@ -54,11 +93,11 @@ class MemoryMatchScoreController extends Controller
                     'rank_position' => $index + 1,
                     'user_id' => $score->user_id,
                     'user_name' => $score->user_name,
-                    'score' => $score->score,
-                    'elapsed_seconds' => $score->elapsed_seconds,
-                    'moves' => $score->moves,
+                    'score' => (int) $score->best_score,
+                    'elapsed_seconds' => (int) $score->best_elapsed_seconds,
+                    'moves' => (int) $score->best_moves,
                     'matched_pairs' => $score->matched_pairs,
-                    'played_at' => optional($score->played_at)->toISOString(),
+                    'played_at' => optional($score->last_played_at)->toISOString(),
                 ];
             });
 
@@ -70,24 +109,20 @@ class MemoryMatchScoreController extends Controller
 
     public function myScore(int $userId)
     {
-        $bestScore = $this->orderedBestScoresQuery()
-            ->where('mms.user_id', $userId)
-            ->first();
+        $bestScore = MemoryMatchScore::query()->find($userId);
 
         if (! $bestScore) {
             return $this->errorResponse('No se encontraron puntajes para el usuario.', 404);
         }
 
-        $rank = $this->rankByBestRow($bestScore);
-        $bestTime = MemoryMatchScore::query()->where('user_id', $userId)->min('elapsed_seconds');
-        $bestMoves = MemoryMatchScore::query()->where('user_id', $userId)->min('moves');
+        $rank = $this->rankByUserId($userId);
 
         return $this->successResponse([
             'user_id' => $userId,
             'user_name' => $bestScore->user_name,
-            'best_score' => $bestScore->score,
-            'best_elapsed_seconds' => $bestTime,
-            'best_moves' => $bestMoves,
+            'best_score' => (int) $bestScore->best_score,
+            'best_elapsed_seconds' => (int) $bestScore->best_elapsed_seconds,
+            'best_moves' => (int) $bestScore->best_moves,
             'rank' => $rank,
         ], 'Mejor puntaje del usuario obtenido correctamente.');
     }
@@ -97,82 +132,62 @@ class MemoryMatchScoreController extends Controller
         return max(0, 10000 - ($elapsedSeconds * 20) - ($moves * 35));
     }
 
-    private function orderedBestScoresQuery(): Builder
-    {
-        return $this->bestScoresPerUserQuery()
-            ->orderByDesc('mms.score')
-            ->orderBy('mms.elapsed_seconds')
-            ->orderBy('mms.moves')
-            ->orderBy('mms.id');
-    }
-
-    private function bestScoresPerUserQuery(): Builder
-    {
-        return MemoryMatchScore::query()
-            ->from('memory_match_scores as mms')
-            ->select('mms.*')
-            ->whereNotExists(function ($query) {
-                $query->selectRaw('1')
-                    ->from('memory_match_scores as better')
-                    ->whereColumn('better.user_id', 'mms.user_id')
-                    ->where(function ($where) {
-                        $where->whereColumn('better.score', '>', 'mms.score')
-                            ->orWhere(function ($tie1) {
-                                $tie1->whereColumn('better.score', 'mms.score')
-                                    ->whereColumn('better.elapsed_seconds', '<', 'mms.elapsed_seconds');
-                            })
-                            ->orWhere(function ($tie2) {
-                                $tie2->whereColumn('better.score', 'mms.score')
-                                    ->whereColumn('better.elapsed_seconds', 'mms.elapsed_seconds')
-                                    ->whereColumn('better.moves', '<', 'mms.moves');
-                            })
-                            ->orWhere(function ($tie3) {
-                                $tie3->whereColumn('better.score', 'mms.score')
-                                    ->whereColumn('better.elapsed_seconds', 'mms.elapsed_seconds')
-                                    ->whereColumn('better.moves', 'mms.moves')
-                                    ->whereColumn('better.id', '<', 'mms.id');
-                            });
-                    });
-            });
-    }
-
     private function rankByUserId(int $userId): ?int
     {
-        $best = $this->orderedBestScoresQuery()
-            ->where('mms.user_id', $userId)
-            ->first();
+        $best = MemoryMatchScore::query()->find($userId);
 
         if (! $best) {
             return null;
         }
 
-        return $this->rankByBestRow($best);
-    }
-
-    private function rankByBestRow(MemoryMatchScore $best): int
-    {
-        $count = $this->bestScoresPerUserQuery()
+        $count = MemoryMatchScore::query()
             ->where(function ($where) use ($best) {
-                $where->where('mms.score', '>', $best->score)
+                $where->where('best_score', '>', $best->best_score)
                     ->orWhere(function ($tie1) use ($best) {
-                        $tie1->where('mms.score', $best->score)
-                            ->where('mms.elapsed_seconds', '<', $best->elapsed_seconds);
+                        $tie1->where('best_score', $best->best_score)
+                            ->where('best_elapsed_seconds', '<', $best->best_elapsed_seconds);
                     })
                     ->orWhere(function ($tie2) use ($best) {
-                        $tie2->where('mms.score', $best->score)
-                            ->where('mms.elapsed_seconds', $best->elapsed_seconds)
-                            ->where('mms.moves', '<', $best->moves);
+                        $tie2->where('best_score', $best->best_score)
+                            ->where('best_elapsed_seconds', $best->best_elapsed_seconds)
+                            ->where('best_moves', '<', $best->best_moves);
                     })
                     ->orWhere(function ($tie3) use ($best) {
-                        $tie3->where('mms.score', $best->score)
-                            ->where('mms.elapsed_seconds', $best->elapsed_seconds)
-                            ->where('mms.moves', $best->moves)
-                            ->where('mms.id', '<', $best->id);
+                        $tie3->where('best_score', $best->best_score)
+                            ->where('best_elapsed_seconds', $best->best_elapsed_seconds)
+                            ->where('best_moves', $best->best_moves)
+                            ->where('user_id', '<', $best->user_id);
                     });
             })
             ->count();
 
         return $count + 1;
     }
-}
 
+    private function isCandidateBetter(
+        int $candidateScore,
+        int $candidateElapsed,
+        int $candidateMoves,
+        int $currentScore,
+        int $currentElapsed,
+        int $currentMoves
+    ): bool {
+        if ($candidateScore > $currentScore) {
+            return true;
+        }
+
+        if ($candidateScore < $currentScore) {
+            return false;
+        }
+
+        if ($candidateElapsed < $currentElapsed) {
+            return true;
+        }
+
+        if ($candidateElapsed > $currentElapsed) {
+            return false;
+        }
+
+        return $candidateMoves < $currentMoves;
+    }
+}
