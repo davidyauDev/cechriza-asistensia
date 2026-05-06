@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\EventoController;
 use App\Http\Controllers\Api\IncidenciaController;
 use App\Http\Controllers\Api\InventarioController;
 use App\Http\Controllers\Api\InventarioProductosController;
+use App\Http\Controllers\Api\MemoryMatchScoreController;
 use App\Http\Controllers\Api\PersonnelEmployeeController;
 use App\Http\Controllers\Api\ProductoSolicitudCompraRrhhController;
 use App\Http\Controllers\Api\SolicitudCompraWorkflowController;
@@ -155,6 +156,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/{id}/aprobar-final', [SolicitudCompraWorkflowController::class, 'aprobarFinal'])->whereNumber('id')->name('rrhh.solicitudes-compra.aprobar-final');
         Route::post('/{id}/rechazar-rrhh', [SolicitudCompraWorkflowController::class, 'rechazarRrhh'])->whereNumber('id')->name('rrhh.solicitudes-compra.rechazar-rrhh');
         Route::post('/{id}/rechazar', [SolicitudCompraWorkflowController::class, 'rechazar'])->whereNumber('id')->name('rrhh.solicitudes-compra.rechazar');
+    });
+
+    Route::prefix('memory-match')->group(function () {
+        Route::post('/scores', [MemoryMatchScoreController::class, 'store']);
+        Route::get('/leaderboard', [MemoryMatchScoreController::class, 'leaderboard']);
+        Route::get('/my-score/{user_id}', [MemoryMatchScoreController::class, 'myScore'])->whereNumber('user_id');
     });
 
 });
