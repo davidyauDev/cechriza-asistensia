@@ -341,7 +341,7 @@ SQL
                 'firstname' => $row->firstname ?? null,
                 'lastname' => $row->lastname ?? null,
             ],
-            'subir_acta' => $idEstadoGeneral === 20 || $this->shouldUploadActa($detalles),
+            'subir_acta' => $idEstadoGeneral === 20 && $this->shouldUploadActa($detalles),
             'detalles' => $detalles,
         ];
     }
