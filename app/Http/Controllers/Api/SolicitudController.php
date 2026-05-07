@@ -236,6 +236,7 @@ SQL
                 i.id_area AS id_area_inventario,
                 i.stock_actual,
                 p.descripcion AS producto,
+                p.requiere_documento,
                 d.cantidad_solicitada AS solicitado,
                 d.cantidad_aprobada AS aprobado,
                 d.cantidad_atendida,
@@ -316,6 +317,8 @@ SQL
 
     protected function buildIndexPayload(object $row, array $detalles = []): array
     {
+        $idEstadoGeneral = isset($row->id_estado_general) ? (int) $row->id_estado_general : null;
+
         return [
             'id_solicitud' => (int) $row->id_solicitud,
             'id_usuario_solicitante' => (int) $row->id_usuario_solicitante,
@@ -324,11 +327,11 @@ SQL
             'estado_rrhh' => $row->estado_rrhh ?? null,
             'estado_rrhh_comentario' => $row->estado_rrhh_comentario ?? null,
             'acta_rrhh_url' => $row->acta_rrhh_url ?? null,
-            'id_estado_general' => isset($row->id_estado_general) ? (int) $row->id_estado_general : null,
+            'id_estado_general' => $idEstadoGeneral,
             'fecha_registro' => $row->fecha_registro ?? null,
             'ubicacion' => $row->ubicacion ?? null,
             'estado' => [
-                'id_estado' => isset($row->id_estado_general) ? (int) $row->id_estado_general : null,
+                'id_estado' => $idEstadoGeneral,
                 'descripcion' => $row->estado ?? null,
             ],
             'firstname' => $row->firstname ?? null,
@@ -338,6 +341,7 @@ SQL
                 'firstname' => $row->firstname ?? null,
                 'lastname' => $row->lastname ?? null,
             ],
+            'subir_acta' => $idEstadoGeneral === 20 || $this->shouldUploadActa($detalles),
             'detalles' => $detalles,
         ];
     }
@@ -370,6 +374,7 @@ SQL
                     i.id_area AS id_area_inventario,
                     i.stock_actual,
                     p.descripcion AS producto,
+                    p.requiere_documento,
                     d.cantidad_solicitada AS solicitado,
                     d.cantidad_aprobada AS aprobado,
                     d.cantidad_atendida,
@@ -426,6 +431,7 @@ SQL,
             'id_area_inventario' => $row->id_area_inventario !== null ? (int) $row->id_area_inventario : null,
             'stock_actual' => $row->stock_actual !== null ? (int) $row->stock_actual : null,
             'producto' => $row->producto ?? null,
+            'requiere_documento' => $this->toBool($row->requiere_documento ?? null),
             'solicitado' => $row->solicitado !== null ? (int) $row->solicitado : null,
             'aprobado' => $row->aprobado !== null ? (int) $row->aprobado : null,
             'cantidad_atendida' => $row->cantidad_atendida !== null ? (int) $row->cantidad_atendida : null,
@@ -463,6 +469,25 @@ SQL,
         $fullName = trim($firstname.' '.$lastname);
 
         return $fullName !== '' ? $fullName : null;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $detalles
+     */
+    protected function shouldUploadActa(array $detalles): bool
+    {
+        foreach ($detalles as $detalle) {
+            if ($this->toBool($detalle['requiere_documento'] ?? null)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    protected function toBool(mixed $value): bool
+    {
+        return filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? false;
     }
 
     protected function getConnection()
