@@ -327,6 +327,7 @@ SQL
             'justificacion' => $row->justificacion ?? null,
             'tipo_solicitud' => $row->tipo_solicitud ?? null,
             'estado_rrhh' => $row->estado_rrhh ?? null,
+            "qr_token" => $row->qr_token ?? null,
             'estado_rrhh_comentario' => $row->estado_rrhh_comentario ?? null,
             'acta_rrhh_url' => $row->acta_rrhh_url ?? null,
             'id_estado_general' => $idEstadoGeneral,
