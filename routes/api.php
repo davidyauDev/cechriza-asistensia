@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\EmployeeMobilityMonthlyCommentController;
 use App\Http\Controllers\Api\EventoController;
 use App\Http\Controllers\Api\IncidenciaController;
 use App\Http\Controllers\Api\InventarioController;
+use App\Http\Controllers\Api\InventarioDashboardController;
 use App\Http\Controllers\Api\InventarioProductosController;
 use App\Http\Controllers\Api\MemoryMatchScoreController;
 use App\Http\Controllers\Api\PersonnelEmployeeController;
@@ -113,6 +114,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     Route::get('/inventario', [InventarioController::class, 'index'])->name('inventario.index');
 
+    // Dashboard de inventario: endpoints nuevos aislados de las rutas existentes.
+    Route::prefix('inventario/dashboard')->group(function () {
+        Route::get('/consumo', [InventarioDashboardController::class, 'consumo'])->name('inventario.dashboard.consumo');
+        Route::get('/consumo-tecnico', [InventarioDashboardController::class, 'consumoTecnico'])->name('inventario.dashboard.consumo-tecnico');
+    });
+
     Route::get('/solicitudes', [SolicitudController::class, 'index'])->name('solicitudes.index');
     Route::get('/solicitudes/{id}', [SolicitudController::class, 'show'])->whereNumber('id')->name('solicitudes.show');
     Route::patch('/solicitudes/{id}/estado-rrhh', [SolicitudController::class, 'updateEstadoRrhh'])->whereNumber('id')->name('solicitudes.estado-rrhh.update');
@@ -128,6 +135,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/reabastecimiento/solicitudes', [ReabastecimientoController::class, 'index'])->name('reabastecimiento.index');
     Route::get('/reabastecimiento/solicitudes/{id}', [ReabastecimientoController::class, 'show'])->whereNumber('id')->name('reabastecimiento.show');
     Route::post('/reabastecimiento/solicitudes', [ReabastecimientoController::class, 'store'])->name('reabastecimiento.store');
+    Route::post('/reabastecimiento/solicitudes/{id}/estado', [ReabastecimientoController::class, 'updateEstadoSolicitud'])->whereNumber('id')->name('reabastecimiento.estado.update');
     Route::get('/reabastecimiento/solicitudes/{id}/seguimiento', [ReabastecimientoController::class, 'indexSeguimiento'])->whereNumber('id')->name('reabastecimiento.seguimiento.index');
     Route::post('/reabastecimiento/solicitudes/{id}/seguimiento', [ReabastecimientoController::class, 'storeSeguimiento'])->whereNumber('id')->name('reabastecimiento.seguimiento.store');
     Route::get('/reabastecimiento/solicitudes/{id}/archivos', [ReabastecimientoController::class, 'indexArchivos'])->whereNumber('id')->name('reabastecimiento.archivos.index');

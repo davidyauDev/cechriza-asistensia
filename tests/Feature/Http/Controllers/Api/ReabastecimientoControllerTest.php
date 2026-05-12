@@ -48,7 +48,7 @@ class ReabastecimientoControllerTest extends TestCase
             ->with(Mockery::on(function (array $payload) {
                 return $payload['id_usuario_solicitante'] === 163
                     && $payload['id_area_solicitante'] === 11
-                    && $payload['id_estado_general'] === 1
+                    && $payload['id_estado_general'] === 10
                     && $payload['justificacion'] === 'pedido de prueba';
             }))
             ->andReturn(9);
@@ -70,7 +70,7 @@ class ReabastecimientoControllerTest extends TestCase
             ->with(Mockery::on(function (array $payload) {
                 return $payload['id_solicitud_reb'] === 9
                     && $payload['id_usuario_comenta'] === 163
-                    && $payload['comentario'] === 'Solicitud creada y pendiente de aprobación por Compras.'
+                    && $payload['comentario'] === 'Solicitud creada y pendiente de revisión.'
                     && $payload['archivo_ruta'] === null
                     && $payload['archivo_nombre_original'] === null
                     && array_key_exists('fecha_creacion', $payload);
@@ -83,8 +83,8 @@ class ReabastecimientoControllerTest extends TestCase
                 return $payload['id_solicitud_reb'] === 9
                     && $payload['id_area_responsable'] === 7
                     && $payload['id_usuario_asignado'] === 185
-                    && $payload['id_estado'] === 1
-                    && $payload['comentarios'] === 'Solicitud creada y pendiente de aprobación por Compras.'
+                    && $payload['id_estado'] === 10
+                    && $payload['comentarios'] === 'Solicitud creada y pendiente de revisión.'
                     && $payload['archivo'] === null
                     && array_key_exists('fecha_actualizacion', $payload);
             }))
@@ -103,7 +103,6 @@ class ReabastecimientoControllerTest extends TestCase
         $request = Request::create('/api/reabastecimiento/solicitudes', 'POST', [
             'id_usuario_solicitante' => 163,
             'id_area_solicitante' => 11,
-            'id_estado_general' => 1,
             'justificacion' => 'pedido de prueba',
             'detalles' => [
                 ['id_producto' => 125, 'cantidad_solicitada' => 1],

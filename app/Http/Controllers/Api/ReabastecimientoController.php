@@ -25,75 +25,78 @@ class ReabastecimientoController extends Controller
 
     private const EXTERNAL_ARCHIVOS_BASE_URL = 'https://osticket.cechriza.com/system/vista/ajax/';
 
-    private const DEFAULT_INITIAL_LOG_COMMENT = 'Solicitud creada y pendiente de aprobación por Compras.';
+    private const ESTADO_PENDIENTE = 10;
+
+    private const ESTADO_APROBADO = 11;
+
+    private const ESTADO_COMPLETADO = 12;
+
+    private const ESTADO_RECHAZADO = 13;
+
+    private const ESTADO_CANCELADO = 14;
+
+    private const ESTADO_OBSERVADO = 15;
+
+    private const DEFAULT_INITIAL_LOG_COMMENT = 'Solicitud creada y pendiente de revisión.';
 
     private const DEFAULT_INITIAL_FLUJO_AREA_ID = 7;
 
     private const DEFAULT_INITIAL_FLUJO_USER_ID = 185;
 
-    private const DEFAULT_INITIAL_FLUJO_STATE_ID = 1;
+    private const DEFAULT_INITIAL_FLUJO_STATE_ID = self::ESTADO_PENDIENTE;
 
     private const TAB_STATE_IDS = [
-        'pendientes' => [1, 3, 9],
-        'procesando' => [4],
-        'cerrados' => [7],
+        'pendientes' => [self::ESTADO_PENDIENTE],
+        'observadas' => [self::ESTADO_OBSERVADO],
+        'aprobadas' => [self::ESTADO_APROBADO],
+        'rechazadas' => [self::ESTADO_RECHAZADO],
+        'completadas' => [self::ESTADO_COMPLETADO],
+        'canceladas' => [self::ESTADO_CANCELADO],
     ];
 
     private const STATE_META = [
-        1 => [
-            'key' => 'pendiente_aprobacion_compras',
-            'label' => 'Pendiente Aprobacion Compras',
+        self::ESTADO_PENDIENTE => [
+            'key' => 'pendiente',
+            'label' => 'Pendiente',
             'color' => 'yellow',
             'tab' => 'pendientes',
         ],
-        5 => [
-            'key' => 'pendiente_entrega',
-            'label' => 'Pendiente de Entrega',
-            'color' => 'yellow',
-            'tab' => 'pendientes',
-        ],
-        4 => [
-            'key' => 'devuelto_edicion',
-            'label' => 'Devuelto para Edicion',
-            'color' => 'orange',
-            'tab' => 'procesando',
-        ],
-        6 => [
-            'key' => 'aceptacion_recepcion',
-            'label' => 'Aceptacion de Recepcion',
+        self::ESTADO_OBSERVADO => [
+            'key' => 'observado',
+            'label' => 'Observado',
             'color' => 'blue',
-            'tab' => 'procesando',
+            'tab' => 'observadas',
         ],
-        9 => [
+        self::ESTADO_APROBADO => [
             'key' => 'aprobado',
             'label' => 'Aprobado',
             'color' => 'green',
-            'tab' => 'procesando',
+            'tab' => 'aprobadas',
         ],
-        2 => [
+        self::ESTADO_RECHAZADO => [
             'key' => 'rechazado',
             'label' => 'Rechazado',
             'color' => 'red',
-            'tab' => 'cerrados',
+            'tab' => 'rechazadas',
         ],
-        7 => [
-            'key' => 'cerrado',
-            'label' => 'Cerrado',
-            'color' => 'gray',
-            'tab' => 'cerrados',
+        self::ESTADO_COMPLETADO => [
+            'key' => 'completado',
+            'label' => 'Completado',
+            'color' => 'sky',
+            'tab' => 'completadas',
         ],
-        8 => [
+        self::ESTADO_CANCELADO => [
             'key' => 'cancelado',
             'label' => 'Cancelado',
-            'color' => 'slate',
-            'tab' => 'cerrados',
+            'color' => 'gray',
+            'tab' => 'canceladas',
         ],
     ];
 
     public function index(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'tab' => 'nullable|string|in:pendientes,procesando,cerrados,todos,all',
+            'tab' => 'nullable|string|in:pendientes,observadas,aprobadas,rechazadas,completadas,canceladas,todos,all',
             'search' => 'nullable|string|max:255',
             'from' => 'nullable|date',
             'to' => 'nullable|date',
@@ -102,6 +105,11 @@ class ReabastecimientoController extends Controller
         ]);
 
         try {
+            $profile = $this->resolveRequesterProfile($request);
+            if ($profile['staff_id'] > 0) {
+                $validated['_solicitante_id'] = $profile['staff_id'];
+            }
+
             return $this->successResponse(
                 $this->buildIndexPayload($validated),
                 'Solicitudes de reabastecimiento consultadas correctamente'
@@ -138,7 +146,6 @@ class ReabastecimientoController extends Controller
         $validated = $request->validate([
             'id_usuario_solicitante' => 'nullable|integer',
             'id_area_solicitante' => 'nullable|integer',
-            'id_estado_general' => 'nullable|integer',
             'justificacion' => 'required|string|max:1000',
             'detalles' => 'required|array|min:1',
             'detalles.*.id_producto' => 'required|integer',
@@ -146,8 +153,9 @@ class ReabastecimientoController extends Controller
         ]);
 
         try {
-            $usuarioId = $validated['id_usuario_solicitante'] ?? $request->user()?->id;
-            $areaId = $validated['id_area_solicitante'] ?? data_get($request->user(), 'department_id');
+            $profile = $this->resolveRequesterProfile($request, $validated);
+            $usuarioId = $profile['staff_id'];
+            $areaId = (int) ($validated['id_area_solicitante'] ?? self::AREA_ID);
 
             if (! $usuarioId || ! $areaId) {
                 return $this->errorResponse(
@@ -161,7 +169,7 @@ class ReabastecimientoController extends Controller
                 $solicitudId = $connection->table('solicitudes_reabastecimiento')->insertGetId([
                     'id_usuario_solicitante' => $usuarioId,
                     'id_area_solicitante' => $areaId,
-                    'id_estado_general' => $validated['id_estado_general'] ?? 1,
+                    'id_estado_general' => self::ESTADO_PENDIENTE,
                     'fecha_creacion' => now(),
                     'justificacion' => $validated['justificacion'],
                 ]);
@@ -176,7 +184,8 @@ class ReabastecimientoController extends Controller
                 );
 
                 $connection->table('reabastecimiento_detalles')->insert($detalles);
-
+                
+                date_default_timezone_set('America/Lima');
                 $now = now();
                 $connection->table(self::LOG_TABLE)->insertGetId([
                     'id_solicitud_reb' => $solicitudId,
@@ -208,6 +217,94 @@ class ReabastecimientoController extends Controller
             report($e);
 
             return $this->errorResponse('No se pudo registrar la solicitud de reabastecimiento.', 500);
+        }
+    }
+
+    public function updateEstadoSolicitud(Request $request, int $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'id_estado_reb' => 'required_without:id_estado|integer',
+            'id_estado' => 'required_without:id_estado_reb|integer',
+            'id_area_responsable' => 'nullable|integer',
+            'comentario' => 'required|string|max:1000',
+            'archivo' => 'nullable|file|max:10240',
+        ]);
+
+        $archivoRuta = null;
+
+        try {
+            $connection = $this->getConnection();
+            $solicitud = $this->findSolicitudById($connection, $id);
+
+            if (! $solicitud) {
+                return $this->errorResponse('Solicitud de reabastecimiento no encontrada.', 404);
+            }
+
+            $estadoDestino = (int) ($validated['id_estado_reb'] ?? $validated['id_estado']);
+            $estadoActual = (int) $solicitud->id_estado_general;
+
+            if (! $this->isRequesterStateTransitionAllowed($estadoActual, $estadoDestino)) {
+                return $this->errorResponse('No se permite realizar esta transición desde esta pantalla.', 422);
+            }
+
+            $profile = $this->resolveRequesterProfile($request);
+            $usuarioId = $profile['staff_id'];
+
+            if (! $usuarioId) {
+                return $this->errorResponse('No se pudo resolver el usuario solicitante.', 422);
+            }
+
+            if (
+                isset($solicitud->id_usuario_solicitante)
+                && (int) $solicitud->id_usuario_solicitante > 0
+                && (int) $solicitud->id_usuario_solicitante !== $usuarioId
+            ) {
+                return $this->errorResponse('Solo el solicitante puede modificar esta solicitud.', 403);
+            }
+
+            if ($estadoDestino === self::ESTADO_PENDIENTE) {
+                try {
+                    $this->validateSolicitudHasProducts($connection, $id);
+                } catch (\RuntimeException $e) {
+                    return $this->errorResponse($e->getMessage(), 422);
+                }
+            }
+
+            $archivo = $request->file('archivo');
+            $archivoRuta = $archivo ? $this->storeUploadedFile($archivo, 'reabastecimiento/seguimiento/'.$id) : null;
+            $areaId = $validated['id_area_responsable'] ?? ($profile['id_area'] ?: $solicitud->id_area_solicitante);
+            $comentario = trim((string) $validated['comentario']);
+            $now = now();
+
+            $result = $connection->transaction(function () use ($connection, $id, $usuarioId, $areaId, $estadoDestino, $comentario, $archivoRuta, $now) {
+                $flujoId = $connection->table(self::FLUJO_TABLE)->insertGetId([
+                    'id_solicitud_reb' => $id,
+                    'id_area_responsable' => (int) $areaId,
+                    'id_usuario_asignado' => (int) $usuarioId,
+                    'id_estado' => $estadoDestino,
+                    'comentarios' => $comentario,
+                    'archivo' => $archivoRuta,
+                    'fecha_actualizacion' => $now,
+                ]);
+
+                $connection->table('solicitudes_reabastecimiento')
+                    ->where('id_solicitud_reb', $id)
+                    ->update(['id_estado_general' => $estadoDestino]);
+
+                return [
+                    'id_solicitud_reb' => $id,
+                    'id_estado_final' => $estadoDestino,
+                    'id_flujo_reb' => (int) $flujoId,
+                ];
+            });
+
+            return $this->successResponse($result, $this->messageForEstado($estadoDestino));
+        } catch (Throwable $e) {
+            $this->deleteStoredUploadedFile($archivoRuta);
+
+            report($e);
+
+            return $this->errorResponse('No se pudo actualizar el estado de la solicitud.', 500);
         }
     }
 
@@ -319,6 +416,7 @@ class ReabastecimientoController extends Controller
             }
 
             $query = $connection->table(self::FLUJO_TABLE.' as rf')
+                ->leftJoin('estados_reabastecimiento as er', 'er.id_estado_reb', '=', 'rf.id_estado')
                 ->leftJoin('ost_staff as os', 'os.staff_id', '=', 'rf.id_usuario_asignado')
                 ->leftJoin('area as a', 'a.id_area', '=', 'rf.id_area_responsable')
                 ->select([
@@ -327,6 +425,7 @@ class ReabastecimientoController extends Controller
                     'rf.id_area_responsable',
                     'rf.id_usuario_asignado',
                     'rf.id_estado',
+                    'er.descripcion as estado_descripcion',
                     'rf.comentarios',
                     'rf.fecha_actualizacion',
                     'rf.archivo',
@@ -363,7 +462,8 @@ class ReabastecimientoController extends Controller
             $page = (int) ($validated['page'] ?? 1);
 
             $paginator = $query
-                ->orderByDesc('rf.fecha_actualizacion')
+                ->orderBy('rf.fecha_actualizacion')
+                // ->orderBy('rf.id_flujo_reb')
                 ->paginate($perPage, ['*'], 'page', $page);
 
             $items = collect($paginator->items())->map(function ($row) {
@@ -382,6 +482,7 @@ class ReabastecimientoController extends Controller
                 ],
             ], 'Historial de flujo consultado correctamente');
         } catch (Throwable $e) {
+            ds($e->getMessage());
             report($e);
 
             return $this->errorResponse('No se pudo consultar el historial de flujo.', 500);
@@ -739,6 +840,57 @@ class ReabastecimientoController extends Controller
         return DB::connection('mysql_external');
     }
 
+    /**
+     * @return array{staff_id:int,id_area:int}
+     */
+    protected function resolveRequesterProfile(Request $request, array $payload = []): array
+    {
+        $user = $request->user();
+        $staffId = (int) (
+            ($payload['id_usuario_solicitante'] ?? null)
+            ?: data_get($user, 'staff_id')
+            ?: 0
+        );
+        $areaId = (int) (
+            ($payload['id_area_solicitante'] ?? null)
+            ?: data_get($user, 'department_id')
+            ?: data_get($user, 'id_area')
+            ?: data_get($user, 'area_id')
+            ?: 0
+        );
+        $empCode = trim((string) (data_get($user, 'emp_code') ?: ''));
+
+        if ($empCode !== '') {
+            try {
+                $staff = $this->getConnection()
+                    ->table('ost_staff')
+                    ->select(['staff_id', 'dept_id'])
+                    ->where('dni', $empCode)
+                    ->first();
+
+                if ($staff) {
+                    $staffId = (int) ($payload['id_usuario_solicitante'] ?? $staff->staff_id ?? $staffId);
+                    $areaId = (int) ($payload['id_area_solicitante'] ?? $staff->dept_id ?? $areaId);
+                }
+            } catch (Throwable $e) {
+                report($e);
+            }
+        }
+
+        if ($staffId <= 0) {
+            $staffId = (int) ($user?->id ?? 0);
+        }
+
+        if ($areaId <= 0) {
+            $areaId = self::AREA_ID;
+        }
+
+        return [
+            'staff_id' => $staffId,
+            'id_area' => $areaId,
+        ];
+    }
+
     protected function storeUploadedFile(UploadedFile $archivo, string $directorio): string
     {
         $extension = $archivo->getClientOriginalExtension();
@@ -872,6 +1024,7 @@ class ReabastecimientoController extends Controller
             ->get();
 
         $estado = $this->resolveEstado((int) $solicitud->id_estado_general);
+        $totalUnidades = (int) $detalles->sum(fn ($detalle) => (int) $detalle->cantidad_solicitada);
 
         return [
             'solicitud' => [
@@ -888,6 +1041,8 @@ class ReabastecimientoController extends Controller
                 'fecha_creacion' => $solicitud->fecha_creacion,
                 'justificacion' => $solicitud->justificacion,
                 'detalles_count' => $detalles->count(),
+                'total_productos' => $detalles->count(),
+                'total_unidades' => $totalUnidades,
             ],
             'detalles' => $detalles->map(function ($detalle) {
                 return [
@@ -944,16 +1099,28 @@ class ReabastecimientoController extends Controller
 
         return [
             'pendientes' => [
-                'label' => 'PENDIENTES',
+                'label' => 'Pendientes',
                 'count' => $this->sumStateCounts($counts, self::TAB_STATE_IDS['pendientes']),
             ],
-            'procesando' => [
-                'label' => 'PROCESANDO',
-                'count' => $this->sumStateCounts($counts, self::TAB_STATE_IDS['procesando']),
+            'observadas' => [
+                'label' => 'Observadas',
+                'count' => $this->sumStateCounts($counts, self::TAB_STATE_IDS['observadas']),
             ],
-            'cerrados' => [
-                'label' => 'CERRADOS',
-                'count' => $this->sumStateCounts($counts, self::TAB_STATE_IDS['cerrados']),
+            'aprobadas' => [
+                'label' => 'Aprobadas',
+                'count' => $this->sumStateCounts($counts, self::TAB_STATE_IDS['aprobadas']),
+            ],
+            'rechazadas' => [
+                'label' => 'Rechazadas',
+                'count' => $this->sumStateCounts($counts, self::TAB_STATE_IDS['rechazadas']),
+            ],
+            'completadas' => [
+                'label' => 'Completadas',
+                'count' => $this->sumStateCounts($counts, self::TAB_STATE_IDS['completadas']),
+            ],
+            'canceladas' => [
+                'label' => 'Canceladas',
+                'count' => $this->sumStateCounts($counts, self::TAB_STATE_IDS['canceladas']),
             ],
         ];
     }
@@ -964,10 +1131,11 @@ class ReabastecimientoController extends Controller
      */
     protected function hydrateSolicitudesRows(Collection $rows, $connection): array
     {
-        $detailCounts = $this->getDetailCountsForSolicitudes($connection, $rows->pluck('id_solicitud_reb')->map(fn ($id) => (int) $id)->all());
+        $detailStats = $this->getDetailStatsForSolicitudes($connection, $rows->pluck('id_solicitud_reb')->map(fn ($id) => (int) $id)->all());
 
-        return $rows->map(function ($row) use ($detailCounts) {
+        return $rows->map(function ($row) use ($detailStats) {
             $solicitudId = (int) $row->id_solicitud_reb;
+            $stats = $detailStats[$solicitudId] ?? ['productos' => 0, 'unidades' => 0];
 
             return [
                 'id_solicitud_reb' => $solicitudId,
@@ -982,7 +1150,9 @@ class ReabastecimientoController extends Controller
                 'estado_inventario' => $this->buildEstadoInventarioPayload($row),
                 'fecha_creacion' => $row->fecha_creacion,
                 'justificacion' => $row->justificacion,
-                'detalles_count' => $detailCounts[$solicitudId] ?? 0,
+                'detalles_count' => $stats['productos'],
+                'total_productos' => $stats['productos'],
+                'total_unidades' => $stats['unidades'],
             ];
         })->values()->all();
     }
@@ -991,18 +1161,23 @@ class ReabastecimientoController extends Controller
      * @param  array<int, int>  $ids
      * @return array<int, int>
      */
-    protected function getDetailCountsForSolicitudes($connection, array $ids): array
+    protected function getDetailStatsForSolicitudes($connection, array $ids): array
     {
         if ($ids === []) {
             return [];
         }
 
         return $connection->table('reabastecimiento_detalles')
-            ->selectRaw('id_solicitud_reb, COUNT(*) as total')
+            ->selectRaw('id_solicitud_reb, COUNT(*) as total_productos, COALESCE(SUM(cantidad_solicitada), 0) as total_unidades')
             ->whereIn('id_solicitud_reb', $ids)
             ->groupBy('id_solicitud_reb')
-            ->pluck('total', 'id_solicitud_reb')
-            ->map(fn ($count) => (int) $count)
+            ->get()
+            ->mapWithKeys(fn ($row) => [
+                (int) $row->id_solicitud_reb => [
+                    'productos' => (int) $row->total_productos,
+                    'unidades' => (int) $row->total_unidades,
+                ],
+            ])
             ->all();
     }
 
@@ -1041,9 +1216,47 @@ class ReabastecimientoController extends Controller
         ];
     }
 
+    /**
+     * @return array<int>
+     */
+    protected function allStateIds(): array
+    {
+        return array_values(array_unique(array_merge(...array_values(self::TAB_STATE_IDS))));
+    }
+
+    protected function isRequesterStateTransitionAllowed(int $estadoActual, int $estadoDestino): bool
+    {
+        return match ($estadoActual) {
+            self::ESTADO_PENDIENTE => $estadoDestino === self::ESTADO_CANCELADO,
+            self::ESTADO_OBSERVADO => $estadoDestino === self::ESTADO_PENDIENTE,
+            default => false,
+        };
+    }
+
+    protected function messageForEstado(int $estadoId): string
+    {
+        return match ($estadoId) {
+            self::ESTADO_CANCELADO => 'Solicitud cancelada correctamente.',
+            self::ESTADO_PENDIENTE => 'Solicitud reenviada para revisión.',
+            default => 'Estado actualizado correctamente.',
+        };
+    }
+
+    protected function validateSolicitudHasProducts($connection, int $solicitudId): void
+    {
+        $total = (int) $connection->table('reabastecimiento_detalles')
+            ->where('id_solicitud_reb', $solicitudId)
+            ->where('cantidad_solicitada', '>', 0)
+            ->count();
+
+        if ($total <= 0) {
+            throw new \RuntimeException('La solicitud debe tener al menos un producto.');
+        }
+    }
+
     protected function formatCodigo(int $id): string
     {
-        return 'CECH_REA_'.str_pad((string) $id, 6, '0', STR_PAD_LEFT);
+        return 'CECH_REA_'.str_pad((string) $id, 8, '0', STR_PAD_LEFT);
     }
 
     /**
@@ -1099,12 +1312,21 @@ class ReabastecimientoController extends Controller
     protected function buildEstadoInventarioPayload(object $row): ?array
     {
         if ($row->estado_id === null && $row->estado_descripcion === null) {
-            return null;
+            $estadoId = (int) ($row->id_estado_general ?? 0);
+            $estado = $this->resolveEstado($estadoId);
+
+            return [
+                'id_estado' => $estadoId,
+                'descripcion' => $estado['label'],
+            ];
         }
 
+        $estadoId = $row->estado_id !== null ? (int) $row->estado_id : (int) $row->id_estado_general;
+        $estado = $this->resolveEstado($estadoId);
+
         return [
-            'id_estado' => $row->estado_id !== null ? (int) $row->estado_id : (int) $row->id_estado_general,
-            'descripcion' => $row->estado_descripcion,
+            'id_estado' => $estadoId,
+            'descripcion' => $row->estado_descripcion ?: $estado['label'],
         ];
     }
 
@@ -1116,6 +1338,11 @@ class ReabastecimientoController extends Controller
             ->leftJoin('estados_reabastecimiento as er', 'er.id_estado_reb', '=', 'sr.id_estado_general');
 
         $query->where('sr.id_area_solicitante', self::AREA_ID);
+        $query->whereIn('sr.id_estado_general', $this->allStateIds());
+
+        if (! empty($filters['_solicitante_id'])) {
+            $query->where('sr.id_usuario_solicitante', (int) $filters['_solicitante_id']);
+        }
 
         if ($tab && $tab !== 'all') {
             $query->whereIn('sr.id_estado_general', $this->getStateIdsForTab($tab));
@@ -1174,6 +1401,7 @@ class ReabastecimientoController extends Controller
         return $connection->table('solicitudes_reabastecimiento as sr')
             ->select([
                 'sr.id_solicitud_reb',
+                'sr.id_usuario_solicitante',
                 'sr.id_area_solicitante',
                 'sr.id_estado_general',
             ])
@@ -1266,6 +1494,7 @@ class ReabastecimientoController extends Controller
             'id_estado' => isset($row->id_estado) ? (int) $row->id_estado : null,
             'comentarios' => $comentarios,
             'archivo' => $archivo,
+            'estado_descripcion' => $row->estado_descripcion ?? null,
             'archivo_url' => $archivo ? $this->buildArchivoUrl($archivo) : null,
             'archivo_nombre_original' => $row->archivo_nombre_original ?? ($archivo ? basename((string) $archivo) : null),
             'staff' => $this->buildStaffPayload($row),
