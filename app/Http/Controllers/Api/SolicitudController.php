@@ -109,11 +109,16 @@ class SolicitudController extends Controller
             $connection->update(
                 'UPDATE solicitudes
                  SET estado_rrhh = ?,
-                     estado_rrhh_comentario = ?
+                     estado_rrhh_comentario = ?,
+                     id_estado_general = CASE
+                         WHEN ? = \'recojo_oficina\' THEN 27
+                         ELSE id_estado_general
+                     END
                  WHERE id_solicitud = ?',
                 [
                     $validated['estado_rrhh'],
                     $validated['estado_rrhh_comentario'] ?? null,
+                    $validated['estado_rrhh'],
                     $id,
                 ]
             );
@@ -523,4 +528,3 @@ SQL,
         return $appUrl.'/storage/'.ltrim($path, '/');
     }
 }
-
