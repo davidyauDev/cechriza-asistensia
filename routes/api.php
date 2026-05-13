@@ -79,6 +79,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/reporte-asistencia/detalle', [ReporteAsistenciaController::class, 'detalleAsist']);
     Route::post('/reporte-asistencia/detalle-general', [ReporteAsistenciaController::class, 'detalleAsistGeneral']);
     Route::post('/reporte-asistencia/technicians', [ReporteAsistenciaController::class, 'technicians']);
+    Route::post('/reporte-asistencia/technicians/empleado', [ReporteAsistenciaController::class, 'techniciansByEmployee']);
     Route::post('/reporte-asistencia/today', [ReporteAsistenciaController::class, 'today']);
 
     Route::post('/reporte-asistencia/resumen', [ReporteAsistenciaController::class, 'resumenAsistencia']);

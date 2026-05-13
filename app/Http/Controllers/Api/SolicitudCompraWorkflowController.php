@@ -172,11 +172,11 @@ class SolicitudCompraWorkflowController extends Controller
                     ];
                 }
 
-                $this->sendGerenciaNotification(
-                    $id,
-                    $validated['comentario'] ?? null,
-                    $user->name ?? null
-                );
+                // $this->sendGerenciaNotification(
+                //     $id,
+                //     $validated['comentario'] ?? null,
+                //     $user->name ?? null
+                // );
 
                 $connection->table('solicitudes_gasto')
                     ->where('id', $id)
