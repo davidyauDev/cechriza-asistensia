@@ -393,6 +393,72 @@ class ReporteAsistenciaController extends Controller
         ], 200, [], JSON_UNESCAPED_SLASHES);
     }
 
+    public function techniciansByEmployee(Request $request)
+    {
+        $request->validate([
+            'empleado_id' => ['required', 'integer'],
+            'fechas' => ['nullable', 'array'],
+            'fechas.*' => ['nullable', 'date'],
+            'fecha_inicio' => ['nullable', 'date'],
+            'fecha_fin' => ['nullable', 'date', 'after_or_equal:fecha_inicio'],
+        ]);
+
+        $fechas = $request->input('fechas');
+
+        if (is_array($fechas) && ! empty($fechas)) {
+            $fechas = collect($fechas)
+                ->filter(fn ($f) => $f !== null && $f !== '')
+                ->map(fn ($f) => Carbon::parse((string) $f)->format('Y-m-d'))
+                ->unique()
+                ->values()
+                ->all();
+        } else {
+            $fechaInicio = $request->input('fecha_inicio');
+            $fechaFin = $request->input('fecha_fin');
+
+            if (! empty($fechaInicio) && ! empty($fechaFin)) {
+                $inicio = Carbon::parse((string) $fechaInicio)->startOfDay();
+                $fin = Carbon::parse((string) $fechaFin)->startOfDay();
+
+                $fechas = [];
+                while ($inicio->lte($fin)) {
+                    $fechas[] = $inicio->format('Y-m-d');
+                    $inicio->addDay();
+                }
+            } else {
+                $fechas = [];
+                for ($i = 6; $i >= 0; $i--) {
+                    $fechas[] = Carbon::now()->subDays($i)->format('Y-m-d');
+                }
+            }
+        }
+
+        $request->merge([
+            'empleado_ids' => [(int) $request->input('empleado_id')],
+            'fechas' => $fechas,
+        ]);
+
+        $response = $this->technicians($request);
+
+        // Si se solicita excel, se respeta la salida original.
+        if ($request->input('export') === 'excel') {
+            return $response;
+        }
+
+        $payload = $response->getData(true);
+        $data = $payload['data'] ?? [];
+
+        $data = array_map(function (array $row) {
+            unset($row['Tardanza'], $row['Tiene_Incidencia']);
+
+            return $row;
+        }, $data);
+
+        return response()->json([
+            'data' => $data,
+        ], 200, [], JSON_UNESCAPED_SLASHES);
+    }
+
     public function detalleAsist(Request $request)
     {
         $request->validate([
