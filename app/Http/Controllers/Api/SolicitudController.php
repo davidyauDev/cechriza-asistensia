@@ -34,9 +34,7 @@ class SolicitudController extends Controller
                 $idUsuarioSolicitante === null
                     ? [
                         self::PEDIDO_COMPRA_ESTADO_FILTRADO,
-                        self::AREA_FILTRO,
-                        'INTERNO',
-                        'MIXTO',
+                        self::AREA_FILTRO
                     ]
                     : [
                         $idUsuarioSolicitante,
@@ -196,7 +194,6 @@ EXISTS (
       AND a.descripcion_area = ?
 )
 SQL,
-                's.tipo_solicitud IN (?, ?)',
             ];
         } else {
             $clauses = [
