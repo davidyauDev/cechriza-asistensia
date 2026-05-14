@@ -17,6 +17,7 @@ class SolicitudGastoDetalle extends Model
         'cantidad',
         'precio_estimado',
         'precio_real',
+        'nuevo_producto',
         'descripcion_adicional',
         'ruta_imagen',
     ];

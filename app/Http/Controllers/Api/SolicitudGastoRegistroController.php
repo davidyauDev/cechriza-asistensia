@@ -34,8 +34,9 @@ class SolicitudGastoRegistroController extends Controller
             'fecha_aprobacion' => ['nullable', 'date'],
             'fecha_reembolso' => ['nullable', 'date'],
             'solicitud_gasto_detalles' => ['required', 'array', 'min:1'],
-            'solicitud_gasto_detalles.*.id_producto' => ['nullable', 'integer', 'min:1', 'exists:mysql_external.productos,id_producto', 'required_without:solicitud_gasto_detalles.*.id_inventario'],
-            'solicitud_gasto_detalles.*.id_inventario' => ['nullable', 'integer', 'min:1', 'exists:mysql_external.inventario,id_inventario', 'required_without:solicitud_gasto_detalles.*.id_producto'],
+            'solicitud_gasto_detalles.*.id_producto' => ['nullable', 'integer', 'min:1', 'required_without_all:solicitud_gasto_detalles.*.id_inventario,solicitud_gasto_detalles.*.nuevo_producto'],
+            'solicitud_gasto_detalles.*.id_inventario' => ['nullable', 'integer', 'min:1', 'exists:mysql_external.inventario,id_inventario', 'required_without_all:solicitud_gasto_detalles.*.id_producto,solicitud_gasto_detalles.*.nuevo_producto'],
+            'solicitud_gasto_detalles.*.nuevo_producto' => ['nullable', 'string', 'max:255', 'required_without_all:solicitud_gasto_detalles.*.id_producto,solicitud_gasto_detalles.*.id_inventario'],
             'solicitud_gasto_detalles.*.cantidad' => ['required', 'integer', 'min:1'],
             'solicitud_gasto_detalles.*.precio_estimado' => ['nullable', 'numeric', 'min:0'],
             'solicitud_gasto_detalles.*.precio_real' => ['nullable', 'numeric', 'min:0'],
@@ -88,6 +89,7 @@ class SolicitudGastoRegistroController extends Controller
                         'cantidad' => (int) $detalle['cantidad'],
                         'precio_estimado' => $this->amountOrDefault($detalle['precio_estimado'] ?? null),
                         'precio_real' => $this->amountOrDefault($detalle['precio_real'] ?? null),
+                        'nuevo_producto' => $detalle['nuevo_producto'] ?? null,
                         'descripcion_adicional' => $detalle['descripcion_adicional'] ?? null,
                         'ruta_imagen' => $rutaImagen,
                     ]);
@@ -96,8 +98,9 @@ class SolicitudGastoRegistroController extends Controller
                     $detallesPayload[] = [
                         'id' => (int) $detalleModel->id,
                         'solicitud_gasto_id' => (int) $detalleModel->solicitud_gasto_id,
-                        'id_producto' => (int) $detalleModel->id_producto,
+                        'id_producto' => $detalleModel->id_producto !== null ? (int) $detalleModel->id_producto : null,
                         'id_inventario' => isset($detalle['id_inventario']) ? (int) $detalle['id_inventario'] : null,
+                        'nuevo_producto' => $detalleModel->nuevo_producto,
                         'cantidad' => (int) $detalleModel->cantidad,
                         'precio_estimado' => (float) $detalleModel->precio_estimado,
                         'precio_real' => (float) $detalleModel->precio_real,
@@ -181,20 +184,29 @@ class SolicitudGastoRegistroController extends Controller
      * @param  array<string, mixed>  $detalle
      * @param  array<int, int>  $inventarioMap
      */
-    protected function resolveDetalleProductId(array $detalle, array $inventarioMap): int
+    protected function resolveDetalleProductId(array $detalle, array $inventarioMap): ?int
     {
         if (isset($detalle['id_producto']) && (int) $detalle['id_producto'] > 0) {
-            return (int) $detalle['id_producto'];
+            $idProducto = (int) $detalle['id_producto'];
+
+            return $this->productExists($idProducto) ? $idProducto : null;
         }
 
         $inventarioId = (int) ($detalle['id_inventario'] ?? 0);
-        $productId = $inventarioMap[$inventarioId] ?? 0;
-
-        if ($productId <= 0) {
-            abort(422, "No se pudo resolver id_producto para id_inventario {$inventarioId}.");
+        $productId = $inventarioMap[$inventarioId] ?? null;
+        if (! is_numeric($productId) || (int) $productId <= 0) {
+            return null;
         }
 
-        return $productId;
+        return (int) $productId;
+    }
+
+    protected function productExists(int $idProducto): bool
+    {
+        return DB::connection('mysql_external')
+            ->table('productos')
+            ->where('id_producto', $idProducto)
+            ->exists();
     }
 
     protected function resolveEstadoIdDefault(): int
