@@ -252,6 +252,7 @@ SQL;
                     d.id,
                     d.solicitud_gasto_id,
                     d.id_producto,
+                    d.nuevo_producto,
                     d.cantidad,
                     d.precio_estimado,
                     d.precio_real,
@@ -281,13 +282,14 @@ SQL,
             'id' => (int) $row->id,
             'solicitud_gasto_id' => (int) $row->solicitud_gasto_id,
             'id_producto' => $row->id_producto !== null ? (int) $row->id_producto : null,
+            'nuevo_producto' => $row->nuevo_producto ?? null,
             'cantidad' => $row->cantidad !== null ? (int) $row->cantidad : null,
             'precio_estimado' => $row->precio_estimado !== null ? (float) $row->precio_estimado : null,
             'precio_real' => $row->precio_real !== null ? (float) $row->precio_real : null,
             'descripcion_adicional' => $row->descripcion_adicional ?? null,
             'ruta_imagen' => $row->ruta_imagen ?? null,
             'url_imagen' => $this->buildPublicUrl($row->ruta_imagen ?? null),
-            'producto' => $row->producto ?? null,
+            'producto' => $row->producto ?? $row->nuevo_producto ?? null,
         ];
     }
 
