@@ -81,7 +81,7 @@ class InventarioDashboardController extends Controller
         } catch (Throwable $e) {
             report($e);
 
-            return $this->errorResponse('No se pudo consultar el consumo por tecnico.', 500);
+            return $this->errorResponse('No se pudo consultar el consumo por tecnico. ' . $e->getMessage(), 500);
         }
     }
 
