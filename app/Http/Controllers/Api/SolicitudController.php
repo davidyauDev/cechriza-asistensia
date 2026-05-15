@@ -3,11 +3,14 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Services\SolicitudActaService;
 use App\Traits\ApiResponseTrait;
+use Illuminate\Database\ConnectionInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Throwable;
 
 class SolicitudController extends Controller
@@ -16,31 +19,24 @@ class SolicitudController extends Controller
 
     private const AREA_FILTRO = 'RR.HH.';
 
+    public function __construct(
+        protected SolicitudActaService $solicitudActaService
+    ) {}
+
     public function index(Request $request): JsonResponse
     {
         try {
-            $idUsuarioSolicitante = filter_var(
-                $request->input('id_usuario_solicitante'),
-                FILTER_VALIDATE_INT,
-                ['options' => ['min_range' => 1]]
-            );
+            $idUsuarioSolicitante = $this->resolveSolicitanteId($request);
+            $connection = $this->getConnection();
 
-            $idUsuarioSolicitante = $idUsuarioSolicitante !== false ? (int) $idUsuarioSolicitante : null;
-
-            $rows = $this->getConnection()->select(
+            $rows = $connection->select(
                 $this->buildIndexSql($idUsuarioSolicitante),
-                $idUsuarioSolicitante === null
-                    ? [
-                        self::AREA_FILTRO
-                    ]
-                    : [
-                        $idUsuarioSolicitante,
-                    ]
+                $this->buildIndexBindings($idUsuarioSolicitante)
             );
 
             $solicitudIds = collect($rows)->pluck('id_solicitud')->map(fn ($id): int => (int) $id)->all();
             $detallesPorSolicitud = $this->getDetallesPorSolicitudIds(
-                $this->getConnection(),
+                $connection,
                 $solicitudIds
             );
 
@@ -176,6 +172,25 @@ class SolicitudController extends Controller
         }
     }
 
+    public function downloadActaRrhh(int $id): JsonResponse|BinaryFileResponse
+    {
+        try {
+            $result = $this->solicitudActaService->generateActaPdf($this->getConnection(), $id);
+            if (! $result['ok']) {
+                return $this->errorResponse($result['message'], $result['status']);
+            }
+
+            return response()->download(
+                $result['pdf_path'],
+                $result['pdf_name']
+            )->deleteFileAfterSend(true);
+        } catch (Throwable $e) {
+            report($e);
+
+            return $this->errorResponse('No se pudo generar el acta RRHH en PDF.', 500);
+        }
+    }
+
     protected function buildIndexSql(?int $idUsuarioSolicitante = null): string
     {
         if ($idUsuarioSolicitante === null) {
@@ -220,11 +235,32 @@ SQL,
             FROM solicitudes s
             INNER JOIN estados_inventario e ON s.id_estado_general = e.id_estado
             INNER JOIN ost_staff u ON s.id_usuario_solicitante = u.staff_id
-            INNER join  departamento d  ON d.id_departamento = u.dept_id
+            INNER JOIN departamento d ON d.id_departamento = u.id_departamento
             WHERE 
 SQL
             .implode("\n              AND ", $clauses)
             ."\n            ORDER BY s.fecha_registro DESC";
+    }
+
+    protected function resolveSolicitanteId(Request $request): ?int
+    {
+        $validated = $request->validate([
+            'id_usuario_solicitante' => 'nullable|integer|min:1',
+        ]);
+
+        return isset($validated['id_usuario_solicitante'])
+            ? (int) $validated['id_usuario_solicitante']
+            : null;
+    }
+
+    /**
+     * @return array<int, int|string>
+     */
+    protected function buildIndexBindings(?int $idUsuarioSolicitante): array
+    {
+        return $idUsuarioSolicitante === null
+            ? [self::AREA_FILTRO]
+            : [$idUsuarioSolicitante];
     }
 
     protected function buildShowSql(): string
@@ -500,7 +536,7 @@ SQL,
         return filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? false;
     }
 
-    protected function getConnection()
+    protected function getConnection(): ConnectionInterface
     {
         return DB::connection('mysql_external');
     }
