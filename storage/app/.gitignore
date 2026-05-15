@@ -1,5 +1,6 @@
 *
-!/templates/
+!templates/
+!templates/**
 !private/
 !public/
 !birthday_phrases.json
