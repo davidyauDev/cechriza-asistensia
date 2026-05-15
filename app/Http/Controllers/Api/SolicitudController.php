@@ -14,8 +14,6 @@ class SolicitudController extends Controller
 {
     use ApiResponseTrait;
 
-    private const PEDIDO_COMPRA_ESTADO_FILTRADO = 0;
-
     private const AREA_FILTRO = 'RR.HH.';
 
     public function index(Request $request): JsonResponse
@@ -33,7 +31,6 @@ class SolicitudController extends Controller
                 $this->buildIndexSql($idUsuarioSolicitante),
                 $idUsuarioSolicitante === null
                     ? [
-                        self::PEDIDO_COMPRA_ESTADO_FILTRADO,
                         self::AREA_FILTRO
                     ]
                     : [
@@ -183,7 +180,6 @@ class SolicitudController extends Controller
     {
         if ($idUsuarioSolicitante === null) {
             $clauses = [
-                's.pedido_compra_estado = ?',
                 <<<'SQL'
 EXISTS (
     SELECT 1
@@ -219,10 +215,12 @@ SQL,
                 s.fecha_registro,
                 e.descripcion AS estado,
                 u.firstname,
-                u.lastname
+                u.lastname,
+                d.departamento 
             FROM solicitudes s
             INNER JOIN estados_inventario e ON s.id_estado_general = e.id_estado
             INNER JOIN ost_staff u ON s.id_usuario_solicitante = u.staff_id
+            INNER join  departamento d  ON d.id_departamento = u.dept_id
             WHERE 
 SQL
             .implode("\n              AND ", $clauses)
@@ -347,6 +345,7 @@ SQL
             ],
             'firstname' => $row->firstname ?? null,
             'lastname' => $row->lastname ?? null,
+            'departamento' => $row->departamento ?? null,
             'solicitante' => $this->formatStaffFullName($row),
             'staff' => [
                 'firstname' => $row->firstname ?? null,
