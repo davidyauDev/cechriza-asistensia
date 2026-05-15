@@ -239,9 +239,9 @@ class InventarioDashboardController extends Controller
 
         $bindings = [];
 
-        // if ($filtrarArea) {
-        //     $bindings[] = $idArea;
-        // }
+        if ($filtrarArea) {
+            $bindings[] = $idArea;
+        }
 
         $bindings = array_merge($bindings, [
             $fechaHasta,
@@ -311,9 +311,9 @@ class InventarioDashboardController extends Controller
 
         $bindings = [];
 
-        if ($filtrarArea) {
-            $bindings[] = $idArea;
-        }
+        // if ($filtrarArea) {
+        //     $bindings[] = $idArea;
+        // }
 
         $bindings[] = $fechaDesde;
         $bindings[] = $fechaHasta;
