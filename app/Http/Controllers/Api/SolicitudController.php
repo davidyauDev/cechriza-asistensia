@@ -102,7 +102,7 @@ class SolicitudController extends Controller
                  SET estado_rrhh = ?,
                      estado_rrhh_comentario = ?,
                      id_estado_general = CASE
-                         WHEN ? = \'recojo_oficina\' THEN 27
+                         WHEN ? = \'recojo_oficina\' THEN 50
                          ELSE id_estado_general
                      END
                  WHERE id_solicitud = ?',

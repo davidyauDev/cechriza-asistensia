@@ -91,19 +91,21 @@ class DetalleSolicitudController extends Controller
                     (int) $detalle->id_solicitud
                 );
 
-                 $connection->update(
-                     'UPDATE solicitudes
-                      SET id_estado_general = ?
-                      WHERE id_solicitud = ?
-                        AND id_estado_general <> ?
-                        AND id_estado_general <> ?',
-                     [
-                         self::ESTADO_GENERAL_AVANZAR,
-                         (int) $detalle->id_solicitud,
-                         self::ESTADO_GENERAL_BLOQUEADO,
-                         self::ESTADO_GENERAL_AVANZAR,
-                     ]
-                 );
+                if (! $tienePendientes) {
+                    $connection->update(
+                        'UPDATE solicitudes
+                         SET id_estado_general = ?
+                         WHERE id_solicitud = ?
+                           AND id_estado_general <> ?
+                           AND id_estado_general <> ?',
+                        [
+                            self::ESTADO_GENERAL_AVANZAR,
+                            (int) $detalle->id_solicitud,
+                            self::ESTADO_GENERAL_BLOQUEADO,
+                            self::ESTADO_GENERAL_AVANZAR,
+                        ]
+                    );
+                }
 
                 return [
                     'id_detalle_solicitud' => (int) $detalle->id_detalle_solicitud,
@@ -175,19 +177,21 @@ class DetalleSolicitudController extends Controller
                     (int) $detalle->id_solicitud
                 );
 
-                 $connection->update(
-                     'UPDATE solicitudes
-                      SET id_estado_general = ?
-                      WHERE id_solicitud = ?
-                        AND id_estado_general <> ?
-                        AND id_estado_general <> ?',
-                     [
-                         self::ESTADO_GENERAL_AVANZAR,
-                         (int) $detalle->id_solicitud,
-                         self::ESTADO_GENERAL_BLOQUEADO,
-                         self::ESTADO_GENERAL_AVANZAR,
-                     ]
-                 );
+                if (! $tienePendientes) {
+                    $connection->update(
+                        'UPDATE solicitudes
+                         SET id_estado_general = ?
+                         WHERE id_solicitud = ?
+                           AND id_estado_general <> ?
+                           AND id_estado_general <> ?',
+                        [
+                            self::ESTADO_GENERAL_AVANZAR,
+                            (int) $detalle->id_solicitud,
+                            self::ESTADO_GENERAL_BLOQUEADO,
+                            self::ESTADO_GENERAL_AVANZAR,
+                        ]
+                    );
+                }
 
                 return [
                     'id_detalle_solicitud' => (int) $detalle->id_detalle_solicitud,
@@ -270,4 +274,3 @@ class DetalleSolicitudController extends Controller
         return DB::connection('mysql_external');
     }
 }
-
