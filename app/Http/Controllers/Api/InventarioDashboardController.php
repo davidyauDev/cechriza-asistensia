@@ -254,9 +254,9 @@ class InventarioDashboardController extends Controller
             $fechaHasta,
         ]);
 
-        // if ($filtrarArea) {
-        //     $bindings[] = $idArea;
-        // }
+        if ($filtrarArea) {
+            $bindings[] = $idArea;
+        }
 
         $bindings[] = $fechaHasta;
         $bindings[] = $fechaHasta;
