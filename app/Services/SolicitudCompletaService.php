@@ -19,7 +19,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
 
     private const AREA_INTERNO_RRHH = 11;
 
-    private const UBICACION_LIMA = 'LIMA';
+    private const ID_DEPARTAMENTO_LIMA = 1;
 
     private const TIPO_SOLICITUD_INTERNO = 'INTERNO';
 
@@ -49,7 +49,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
             throw new DomainException($this->buildNoValidProductsMessage($data));
         }
 
-        $esUbicacionLima = $this->isUbicacionLima($data);
+        $esUbicacionLima = $this->isSolicitanteDeLima($solicitante);
         $itemsNoPscrAreaInterna = $esUbicacionLima
             ? $this->extractItemsByArea($items, self::AREA_INTERNO_RRHH)
             : [];
@@ -389,6 +389,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
         $rows = $connection->select(
             <<<'SQL'
                 SELECT staff_id, dept_id, firstname, lastname, email, role_id
+                     , id_departamento
                 FROM ost_staff
                 WHERE staff_id = ?
                 LIMIT 1
@@ -767,14 +768,9 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
         );
     }
 
-    /**
-     * @param  array<string, mixed>  $data
-     */
-    protected function isUbicacionLima(array $data): bool
+    protected function isSolicitanteDeLima(object $solicitante): bool
     {
-        $ubicacion = strtoupper(trim((string) ($data['ubicacion'] ?? '')));
-
-        return $ubicacion === self::UBICACION_LIMA;
+        return (int) ($solicitante->id_departamento ?? 0) === self::ID_DEPARTAMENTO_LIMA;
     }
 
     /**
