@@ -233,7 +233,7 @@ class InventarioDashboardController extends Controller
                 ) mov
                 GROUP BY mov.id_producto
             ) consumo ON consumo.id_producto = p.id_producto
-            where p.tipo_responsable = 'SSOMA'
+            where p.tipo_responsable = 'SSOMA' and p.eliminado = 0
             ORDER BY p.descripcion ASC
         SQL;
 
@@ -303,7 +303,6 @@ class InventarioDashboardController extends Controller
             LEFT JOIN ost_staff u ON u.staff_id = s.id_usuario_solicitante
             WHERE d.id_estado_detalle IN (2, 9)
               AND d.fecha_atencion IS NOT NULL
-            --   {$filtroArea}
               AND DATE(d.fecha_atencion) >= ?
               AND DATE(d.fecha_atencion) <= ?
               AND p.tipo_responsable = 'SSOMA'
