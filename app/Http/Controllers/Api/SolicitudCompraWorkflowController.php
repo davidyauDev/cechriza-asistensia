@@ -172,11 +172,11 @@ class SolicitudCompraWorkflowController extends Controller
                     ];
                 }
 
-                // $this->sendGerenciaNotification(
-                //     $id,
-                //     $validated['comentario'] ?? null,
-                //     $user->name ?? null
-                // );
+                 $this->sendGerenciaNotification(
+                     $id,
+                     $validated['comentario'] ?? null,
+                     $user->name ?? null
+                 );
 
                 $connection->table('solicitudes_gasto')
                     ->where('id', $id)
@@ -518,7 +518,7 @@ class SolicitudCompraWorkflowController extends Controller
             'Username: '.((string) ($solicitud->username ?? 'N/A')),
             'Area: '.((string) ($solicitud->area ?? 'N/A')),
             'Motivo: '.((string) ($solicitud->motivo ?? 'N/A')),
-            'Monto estimado: '.($solicitud->monto_estimado !== null ? (string) $solicitud->monto_estimado : 'N/A'),
+            'Monto estimado: '. 130 . ' soles'  ,
             'Fecha solicitud: '.((string) ($solicitud->fecha_solicitud ?? 'N/A')),
             'Enviado por: '.((string) ($actorName ?: 'N/A')),
         ];

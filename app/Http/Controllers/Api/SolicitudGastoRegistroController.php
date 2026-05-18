@@ -152,6 +152,14 @@ class SolicitudGastoRegistroController extends Controller
 
     protected function sendSolicitudGastoNotification(array $result): void
     {
+        if (app()->environment('local')) {
+            logger()->info('Correo de solicitud de gasto omitido en entorno local.', [
+                'solicitud_id' => $result['solicitud_gasto']['id'] ?? null,
+            ]);
+
+            return;
+        }
+
         $solicitud = $result['solicitud_gasto'] ?? [];
         $solicitante = $solicitud['solicitante'] ?? [];
         $estadoId = (int) ($solicitud['estado_id'] ?? 0);

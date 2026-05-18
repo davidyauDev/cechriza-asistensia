@@ -191,6 +191,100 @@ class SolicitudController extends Controller
         }
     }
 
+    public function cerrarSolicitud(Request $request, int $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'estado' => 'required|string|in:cerrada,rechazada',
+        ]);
+
+        $estado = strtolower((string) $validated['estado']);
+        $idEstadoGeneral = $estado === 'cerrada' ? 9 : 51;
+        $fechaCierre = now();
+
+        try {
+            $connection = $this->getConnection();
+            $solicitud = $connection->select(
+                'SELECT id_solicitud FROM solicitudes WHERE id_solicitud = ? LIMIT 1',
+                [$id]
+            );
+
+            if ($solicitud === []) {
+                return $this->errorResponse('Solicitud no encontrada.', 404);
+            }
+
+            $areas = $connection->select(
+                <<<SQL
+                SELECT DISTINCT a.descripcion_area
+                FROM solicitud_detalles d
+                LEFT JOIN inventario i ON i.id_inventario = d.id_inventario
+                LEFT JOIN area a ON a.id_area = COALESCE(NULLIF(d.area_id, 0), i.id_area)
+                WHERE d.id_solicitud = ?
+SQL,
+                [$id]
+            );
+
+            $descripciones = collect($areas)
+                ->map(fn (object $row): string => trim((string) ($row->descripcion_area ?? '')))
+                ->filter(fn (string $value): bool => $value !== '')
+                ->values()
+                ->all();
+
+            if ($descripciones === []) {
+                return $this->errorResponse('La solicitud no tiene areas asociadas para evaluar cierre.', 422);
+            }
+
+            $soloRrhh = collect($descripciones)
+                ->every(fn (string $area): bool => $this->isRrhhArea($area));
+
+            if ($soloRrhh) {
+                $connection->update(
+                    'UPDATE solicitudes
+                     SET id_estado_general = ?,
+                         fecha_cierre = ?
+                     WHERE id_solicitud = ?',
+                    [
+                        $idEstadoGeneral,
+                        $fechaCierre,
+                        $id,
+                    ]
+                );
+
+                return $this->successResponse([
+                    'id_solicitud' => $id,
+                    'estado' => $estado,
+                    'id_estado_general' => $idEstadoGeneral,
+                    'fecha_cierre' => $fechaCierre,
+                    'modo' => 'solo_rrhh',
+                ], 'Solicitud cerrada/rechazada correctamente (solo RRHH)');
+            }
+
+            $estadoRrhh = $estado === 'cerrada'
+                ? 'solicitud_completada'
+                : 'acta_rechazada';
+
+            $connection->update(
+                'UPDATE solicitudes
+                 SET estado_rrhh = ?
+                 WHERE id_solicitud = ?',
+                [
+                    $estadoRrhh,
+                    $id,
+                ]
+            );
+
+            return $this->successResponse([
+                'id_solicitud' => $id,
+                'estado' => $estado,
+                'estado_rrhh' => $estadoRrhh,
+                'modo' => 'mixta',
+            ], 'Solicitud mixta detectada: se actualizo estado_rrhh y no se cerro estado general');
+        } catch (Throwable $e) {
+            report($e);
+
+            return $this->errorResponse('No se pudo cerrar/rechazar la solicitud.', 500);
+        }
+    }
+
     protected function buildIndexSql(?int $idUsuarioSolicitante = null): string
     {
         if ($idUsuarioSolicitante === null) {
@@ -564,5 +658,12 @@ SQL,
         }
 
         return $appUrl.'/storage/'.ltrim($path, '/');
+    }
+
+    protected function isRrhhArea(string $area): bool
+    {
+        $normalized = mb_strtolower(trim($area));
+
+        return in_array($normalized, ['rr.hh.', 'rrhh', 'rr. hh.', 'rr hh'], true);
     }
 }
