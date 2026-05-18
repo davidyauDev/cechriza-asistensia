@@ -10,6 +10,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Throwable;
@@ -50,6 +51,7 @@ class SolicitudGastoRegistroController extends Controller
         try {
             $result = DB::connection('mysql_external')->transaction(function () use ($validated, $request, &$storedPaths): array {
                 $inventarioMap = $this->loadInventarioProductMap($validated['solicitud_gasto_detalles']);
+                $solicitante = $this->loadSolicitanteInfo((int) $validated['staff_id']);
                 $estadoId = $this->resolveEstadoIdByArea((int) $validated['id_area']);
 
                 $solicitud = new SolicitudGasto();
@@ -113,6 +115,7 @@ class SolicitudGastoRegistroController extends Controller
                     'solicitud_gasto' => [
                         'id' => (int) $solicitud->id,
                         'staff_id' => (int) $solicitud->staff_id,
+                        'solicitante' => $solicitante,
                         'id_area' => (int) $solicitud->id_area,
                         'estado_id' => $solicitud->estado_id !== null ? (int) $solicitud->estado_id : null,
                         'motivo' => $solicitud->motivo,
@@ -127,6 +130,8 @@ class SolicitudGastoRegistroController extends Controller
                 ];
             });
 
+            $this->sendSolicitudGastoNotification($result);
+
             return $this->successResponse($result, 'Solicitud de gasto registrada correctamente', 201);
         } catch (Throwable $e) {
             foreach ($storedPaths as $path) {
@@ -138,10 +143,50 @@ class SolicitudGastoRegistroController extends Controller
             report($e);
 
             if (config('app.debug')) {
-                return $this->errorResponse('No se pudo registrar la solicitud de gasto: '.$e->getMessage(), 500);
+                return $this->errorResponse('No se pudo registrar la solicitud de gasto: ' . $e->getMessage(), 500);
             }
 
             return $this->errorResponse('No se pudo registrar la solicitud de gasto.', 500);
+        }
+    }
+
+    protected function sendSolicitudGastoNotification(array $result): void
+    {
+        $solicitud = $result['solicitud_gasto'] ?? [];
+        $solicitante = $solicitud['solicitante'] ?? [];
+        $estadoId = (int) ($solicitud['estado_id'] ?? 0);
+        $recipient = $estadoId === 12
+            ? 'yauridavid00@gmail.com'
+            : 'marjorie.osorio@cechriza.com';
+
+        $subject = sprintf(
+            'Nueva solicitud de gasto #%s',
+            (string) ($solicitud['id'] ?? 'N/A')
+        );
+
+        $body = implode("\n", [
+            'Se ha registrado una nueva solicitud de gasto.',
+            'ID: ' . ($solicitud['id'] ?? 'N/A'),
+            'Solicitante: ' . ($solicitante['full_name'] ?? 'N/A'),
+            'Usuario: ' . ($solicitante['username'] ?? 'N/A'),
+            'Área: ' . ($solicitud['id_area'] ?? 'N/A'),
+            'Estado ID: ' . ($estadoId ?: 'N/A'),
+            'Motivo: ' . ($solicitud['motivo'] ?? 'N/A'),
+            'Monto estimado: ' . ($solicitud['monto_estimado'] ?? 'N/A'),
+            'Monto real: ' . ($solicitud['monto_real'] ?? 'N/A'),
+        ]);
+
+        try {
+            Mail::mailer('smtp_test')->raw($body, function ($message) use ($recipient, $subject): void {
+                $message->to($recipient)
+                    ->from(
+                        (string) config('mail.from_test.address', config('mail.from.address')),
+                        (string) config('mail.from_test.name', config('mail.from.name'))
+                    )
+                    ->subject($subject);
+            });
+        } catch (Throwable $e) {
+            report($e);
         }
     }
 
@@ -162,8 +207,8 @@ class SolicitudGastoRegistroController extends Controller
     {
         $inventarioIds = collect($detalles)
             ->pluck('id_inventario')
-            ->filter(fn ($id): bool => is_numeric($id) && (int) $id > 0)
-            ->map(fn ($id): int => (int) $id)
+            ->filter(fn($id): bool => is_numeric($id) && (int) $id > 0)
+            ->map(fn($id): int => (int) $id)
             ->unique()
             ->values()
             ->all();
@@ -176,8 +221,39 @@ class SolicitudGastoRegistroController extends Controller
             ->table('inventario')
             ->whereIn('id_inventario', $inventarioIds)
             ->pluck('id_producto', 'id_inventario')
-            ->map(fn ($idProducto): int => (int) $idProducto)
+            ->map(fn($idProducto): int => (int) $idProducto)
             ->all();
+    }
+
+    protected function loadSolicitanteInfo(int $staffId): array
+    {
+        $row = DB::connection('mysql_external')
+            ->table('ost_staff')
+            ->select(['staff_id', 'username', 'firstname', 'lastname'])
+            ->where('staff_id', $staffId)
+            ->first();
+
+        if (! $row) {
+            return [
+                'staff_id' => $staffId,
+                'username' => null,
+                'firstname' => null,
+                'lastname' => null,
+                'full_name' => null,
+            ];
+        }
+
+        $firstname = trim((string) ($row->firstname ?? ''));
+        $lastname = trim((string) ($row->lastname ?? ''));
+        $fullName = trim($firstname . ' ' . $lastname);
+
+        return [
+            'staff_id' => (int) $row->staff_id,
+            'username' => $row->username ?? null,
+            'firstname' => $row->firstname ?? null,
+            'lastname' => $row->lastname ?? null,
+            'full_name' => $fullName !== '' ? $fullName : ($row->username ?? null),
+        ];
     }
 
     /**
@@ -236,7 +312,7 @@ class SolicitudGastoRegistroController extends Controller
 
     protected function storeDetalleImagen(int $solicitudGastoId, UploadedFile $file): string
     {
-        $directory = 'uploads/solicitudes-gasto/'.$solicitudGastoId.'/detalles';
+        $directory = 'uploads/solicitudes-gasto/' . $solicitudGastoId . '/detalles';
         $extension = strtolower((string) ($file->getClientOriginalExtension() ?: $file->extension() ?: 'bin'));
         $filename = sprintf(
             'detalle_%d_%s_%s.%s',
