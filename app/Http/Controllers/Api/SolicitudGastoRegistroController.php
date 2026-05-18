@@ -169,11 +169,6 @@ class SolicitudGastoRegistroController extends Controller
             'ID: ' . ($solicitud['id'] ?? 'N/A'),
             'Solicitante: ' . ($solicitante['full_name'] ?? 'N/A'),
             'Usuario: ' . ($solicitante['username'] ?? 'N/A'),
-            'Área: ' . ($solicitud['id_area'] ?? 'N/A'),
-            'Estado ID: ' . ($estadoId ?: 'N/A'),
-            'Motivo: ' . ($solicitud['motivo'] ?? 'N/A'),
-            'Monto estimado: ' . ($solicitud['monto_estimado'] ?? 'N/A'),
-            'Monto real: ' . ($solicitud['monto_real'] ?? 'N/A'),
         ]);
 
         try {
