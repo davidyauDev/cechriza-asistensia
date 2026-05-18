@@ -156,13 +156,12 @@ class SolicitudGastoRegistroController extends Controller
         $solicitante = $solicitud['solicitante'] ?? [];
         $estadoId = (int) ($solicitud['estado_id'] ?? 0);
         $recipient = $estadoId === 12
-            ? 'yauridavid00@gmail.com'
+            ? 'eliseo.yauyo@cechriza.com'
             : 'marjorie.osorio@cechriza.com';
 
-        $subject = sprintf(
-            'Nueva solicitud de gasto #%s',
-            (string) ($solicitud['id'] ?? 'N/A')
-        );
+        $subject = $recipient === 'marjorie.osorio@cechriza.com'
+            ? sprintf('Solicitud gasto de botas #%s', (string) ($solicitud['id'] ?? 'N/A'))
+            : sprintf('Nueva solicitud de gasto #%s', (string) ($solicitud['id'] ?? 'N/A'));
 
         $body = implode("\n", [
             'Se ha registrado una nueva solicitud de gasto.',
