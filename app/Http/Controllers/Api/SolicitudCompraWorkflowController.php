@@ -506,51 +506,97 @@ class SolicitudCompraWorkflowController extends Controller
             throw new RuntimeException('No se pudo construir el correo para gerencia: solicitud no encontrada.');
         }
 
-        $subject = sprintf('Solicitud de compra #%d pendiente de gerencia', (int) $solicitud->id);
+        $solicitanteNombre = $this->formatStaffFullName($solicitud) ?? 'N/A';
+        $motivo = trim((string) ($solicitud->motivo ?? ''));
+        $motivoTexto = $motivo !== '' ? $motivo : 'Solicitud de botas';
+        if (mb_strtolower($motivoTexto) === 'solicitud de botas: botas') {
+            $motivoTexto = 'Solicitud de compra de botas de seguridad';
+        }
+        $subject = 'Solicitud de compra de botas - '.$solicitanteNombre;
         $imagenes = $this->resolveSolicitudImagenes($solicitudId);
+        $montoEstimado = $solicitud->monto_estimado !== null ? (float) $solicitud->monto_estimado : null;
+        $derivadoPor = 'Marjorie Alexandra Osorio';
 
-        $bodyLines = [
-            'Se ha enviado una solicitud de compra a gerencia para decision final.',
-            '',
-            'Datos:',
-            'Solicitud ID: '.(int) $solicitud->id,
-            'Solicitante: '.($this->formatStaffFullName($solicitud) ?? 'N/A'),
-            'Username: '.((string) ($solicitud->username ?? 'N/A')),
-            'Area: '.((string) ($solicitud->area ?? 'N/A')),
-            'Motivo: '.((string) ($solicitud->motivo ?? 'N/A')),
-            'Monto estimado: '. 130 . ' soles'  ,
-            'Fecha solicitud: '.((string) ($solicitud->fecha_solicitud ?? 'N/A')),
-            'Enviado por: '.((string) ($actorName ?: 'N/A')),
-        ];
+        $escape = static fn (?string $value): string => htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
+        $comentarioTexto = trim((string) $comentario);
+        $montoTexto = ($montoEstimado !== null && $montoEstimado > 0)
+            ? 'S/ '.number_format($montoEstimado, 2, '.', '')
+            : null;
 
-        if (trim((string) $comentario) !== '') {
-            $bodyLines[] = 'Comentario RRHH: '.trim((string) $comentario);
+        $rowsHtml = ''
+            .'<tr><td style="padding:8px 0;color:#6b7280;width:180px;">Solicitante</td><td style="padding:8px 0;color:#111827;">'.$escape($solicitanteNombre).'</td></tr>'
+            .'<tr><td style="padding:8px 0;color:#6b7280;">Area</td><td style="padding:8px 0;color:#111827;">'.$escape((string) ($solicitud->area ?? 'N/A')).'</td></tr>'
+            .'<tr><td style="padding:8px 0;color:#6b7280;">Motivo</td><td style="padding:8px 0;color:#111827;">'.$escape($motivoTexto).'</td></tr>'
+            .'<tr><td style="padding:8px 0;color:#6b7280;">Fecha solicitud</td><td style="padding:8px 0;color:#111827;">'.$escape((string) ($solicitud->fecha_solicitud ?? 'N/A')).'</td></tr>'
+            .'<tr><td style="padding:8px 0;color:#6b7280;">Derivado por</td><td style="padding:8px 0;color:#111827;">'.$escape($derivadoPor).'</td></tr>';
+
+        if ($montoTexto !== null) {
+            $rowsHtml .= '<tr><td style="padding:8px 0;color:#6b7280;">Monto estimado</td><td style="padding:8px 0;color:#111827;">'.$escape($montoTexto).'</td></tr>';
         }
 
+        if ($comentarioTexto !== '') {
+            $rowsHtml .= '<tr><td style="padding:8px 0;color:#6b7280;">Comentario RRHH</td><td style="padding:8px 0;color:#111827;">'.$escape($comentarioTexto).'</td></tr>';
+        }
+
+        $imagenesHtml = '';
         if ($imagenes !== []) {
-            $bodyLines[] = '';
-            $bodyLines[] = 'Imagenes adjuntas / URLs:';
-
+            $items = '';
             foreach ($imagenes as $imagen) {
-                $line = '- '.$imagen['label'];
-
-                if ($imagen['url'] !== null) {
-                    $line .= ': '.$imagen['url'];
-                }
-
-                $bodyLines[] = $line;
+                $label = $escape($imagen['label']);
+                $url = $imagen['url'] !== null ? $escape($imagen['url']) : null;
+                $items .= '<li style="margin:0 0 8px 0;color:#111827;">'
+                    .$label
+                    .($url !== null ? ' - <a href="'.$url.'" style="color:#2563eb;text-decoration:none;">Ver imagen</a>' : '')
+                    .'</li>';
             }
+
+            $imagenesHtml = ''
+                .'<div style="margin-top:20px;">'
+                .'<div style="font-size:14px;font-weight:600;color:#111827;margin-bottom:8px;">Botas usadas adjuntas</div>'
+                .'<ul style="padding-left:18px;margin:0;">'.$items.'</ul>'
+                .'</div>';
         }
+
+        $gestionComprasUrl = 'https://osticket.cechriza.com/system/gestion_compras';
+        $accionesHtml = ''
+            .'<div style="margin-top:22px;padding:14px;border:1px solid #e5e7eb;border-radius:10px;background:#f9fafb;">'
+            .'<div style="font-size:14px;font-weight:600;color:#111827;margin-bottom:10px;">Acciones en el sistema</div>'
+            .'<a href="'.$escape($gestionComprasUrl).'" style="display:inline-block;padding:10px 16px;background:#16a34a;color:#ffffff;text-decoration:none;border-radius:8px;font-size:13px;font-weight:600;margin-right:8px;">Aprobar</a>'
+            .'<a href="'.$escape($gestionComprasUrl).'" style="display:inline-block;padding:10px 16px;background:#dc2626;color:#ffffff;text-decoration:none;border-radius:8px;font-size:13px;font-weight:600;">Rechazar</a>'
+            .'<div style="font-size:12px;color:#6b7280;margin-top:10px;">Ingresa al sistema para registrar la decision final.</div>'
+            .'</div>';
+
+        $htmlBody = ''
+            .'<!doctype html><html><body style="margin:0;padding:0;background:#f3f4f6;font-family:Segoe UI,Arial,sans-serif;">'
+            .'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:24px 12px;">'
+            .'<tr><td align="center">'
+            .'<table role="presentation" width="640" cellpadding="0" cellspacing="0" style="max-width:640px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;">'
+            .'<tr><td style="padding:20px 24px;background:#0f172a;color:#ffffff;">'
+            .'<div style="font-size:20px;font-weight:700;">Solicitud de compra de botas</div>'
+            .'<div style="font-size:13px;color:#cbd5e1;margin-top:4px;">Derivada a gerencia para decision final</div>'
+            .'</td></tr>'
+            .'<tr><td style="padding:24px;">'
+            .'<p style="margin:0 0 16px 0;color:#374151;font-size:14px;line-height:1.5;">Se ha derivado una solicitud de compra para su revision y aprobacion final.</p>'
+            .'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:14px;">'.$rowsHtml.'</table>'
+            .$accionesHtml
+            .$imagenesHtml
+            .'</td></tr>'
+            .'</table>'
+            .'</td></tr></table>'
+            .'</body></html>';
 
         $fromAddress = config('mail.from_test.address')
             ?: config('mail.mailers.smtp_test.username')
             ?: config('mail.from.address');
         $fromName = config('mail.from_test.name') ?: config('mail.from.name');
 
-        Mail::mailer('smtp_test')->raw(
-            implode(PHP_EOL, $bodyLines),
-            function (Message $message) use ($to, $subject, $fromAddress, $fromName, $imagenes): void {
+        Mail::mailer('smtp_test')->send(
+            [],
+            [],
+            function (Message $message) use ($to, $subject, $fromAddress, $fromName, $imagenes, $htmlBody): void {
                 $message->to($to)->subject($subject);
+                $message->cc('marjorie.osorio@cechriza.com');
+                $message->html($htmlBody);
 
                 if (! empty($fromAddress)) {
                     $message->from((string) $fromAddress, $fromName ? (string) $fromName : null);
