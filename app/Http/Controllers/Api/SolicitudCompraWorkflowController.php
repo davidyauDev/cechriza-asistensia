@@ -590,12 +590,16 @@ class SolicitudCompraWorkflowController extends Controller
             ?: config('mail.from.address');
         $fromName = config('mail.from_test.name') ?: config('mail.from.name');
 
+        $cc = $this->resolveGerenciaCcEmails();
+
         Mail::mailer('smtp_test')->send(
             [],
             [],
-            function (Message $message) use ($to, $subject, $fromAddress, $fromName, $imagenes, $htmlBody): void {
+            function (Message $message) use ($to, $cc, $subject, $fromAddress, $fromName, $imagenes, $htmlBody): void {
                 $message->to($to)->subject($subject);
-                $message->cc('marjorie.osorio@cechriza.com');
+                if ($cc !== []) {
+                    $message->cc($cc);
+                }
                 $message->html($htmlBody);
 
                 if (! empty($fromAddress)) {
@@ -667,6 +671,19 @@ class SolicitudCompraWorkflowController extends Controller
         }
 
         return $emails
+            ->map(fn (string $email): string => trim($email))
+            ->filter(fn (string $email): bool => filter_var($email, FILTER_VALIDATE_EMAIL) !== false)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    protected function resolveGerenciaCcEmails(): array
+    {
+        return collect($this->parseCsvValues((string) config('services.solicitudes.gerencia_cc_emails', '')))
             ->map(fn (string $email): string => trim($email))
             ->filter(fn (string $email): bool => filter_var($email, FILTER_VALIDATE_EMAIL) !== false)
             ->unique()
