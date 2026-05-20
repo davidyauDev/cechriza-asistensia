@@ -53,7 +53,6 @@ class InventarioProductosController extends Controller
             FROM inventario i
             INNER JOIN productos p ON i.id_producto = p.id_producto
             WHERE p.eliminado = 0
-              AND p.tipo = 2
         SQL;
 
         $bindings = [];
