@@ -36,7 +36,11 @@ class SolicitudRegistradaMail extends Mailable
 
     public function envelope(): Envelope
     {
+        $fromAddress = trim((string) config('mail.from_test.address', ''));
+        $fromName = trim((string) config('mail.from_test.name', ''));
+
         return new Envelope(
+            from: $fromAddress !== '' ? new Address($fromAddress, $fromName !== '' ? $fromName : null) : null,
             subject: ($this->isPurchaseOrder ? 'Nueva solicitud de compra ' : 'Nueva solicitud registrada ').$this->ticket,
             cc: collect($this->ccRecipients)
                 ->filter()

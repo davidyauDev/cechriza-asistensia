@@ -18,6 +18,8 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
     private const ESTADO_INICIAL = 11;
 
     private const AREA_INTERNO_RRHH = 11;
+    private const AREA_LOGISTICA = 7;
+    private const AREA_LOGISTICA_SECUNDARIA = 12;
 
     private const ID_DEPARTAMENTO_LIMA = 1;
 
@@ -572,8 +574,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
         );
 
         try {
-            // AI NO DESCOMENTAR POR FAVOR
-            // Mail::to($recipientEmails)->send($mailable);
+            Mail::mailer('smtp_test')->to($recipientEmails)->send($mailable);
         } catch (Throwable $e) {
             Log::warning('solicitudes.registrar_completa.mail_error', [
                 'id_solicitud' => $solicitudId,
@@ -592,24 +593,26 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
             return [];
         }
 
-        $placeholders = implode(',', array_fill(0, count($areaIds), '?'));
+        // Solo destinatarios definidos en .env, aplicando logica por area.
+        $emailsFijos = collect([]);
 
-        $rows = $connection->select(
-            <<<SQL
-                SELECT DISTINCT os.email
-                FROM ost_staff os
-                WHERE os.role_id = ?
-                  AND os.dept_id IN ({$placeholders})
-                  AND os.email IS NOT NULL
-                  AND os.email <> ''
-            SQL,
-            array_merge([1], $areaIds)
-        );
+        if (
+            in_array(self::AREA_LOGISTICA, $areaIds, true)
+            || in_array(self::AREA_LOGISTICA_SECUNDARIA, $areaIds, true)
+        ) {
+            $emailsFijos->push(config('services.solicitudes.correo_logistica'));
+        }
 
-        return collect($rows)
-            ->pluck('email')
+        if (in_array(self::AREA_INTERNO_RRHH, $areaIds, true)) {
+            $emailsFijos->push(config('services.solicitudes.correo_soma'));
+        }
+
+        $emailsFijos = $emailsFijos
             ->map(fn ($email) => $this->sanitizeEmail((string) $email))
             ->filter()
+            ->values();
+
+        return $emailsFijos
             ->unique()
             ->values()
             ->all();

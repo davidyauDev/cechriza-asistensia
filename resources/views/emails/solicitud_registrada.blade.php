@@ -32,16 +32,26 @@
                         <td style="padding:0 28px 14px 28px;color:#0f172a;font-size:14px;line-height:1.65;">
                             <strong>Solicitante:</strong>
                             {{ trim(($solicitante['firstname'] ?? '').' '.($solicitante['lastname'] ?? '')) }}
-                            @if(!empty($solicitante['email']))
-                                &lt;{{ $solicitante['email'] }}&gt;
-                            @endif
                         </td>
                     </tr>
 
                     <tr>
                         <td style="padding:0 28px 14px 28px;color:#0f172a;font-size:14px;line-height:1.65;">
                             <strong>Áreas involucradas:</strong>
-                            {{ implode(', ', array_map('strval', $areas)) }}
+                            {{
+                                collect($areas)
+                                    ->map(function ($areaId) {
+                                        $id = (int) $areaId;
+
+                                        return match ($id) {
+                                            7 => 'LOGISTICA',
+                                            11 => 'SSOMA',
+                                            default => 'LOGISTICA ',
+                                        };
+                                    })
+                                    ->unique()
+                                    ->implode(', ')
+                            }}
                         </td>
                     </tr>
 
