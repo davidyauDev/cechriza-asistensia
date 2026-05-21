@@ -41,6 +41,9 @@ return [
         'gerencia_cc_emails' => env('SOLICITUD_COMPRA_GERENCIA_CC_EMAILS', ''),
         'correo_logistica' => env('CORREO_LOGISTICA'),
         'correo_soma' => env('CORREO_SOMA'),
+        'comprobante_gasto_notify_to' => env('COMPROBANTE_GASTO_NOTIFY_TO', ''),
+        'comprobante_gasto_notify_cc_operaciones' => env('COMPROBANTE_GASTO_NOTIFY_CC_OPERACIONES', ''),
+        'comprobante_gasto_notify_cc_ssoma' => env('COMPROBANTE_GASTO_NOTIFY_CC_SSOMA', ''),
         'smtp_always_cc' => array_values(array_filter(array_map(
             'trim',
             explode(',', (string) env('SMTP_ALWAYS_CC', ''))
