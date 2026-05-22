@@ -15,27 +15,28 @@ class DbTechnicianRepository implements TechnicianRepositoryInterface
 
     /**
      * Obtener rutas de técnicos por día según emp_code
-     * 
-     * Llama al SP: sp_get_rutas_tecnicos_dia
-     * 
+     *
+     * Llama al SP: sp_get_rutas_tecnicos_dia_fecha
+     *
      * @param string $empCode Código del empleado
-     * @return Collection
+     * @param string $fecha Fecha a consultar en formato Y-m-d
      */
-    public function getRutasTecnicosDia(string $empCode): Collection
+    public function getRutasTecnicosDia(string $empCode, string $fecha): Collection
     {
         try {
             $results = DB::connection(self::DB_CONNECTION)
-                ->select('CALL sp_get_rutas_tecnicos_dia(?)', [$empCode]);
+                ->select('CALL sp_get_rutas_tecnicos_dia_fecha(?, ?)', [$empCode, $fecha]);
 
             return collect($results);
         } catch (\Exception $e) {
-            Log::error('Error al obtener rutas de técnicos por día: ' . $e->getMessage(), [
+            Log::error('Error al obtener rutas de técnicos por día: '.$e->getMessage(), [
                 'emp_code' => $empCode,
+                'fecha' => $fecha,
                 'exception' => $e,
-                'connection' => self::DB_CONNECTION
+                'connection' => self::DB_CONNECTION,
             ]);
-            
-            throw new \RuntimeException('Error al consultar rutas de técnicos desde la base de datos externa: ' . $e->getMessage());
+
+            throw new \RuntimeException('Error al consultar rutas de técnicos desde la base de datos externa: '.$e->getMessage());
         }
     }
 }

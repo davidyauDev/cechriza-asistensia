@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Repositories\TechnicianRepositoryInterface;
-use Illuminate\Support\Collection;
 
 class TechnicianService implements TechnicianServiceInterface
 {
@@ -14,21 +13,22 @@ class TechnicianService implements TechnicianServiceInterface
 
     /**
      * Obtener rutas de técnicos por día según emp_code
-     * 
+     *
      * @param string $empCode Código del empleado
-     * @return Collection
+     * @param string $fecha Fecha a consultar en formato Y-m-d
      */
-    public function getRutasTecnicosDia(string $empCode): array
+    public function getRutasTecnicosDia(string $empCode, string $fecha): array
     {
-        $rutas = $this->repository->getRutasTecnicosDia($empCode);
+        $rutas = $this->repository->getRutasTecnicosDia($empCode, $fecha);
+
         return [
             'rutas' => $rutas,
             'meta' => [
                 'emp_code' => $empCode,
+                'fecha' => $fecha,
                 'total_rutas' => $rutas->count(),
                 'fecha_consulta' => now()->toDateTimeString(),
-            ]
+            ],
         ];
-
     }
 }
