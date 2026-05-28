@@ -22,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'role' => \App\Http\Middleware\RoleMiddleware::class,
+            'external.hmac' => \App\Http\Middleware\ExternalApiHmacAuth::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

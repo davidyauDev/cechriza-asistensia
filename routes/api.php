@@ -35,6 +35,16 @@ use Illuminate\Support\Facades\Route;
 Route::post('/login', [AuthController::class, 'login']);
 Route::get('/reverb-test/ping', [ReverbTestController::class, 'ping']);
 Route::post('/reverb-test/broadcast', [ReverbTestController::class, 'broadcast']);
+Route::prefix('external')
+    ->middleware(['external.hmac', 'throttle:60,1'])
+    ->group(function () {
+        Route::get('/solicitudes/{id}/mensajes', [MensajeSolicitudController::class, 'index'])
+            ->whereNumber('id')
+            ->name('external.solicitudes.mensajes.index');
+        Route::post('/solicitudes/{id}/mensajes', [MensajeSolicitudController::class, 'store'])
+            ->whereNumber('id')
+            ->name('external.solicitudes.mensajes.store');
+    });
 
 Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/register', [UserController::class, 'store']);
