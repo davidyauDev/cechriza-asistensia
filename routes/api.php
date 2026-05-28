@@ -15,10 +15,12 @@ use App\Http\Controllers\Api\InventarioController;
 use App\Http\Controllers\Api\InventarioDashboardController;
 use App\Http\Controllers\Api\InventarioProductosController;
 use App\Http\Controllers\Api\MemoryMatchScoreController;
+use App\Http\Controllers\Api\MensajeSolicitudController;
 use App\Http\Controllers\Api\PersonnelEmployeeController;
 use App\Http\Controllers\Api\ProductoSolicitudCompraRrhhController;
 use App\Http\Controllers\Api\SolicitudCompraWorkflowController;
 use App\Http\Controllers\Api\ReabastecimientoController;
+use App\Http\Controllers\Api\ReverbTestController;
 use App\Http\Controllers\Api\ReporteAsistenciaController;
 use App\Http\Controllers\Api\SeguimientoTecnicoController;
 use App\Http\Controllers\Api\SolicitudCompletaController;
@@ -31,6 +33,8 @@ use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
+Route::get('/reverb-test/ping', [ReverbTestController::class, 'ping']);
+Route::post('/reverb-test/broadcast', [ReverbTestController::class, 'broadcast']);
 
 Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/register', [UserController::class, 'store']);
@@ -109,6 +113,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
     });
     Route::get('/solicitudes', [SolicitudController::class, 'index'])->name('solicitudes.index');
     Route::get('/solicitudes/{id}', [SolicitudController::class, 'show'])->whereNumber('id')->name('solicitudes.show');
+    Route::get('/solicitudes/{id}/mensajes', [MensajeSolicitudController::class, 'index'])->whereNumber('id')->name('solicitudes.mensajes.index');
+    Route::post('/solicitudes/{id}/mensajes', [MensajeSolicitudController::class, 'store'])->whereNumber('id')->name('solicitudes.mensajes.store');
+    Route::patch('/solicitudes/{id}/mensajes/{idMensaje}/leido', [MensajeSolicitudController::class, 'markAsRead'])->whereNumber('id')->whereNumber('idMensaje')->name('solicitudes.mensajes.leido');
     Route::patch('/solicitudes/{id}/estado-rrhh', [SolicitudController::class, 'updateEstadoRrhh'])->whereNumber('id')->name('solicitudes.estado-rrhh.update');
     Route::patch('/solicitudes/{id}/cerrar', [SolicitudController::class, 'cerrarSolicitud'])->whereNumber('id')->name('solicitudes.cerrar');
     Route::post('/solicitudes/{id}/acta-rrhh', [SolicitudController::class, 'uploadActaRrhh'])->whereNumber('id')->name('solicitudes.acta-rrhh.upload');
@@ -157,4 +164,3 @@ Route::middleware(['auth:sanctum'])->group(function () {
     });
 
 });
-

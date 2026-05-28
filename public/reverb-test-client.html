@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reverb Test Client</title>
+</head>
+<body>
+    <h1>Cliente JS Puro - Reverb</h1>
+    <p>Escuchando canal: <code>external-demo</code>, evento: <code>external.frontend.test</code></p>
+    <pre id="log"></pre>
+
+    <script src="https://cdn.jsdelivr.net/npm/pusher-js@8.4.0/dist/web/pusher.min.js"></script>
+    <script>
+        const REVERB_HOST = "localhost"; // Cambia por tu host/backend
+        const REVERB_PORT = 8080; // Debe coincidir con REVERB_PORT
+        const REVERB_KEY = "TU_REVERB_APP_KEY"; // Copia REVERB_APP_KEY de tu .env
+
+        const log = document.getElementById("log");
+        const append = (text) => {
+            log.textContent += `${text}\n`;
+        };
+
+        const pusher = new Pusher(REVERB_KEY, {
+            wsHost: REVERB_HOST,
+            wsPort: REVERB_PORT,
+            wssPort: REVERB_PORT,
+            forceTLS: false,
+            enabledTransports: ["ws", "wss"],
+        });
+
+        const channel = pusher.subscribe("external-demo");
+        channel.bind("external.frontend.test", (data) => {
+            append(`[${new Date().toISOString()}] Evento recibido:`);
+            append(JSON.stringify(data, null, 2));
+        });
+
+        pusher.connection.bind("connected", () => append("Conectado a Reverb"));
+        pusher.connection.bind("error", (err) => append(`Error: ${JSON.stringify(err)}`));
+    </script>
+</body>
+</html>
