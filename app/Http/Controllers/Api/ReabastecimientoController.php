@@ -41,7 +41,7 @@ class ReabastecimientoController extends Controller
 
     private const DEFAULT_INITIAL_FLUJO_AREA_ID = 7;
 
-    private const DEFAULT_INITIAL_FLUJO_USER_ID = 185;
+    private const DEFAULT_INITIAL_FLUJO_USER_ID = 179;
 
     private const DEFAULT_INITIAL_FLUJO_STATE_ID = self::ESTADO_PENDIENTE;
 
@@ -175,7 +175,7 @@ class ReabastecimientoController extends Controller
                 ]);
 
                 $detalles = array_map(
-                    fn (array $detalle) => [
+                    fn(array $detalle) => [
                         'id_solicitud_reb' => $solicitudId,
                         'id_producto' => $detalle['id_producto'],
                         'cantidad_solicitada' => $detalle['cantidad_solicitada'],
@@ -184,7 +184,7 @@ class ReabastecimientoController extends Controller
                 );
 
                 $connection->table('reabastecimiento_detalles')->insert($detalles);
-                
+
                 date_default_timezone_set('America/Lima');
                 $now = now();
                 $connection->table(self::LOG_TABLE)->insertGetId([
@@ -271,7 +271,7 @@ class ReabastecimientoController extends Controller
             }
 
             $archivo = $request->file('archivo');
-            $archivoRuta = $archivo ? $this->storeUploadedFile($archivo, 'reabastecimiento/seguimiento/'.$id) : null;
+            $archivoRuta = $archivo ? $this->storeUploadedFile($archivo, 'reabastecimiento/seguimiento/' . $id) : null;
             $areaId = $validated['id_area_responsable'] ?? ($profile['id_area'] ?: $solicitud->id_area_solicitante);
             $comentario = trim((string) $validated['comentario']);
             $now = now();
@@ -334,7 +334,7 @@ class ReabastecimientoController extends Controller
                 return $this->errorResponse('Solicitud de reabastecimiento no encontrada.', 404);
             }
 
-            $query = $connection->table(self::LOG_TABLE.' as rl')
+            $query = $connection->table(self::LOG_TABLE . ' as rl')
                 ->leftJoin('ost_staff as os', 'os.staff_id', '=', 'rl.id_usuario_comenta')
                 ->select([
                     'rl.id_log_reb',
@@ -357,11 +357,11 @@ class ReabastecimientoController extends Controller
                 $search = trim((string) $validated['search']);
 
                 $query->where(function ($subquery) use ($search): void {
-                    $subquery->where('rl.comentario', 'like', '%'.$search.'%')
-                        ->orWhere('rl.archivo_nombre_original', 'like', '%'.$search.'%')
-                        ->orWhere('os.username', 'like', '%'.$search.'%')
-                        ->orWhere('os.firstname', 'like', '%'.$search.'%')
-                        ->orWhere('os.lastname', 'like', '%'.$search.'%');
+                    $subquery->where('rl.comentario', 'like', '%' . $search . '%')
+                        ->orWhere('rl.archivo_nombre_original', 'like', '%' . $search . '%')
+                        ->orWhere('os.username', 'like', '%' . $search . '%')
+                        ->orWhere('os.firstname', 'like', '%' . $search . '%')
+                        ->orWhere('os.lastname', 'like', '%' . $search . '%');
 
                     if (is_numeric($search)) {
                         $subquery->orWhere('rl.id_log_reb', (int) $search)
@@ -415,7 +415,7 @@ class ReabastecimientoController extends Controller
                 return $this->errorResponse('Solicitud de reabastecimiento no encontrada.', 404);
             }
 
-            $query = $connection->table(self::FLUJO_TABLE.' as rf')
+            $query = $connection->table(self::FLUJO_TABLE . ' as rf')
                 ->leftJoin('estados_reabastecimiento as er', 'er.id_estado_reb', '=', 'rf.id_estado')
                 ->leftJoin('ost_staff as os', 'os.staff_id', '=', 'rf.id_usuario_asignado')
                 ->leftJoin('area as a', 'a.id_area', '=', 'rf.id_area_responsable')
@@ -443,11 +443,11 @@ class ReabastecimientoController extends Controller
                 $search = trim((string) $validated['search']);
 
                 $query->where(function ($subquery) use ($search): void {
-                    $subquery->where('rf.comentarios', 'like', '%'.$search.'%')
-                        ->orWhere('rf.archivo', 'like', '%'.$search.'%')
-                        ->orWhere('os.username', 'like', '%'.$search.'%')
-                        ->orWhere('os.firstname', 'like', '%'.$search.'%')
-                        ->orWhere('os.lastname', 'like', '%'.$search.'%');
+                    $subquery->where('rf.comentarios', 'like', '%' . $search . '%')
+                        ->orWhere('rf.archivo', 'like', '%' . $search . '%')
+                        ->orWhere('os.username', 'like', '%' . $search . '%')
+                        ->orWhere('os.firstname', 'like', '%' . $search . '%')
+                        ->orWhere('os.lastname', 'like', '%' . $search . '%');
 
                     if (is_numeric($search)) {
                         $subquery->orWhere('rf.id_flujo_reb', (int) $search)
@@ -560,14 +560,14 @@ class ReabastecimientoController extends Controller
                 );
             }
 
-            $usuarioId = $validated['id_usuario_comenta'] ?? $request->user()?->id;
+            $usuarioId = $validated['id_usuario_comenta'] ?? 179;
 
             if (! $usuarioId) {
                 return $this->errorResponse('No se pudo resolver el usuario que comenta.', 422);
             }
 
             $archivo = $request->file('archivo');
-            $archivoRuta = $archivo ? $this->storeUploadedFile($archivo, 'reabastecimientos/adjuntos/'.$id) : null;
+            $archivoRuta = $archivo ? $this->storeUploadedFile($archivo, 'reabastecimientos/adjuntos/' . $id) : null;
 
             $now = now();
 
@@ -648,7 +648,7 @@ class ReabastecimientoController extends Controller
             }
 
             $archivo = $request->file('archivo');
-            $archivoRuta = $archivo ? $this->storeUploadedFile($archivo, 'reabastecimiento/seguimiento/'.$id) : null;
+            $archivoRuta = $archivo ? $this->storeUploadedFile($archivo, 'reabastecimiento/seguimiento/' . $id) : null;
 
             $areaId = $validated['id_area_responsable'] ?? data_get($request->user(), 'department_id') ?? $solicitud->id_area_solicitante;
             $estadoId = $validated['id_estado'] ?? $solicitud->id_estado_general;
@@ -897,7 +897,7 @@ class ReabastecimientoController extends Controller
         $nombreArchivo = (string) Str::uuid();
 
         if ($extension !== '') {
-            $nombreArchivo .= '.'.$extension;
+            $nombreArchivo .= '.' . $extension;
         }
 
         $absoluteDirectory = public_path($directorio);
@@ -908,7 +908,7 @@ class ReabastecimientoController extends Controller
 
         $archivo->move($absoluteDirectory, $nombreArchivo);
 
-        return trim($directorio, '/').'/'.$nombreArchivo;
+        return trim($directorio, '/') . '/' . $nombreArchivo;
     }
 
     protected function deleteStoredUploadedFile(?string $archivoRuta): void
@@ -1024,7 +1024,7 @@ class ReabastecimientoController extends Controller
             ->get();
 
         $estado = $this->resolveEstado((int) $solicitud->id_estado_general);
-        $totalUnidades = (int) $detalles->sum(fn ($detalle) => (int) $detalle->cantidad_solicitada);
+        $totalUnidades = (int) $detalles->sum(fn($detalle) => (int) $detalle->cantidad_solicitada);
 
         return [
             'solicitud' => [
@@ -1131,7 +1131,7 @@ class ReabastecimientoController extends Controller
      */
     protected function hydrateSolicitudesRows(Collection $rows, $connection): array
     {
-        $detailStats = $this->getDetailStatsForSolicitudes($connection, $rows->pluck('id_solicitud_reb')->map(fn ($id) => (int) $id)->all());
+        $detailStats = $this->getDetailStatsForSolicitudes($connection, $rows->pluck('id_solicitud_reb')->map(fn($id) => (int) $id)->all());
 
         return $rows->map(function ($row) use ($detailStats) {
             $solicitudId = (int) $row->id_solicitud_reb;
@@ -1172,7 +1172,7 @@ class ReabastecimientoController extends Controller
             ->whereIn('id_solicitud_reb', $ids)
             ->groupBy('id_solicitud_reb')
             ->get()
-            ->mapWithKeys(fn ($row) => [
+            ->mapWithKeys(fn($row) => [
                 (int) $row->id_solicitud_reb => [
                     'productos' => (int) $row->total_productos,
                     'unidades' => (int) $row->total_unidades,
@@ -1256,7 +1256,7 @@ class ReabastecimientoController extends Controller
 
     protected function formatCodigo(int $id): string
     {
-        return 'CECH_REA_'.str_pad((string) $id, 8, '0', STR_PAD_LEFT);
+        return 'CECH_REA_' . str_pad((string) $id, 8, '0', STR_PAD_LEFT);
     }
 
     /**
@@ -1266,12 +1266,12 @@ class ReabastecimientoController extends Controller
     {
         return $connection->table('ost_staff as os')
             ->where(function ($query) use ($search): void {
-                $query->where('os.username', 'like', '%'.$search.'%')
-                    ->orWhere('os.firstname', 'like', '%'.$search.'%')
-                    ->orWhere('os.lastname', 'like', '%'.$search.'%');
+                $query->where('os.username', 'like', '%' . $search . '%')
+                    ->orWhere('os.firstname', 'like', '%' . $search . '%')
+                    ->orWhere('os.lastname', 'like', '%' . $search . '%');
             })
             ->pluck('staff_id')
-            ->map(fn ($id) => (int) $id)
+            ->map(fn($id) => (int) $id)
             ->all();
     }
 
@@ -1280,7 +1280,7 @@ class ReabastecimientoController extends Controller
         $firstName = trim((string) ($row->staff_firstname ?? ''));
         $lastName = trim((string) ($row->staff_lastname ?? ''));
 
-        $fullName = trim($firstName.' '.$lastName);
+        $fullName = trim($firstName . ' ' . $lastName);
 
         return $fullName !== '' ? $fullName : null;
     }
@@ -1361,11 +1361,11 @@ class ReabastecimientoController extends Controller
             $staffIds = $this->findMatchingStaffIds($connection, $search);
 
             $query->where(function ($subquery) use ($search, $staffIds): void {
-                $subquery->where('sr.justificacion', 'like', '%'.$search.'%')
-                    ->orWhere('a.descripcion_area', 'like', '%'.$search.'%')
-                    ->orWhere('os.username', 'like', '%'.$search.'%')
-                    ->orWhere('os.firstname', 'like', '%'.$search.'%')
-                    ->orWhere('os.lastname', 'like', '%'.$search.'%');
+                $subquery->where('sr.justificacion', 'like', '%' . $search . '%')
+                    ->orWhere('a.descripcion_area', 'like', '%' . $search . '%')
+                    ->orWhere('os.username', 'like', '%' . $search . '%')
+                    ->orWhere('os.firstname', 'like', '%' . $search . '%')
+                    ->orWhere('os.lastname', 'like', '%' . $search . '%');
 
                 if (is_numeric($search)) {
                     $subquery->orWhere('sr.id_solicitud_reb', (int) $search)
@@ -1412,7 +1412,7 @@ class ReabastecimientoController extends Controller
 
     protected function findArchivoById($connection, int $id): ?object
     {
-        return $connection->table(self::LOG_TABLE.' as rl')
+        return $connection->table(self::LOG_TABLE . ' as rl')
             ->join('solicitudes_reabastecimiento as sr', 'sr.id_solicitud_reb', '=', 'rl.id_solicitud_reb')
             ->select([
                 'rl.id_log_reb',
@@ -1430,7 +1430,7 @@ class ReabastecimientoController extends Controller
 
     protected function findFlujoById($connection, int $id): ?object
     {
-        return $connection->table(self::FLUJO_TABLE.' as rf')
+        return $connection->table(self::FLUJO_TABLE . ' as rf')
             ->join('solicitudes_reabastecimiento as sr', 'sr.id_solicitud_reb', '=', 'rf.id_solicitud_reb')
             ->select([
                 'rf.id_flujo_reb',
@@ -1521,7 +1521,7 @@ class ReabastecimientoController extends Controller
             return $fullName;
         }
 
-        return $fullName.' ('.$area.')';
+        return $fullName . ' (' . $area . ')';
     }
 
     protected function buildArchivoUrl(string $path): string
@@ -1533,7 +1533,7 @@ class ReabastecimientoController extends Controller
         $normalizedPath = preg_replace('#^(\.\./)+#', '', $path) ?? $path;
         $normalizedPath = ltrim($normalizedPath, '/');
 
-        return rtrim(self::EXTERNAL_ARCHIVOS_BASE_URL, '/').'/'.$normalizedPath;
+        return rtrim(self::EXTERNAL_ARCHIVOS_BASE_URL, '/') . '/' . $normalizedPath;
     }
 
     protected function shouldDeleteStoredArchivo(string $path): bool
