@@ -6,17 +6,24 @@ use App\Events\MensajeSolicitudEnviado;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreMensajeSolicitudRequest;
 use App\Models\MensajeSolicitud;
+use App\Models\UserFcmToken;
+use App\Services\FcmService;
 use App\Traits\ApiResponseTrait;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Throwable;
 
 class MensajeSolicitudController extends Controller
 {
     use ApiResponseTrait;
+
+    public function __construct(
+        protected FcmService $fcmService
+    ) {}
 
     public function index(int $idSolicitud): JsonResponse
     {
@@ -85,6 +92,11 @@ class MensajeSolicitudController extends Controller
             ];
 
             broadcast(new MensajeSolicitudEnviado($idSolicitud, $payload));
+            $this->sendFcmForReply(
+                $idSolicitud,
+                (int) $validated['staff_id'],
+                $validated['mensaje'] ?? null
+            );
 
             return $this->successResponse($payload, 'Mensaje enviado correctamente.', 201);
         } catch (Throwable $e) {
@@ -217,5 +229,89 @@ class MensajeSolicitudController extends Controller
                 'fullname' => $fullName !== '' ? $fullName : null,
             ],
         ];
+    }
+
+    protected function sendFcmForReply(int $idSolicitud, int $senderStaffId, ?string $mensajeTexto): void
+    {
+        try {
+            $targetStaffIds = $this->resolveTargetStaffIds($idSolicitud, $senderStaffId);
+            if ($targetStaffIds === []) {
+                return;
+            }
+
+            $tokens = UserFcmToken::query()
+                ->active()
+                ->whereIn('staff_id', $targetStaffIds)
+                ->pluck('token')
+                ->map(fn ($token): string => (string) $token)
+                ->filter(fn (string $token): bool => trim($token) !== '')
+                ->values();
+
+            if ($tokens->isEmpty()) {
+                return;
+            }
+
+            $title = 'Nuevo mensaje en solicitud';
+            $body = trim((string) $mensajeTexto) !== ''
+                ? Str::limit(trim((string) $mensajeTexto), 120)
+                : 'Tienes una nueva respuesta.';
+
+            foreach ($tokens as $token) {
+                $result = $this->fcmService->sendToToken($token, $title, $body, [
+                    'type' => 'solicitud_mensaje',
+                    'id_solicitud' => (string) $idSolicitud,
+                    'sender_staff_id' => (string) $senderStaffId,
+                ]);
+
+                if (($result['ok'] ?? false) === true) {
+                    continue;
+                }
+
+                if (($result['invalid_token'] ?? false) === true) {
+                    UserFcmToken::query()
+                        ->where('token', $token)
+                        ->update(['is_active' => false]);
+                }
+
+                Log::warning('Fallo envio FCM en respuesta de solicitud', [
+                    'id_solicitud' => $idSolicitud,
+                    'sender_staff_id' => $senderStaffId,
+                    'status' => $result['status'] ?? null,
+                    'message' => $result['message'] ?? null,
+                ]);
+            }
+        } catch (Throwable $e) {
+            report($e);
+        }
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    protected function resolveTargetStaffIds(int $idSolicitud, int $senderStaffId): array
+    {
+        $solicitudOwnerId = $this->getConnection()->selectOne(
+            'SELECT id_usuario_solicitante FROM solicitudes WHERE id_solicitud = ? LIMIT 1',
+            [$idSolicitud]
+        );
+
+        $messageParticipants = $this->getConnection()->select(
+            'SELECT DISTINCT staff_id FROM mensajes_solicitud WHERE id_solicitud = ?',
+            [$idSolicitud]
+        );
+
+        $staffIds = [];
+
+        if ($solicitudOwnerId !== null && isset($solicitudOwnerId->id_usuario_solicitante)) {
+            $staffIds[] = (int) $solicitudOwnerId->id_usuario_solicitante;
+        }
+
+        foreach ($messageParticipants as $participant) {
+            if (isset($participant->staff_id)) {
+                $staffIds[] = (int) $participant->staff_id;
+            }
+        }
+
+        return array_values(array_filter(array_unique($staffIds), fn (int $id): bool => $id > 0 && $id !== $senderStaffId));
     }
 }

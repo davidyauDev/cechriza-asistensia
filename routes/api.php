@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\EmployeeConceptController;
 use App\Http\Controllers\Api\EmployeeMobilityController;
 use App\Http\Controllers\Api\EmployeeMobilityMonthlyCommentController;
 use App\Http\Controllers\Api\EventoController;
+use App\Http\Controllers\Api\FcmNotificationController;
 use App\Http\Controllers\Api\IncidenciaController;
 use App\Http\Controllers\Api\InventarioController;
 use App\Http\Controllers\Api\InventarioDashboardController;
@@ -49,6 +50,8 @@ Route::prefix('external')
 Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/register', [UserController::class, 'store']);
     Route::post('/logout', [AuthController::class, 'logout']);
+    Route::post('/notificaciones/fcm/token', [FcmNotificationController::class, 'registerToken'])->name('notificaciones.fcm.token');
+    Route::post('/notificaciones/fcm/enviar', [FcmNotificationController::class, 'sendTestNotification'])->name('notificaciones.fcm.enviar');
     Route::prefix('users')->group(function () {
         Route::post('/', [UserController::class, 'store']);
         Route::get('/all', [UserController::class, 'listAll']);

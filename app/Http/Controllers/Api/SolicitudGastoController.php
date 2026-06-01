@@ -179,6 +179,7 @@ SQL;
         }
 
         $sql .= "\n            ORDER BY sg.id DESC";
+        $sql .= "\n            LIMIT 5";
 
         return [$sql, $bindings];
     }

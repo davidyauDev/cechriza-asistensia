@@ -19,9 +19,9 @@ class ExternalApiHmacAuth
             return $this->unauthorized('Missing authentication headers.');
         }
 
-        $expectedApiKey = (string) env('EXTERNAL_API_KEY', '');
-        $secret = (string) env('EXTERNAL_API_SECRET', '');
-        $ttlSeconds = (int) env('EXTERNAL_API_SIGNATURE_TTL', 300);
+        $expectedApiKey = (string) config('services.external_api.key', '');
+        $secret = (string) config('services.external_api.secret', '');
+        $ttlSeconds = (int) config('services.external_api.signature_ttl', 300);
 
         if ($expectedApiKey === '' || $secret === '') {
             return $this->unauthorized('External API credentials are not configured.');

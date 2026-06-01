@@ -50,4 +50,15 @@ return [
         ))),
     ],
 
+    'firebase' => [
+        'project_id' => env('FIREBASE_PROJECT_ID'),
+        'service_account_path' => env('FIREBASE_SERVICE_ACCOUNT_PATH'),
+    ],
+
+    'external_api' => [
+        'key' => env('EXTERNAL_API_KEY', ''),
+        'secret' => env('EXTERNAL_API_SECRET', ''),
+        'signature_ttl' => (int) env('EXTERNAL_API_SIGNATURE_TTL', 300),
+    ],
+
 ];

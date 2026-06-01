@@ -320,6 +320,7 @@ SQL,
                 s.estado_rrhh,
                 s.estado_rrhh_comentario,
                 s.acta_rrhh_url,
+                s.chat_activo,
                 s.id_estado_general,
                 s.fecha_registro,
                 e.descripcion AS estado,
@@ -333,7 +334,8 @@ SQL,
             WHERE 
 SQL
             .implode("\n              AND ", $clauses)
-            ."\n            ORDER BY s.fecha_registro DESC";
+            ."\n            ORDER BY s.fecha_registro DESC
+            LIMIT 5";
     }
 
     protected function resolveSolicitanteId(Request $request): ?int
@@ -466,6 +468,7 @@ SQL
             "cod_orden" => $row->cod_orden ?? null,
             'estado_rrhh_comentario' => $row->estado_rrhh_comentario ?? null,
             'acta_rrhh_url' => $row->acta_rrhh_url ?? null,
+            'chat_activo' => isset($row->chat_activo) ? (int) $row->chat_activo : null,
             'id_estado_general' => $idEstadoGeneral,
             'fecha_registro' => $row->fecha_registro ?? null,
             'ubicacion' => $row->ubicacion ?? null,

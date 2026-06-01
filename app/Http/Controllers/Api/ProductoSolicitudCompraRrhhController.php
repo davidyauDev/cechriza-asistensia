@@ -81,6 +81,7 @@ class ProductoSolicitudCompraRrhhController extends Controller
 
             $rows = $query
                 ->orderByDesc('pscr.id')
+                ->limit(3)
                 ->get()
                 ->map(fn ($row): array => [
                     'id' => (int) $row->id,
