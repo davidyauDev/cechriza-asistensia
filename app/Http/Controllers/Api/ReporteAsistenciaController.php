@@ -104,12 +104,13 @@ class ReporteAsistenciaController extends Controller
                         ON pd.company_id = pc.id
 
                     LEFT JOIN (
-                        SELECT 
+                        SELECT DISTINCT ON (pe3.emp_code)
                             pe3.emp_code,
-                            MIN(ati.in_time) AS in_time
+                            ati.in_time
                         FROM personnel_employee pe3
-                        LEFT JOIN att_attschedule aa 
+                        INNER JOIN att_attschedule aa 
                             ON pe3.id = aa.employee_id
+                           AND ?::date BETWEEN aa.start_date AND aa.end_date
                         INNER JOIN att_attshift ash 
                             ON ash.id = aa.shift_id
                         INNER JOIN att_shiftdetail ashd 
@@ -117,7 +118,7 @@ class ReporteAsistenciaController extends Controller
                         INNER JOIN att_timeinterval ati 
                             ON ati.id = ashd.time_interval_id
                         WHERE ashd.day_index + 1 = CAST(to_char(?::date,'D') AS INT)
-                        GROUP BY pe3.emp_code
+                        ORDER BY pe3.emp_code, aa.start_date DESC, aa.id DESC
                     ) h ON h.emp_code = pe.emp_code
 
                     LEFT JOIN (
@@ -156,7 +157,7 @@ class ReporteAsistenciaController extends Controller
                         pe.first_name
                     SQL;
 
-        $params = [$fecha, $fecha, $fecha, $fecha];
+        $params = [$fecha, $fecha, $fecha, $fecha, $fecha];
         $params = array_merge($params, $paramsExcluir, $paramsDept, $paramsUsuario, $paramsCompany);
 
         $data = DB::connection('pgsql_external')->select($sql, $params);
