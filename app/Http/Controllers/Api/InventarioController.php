@@ -12,7 +12,6 @@ class InventarioController extends Controller
 {
     use ApiResponseTrait;
 
-
     private const BOTAS_IDS = array(130, 140, 195, 196, 197, 198, 199);
 
     public function index(): JsonResponse
@@ -47,17 +46,16 @@ class InventarioController extends Controller
 
         return DB::connection('mysql_external')->select(<<<SQL
             
-
             SELECT 
                 p.id_producto  as id_producto,
                 p.codigo_producto AS codigo,
                 p.descripcion,
                 c.nombre_categoria AS categoria,
                 ts.descripcion AS tipo,
-                i.stock_actual AS stock,
+                SUM(i.stock_actual) AS stock,
                 CASE 
-                    WHEN i.stock_actual = 0 THEN 'SIN STOCK'
-                    WHEN i.stock_actual <= 5 THEN 'BAJO'
+                    WHEN SUM(i.stock_actual) = 0 THEN 'SIN STOCK'
+                    WHEN SUM(i.stock_actual) <= 5 THEN 'BAJO'
                     ELSE 'OK'
                 END AS estado
               
@@ -69,7 +67,14 @@ class InventarioController extends Controller
             LEFT JOIN categorias_inventario c
                 ON c.id_categoria = p.id_categoria
             where p.tipo_responsable = 'SSOMA'
+            and p.eliminado = 0
             {$noBotasCondition}
+            GROUP BY
+                p.id_producto,
+                p.codigo_producto,
+                p.descripcion,
+                c.nombre_categoria,
+                ts.descripcion
 
         SQL);
     }

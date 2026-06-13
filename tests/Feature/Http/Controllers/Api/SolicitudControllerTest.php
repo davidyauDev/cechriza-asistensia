@@ -139,7 +139,7 @@ class SolicitudControllerTest extends TestCase
                     'cantidad_atendida' => 0,
                     'id_estado_detalle' => 11,
                     'estado' => 'Pendiente de Atencion',
-                    'observacion_atencion' => null,
+                    'comentario' => null,
                     'motivo' => null,
                     'id_usuario_atendio' => null,
                     'fecha_atencion' => null,

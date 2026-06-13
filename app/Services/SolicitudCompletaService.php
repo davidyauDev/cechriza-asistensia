@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Events\SolicitudCompletaCreada;
 use App\Mail\SolicitudRegistradaMail;
 use DomainException;
 use Illuminate\Http\UploadedFile;
@@ -105,6 +106,22 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                 $uploadedFilesSolicitud
             );
 
+            broadcast(new SolicitudCompletaCreada([
+                'id_solicitud' => $solicitudId,
+                'ticket' => $this->formatTicket($solicitudId),
+                'solicitante' => [
+                    'staff_id' => (int) $solicitante->staff_id,
+                    'nombre' => trim((string) ($solicitante->firstname ?? '').' '.(string) ($solicitante->lastname ?? '')),
+                    'firstname' => $solicitante->firstname ?? null,
+                    'lastname' => $solicitante->lastname ?? null,
+                    'area_id' => isset($solicitante->id_area) ? (int) $solicitante->id_area : null,
+                    'area' => $solicitante->area ?? null,
+                    'cargo_id' => isset($solicitante->id_cargo) ? (int) $solicitante->id_cargo : null,
+                    'cargo' => $solicitante->cargo ?? null,
+                ],
+                'detalles_count' => count($solicitudItems),
+            ]));
+
             $tickets[] = $this->formatTicket($solicitudId);
             $uploadedFiles = array_merge($uploadedFiles, $uploadedFilesSolicitud);
         }
@@ -117,6 +134,219 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
             'ticket' => $tickets[0],
             'uploaded_files' => $uploadedFiles,
             'tickets' => $tickets,
+        ];
+    }
+
+    public function actualizarDetalles(int $idSolicitud, array $data, array $files = []): array
+    {
+        $connection = DB::connection('mysql_external');
+        $solicitud = $this->findSolicitudById($connection, $idSolicitud);
+
+        if ($solicitud === null) {
+            throw new DomainException('Solicitud no encontrada.');
+        }
+
+        $detalles = $this->normalizeDetallesUpdatePayload($data, $files);
+        
+        $detallesEliminados = $this->normalizeDeleteIds($data);
+
+        Log::info('Actualizando detalles de solicitud', [
+            'id_solicitud' => $idSolicitud,
+            'detalles_recibidos' => count($detalles),
+            'detalles_eliminados_recibidos' => count($detallesEliminados),
+        ]);
+
+        if ($detalles === [] && $detallesEliminados === []) {
+            throw new DomainException('Debes enviar al menos un detalle para actualizar.');
+        }
+
+        $existingDetalles = $this->getDetallesBySolicitudId($connection, $idSolicitud);
+        $existingById = collect($existingDetalles)->keyBy('id_detalle_solicitud')->all();
+        $existingByInventario = collect($existingDetalles)->keyBy('id_inventario')->all();
+
+        $uploadedFiles = [];
+        $pathsToDelete = [];
+        $updatedCount = 0;
+        $createdCount = 0;
+        $deletedCount = 0;
+
+        $connection->transaction(function () use (
+            $connection,
+            $idSolicitud,
+            $detalles,
+            $detallesEliminados,
+            $existingById,
+            $existingByInventario,
+            &$uploadedFiles,
+            &$pathsToDelete,
+            &$updatedCount,
+            &$createdCount,
+            &$deletedCount
+        ): void {
+            $usedInventarioIds = [];
+
+            foreach ($detalles as $index => $detalleData) {
+                $detalleId = isset($detalleData['id_detalle_solicitud'])
+                    ? (int) $detalleData['id_detalle_solicitud']
+                    : null;
+                $idInventario = (int) $detalleData['id_inventario'];
+                $cantidadSolicitada = (int) $detalleData['cantidad_solicitada'];
+                $areaId = isset($detalleData['area_id']) && (int) $detalleData['area_id'] > 0
+                    ? (int) $detalleData['area_id']
+                    : null;
+                $comentario = isset($detalleData['comentario'])
+                    ? trim((string) $detalleData['comentario'])
+                    : '';
+                $comentario = $comentario !== '' ? $comentario : null;
+                $quitarImagen = (bool) ($detalleData['quitar_imagen'] ?? false);
+                $file = $detalleData['file'] ?? null;
+
+                if (isset($usedInventarioIds[$idInventario])) {
+                    throw new DomainException("El inventario {$idInventario} esta duplicado en la actualizacion.");
+                }
+                $usedInventarioIds[$idInventario] = true;
+
+                $existingDetalle = $detalleId !== null
+                    ? ($existingById[$detalleId] ?? null)
+                    : ($existingByInventario[$idInventario] ?? null);
+
+                if ($detalleId !== null && $existingDetalle === null) {
+                    throw new DomainException("El detalle {$detalleId} no existe en la solicitud.");
+                }
+
+                if ($existingDetalle !== null) {
+                    foreach ($existingByInventario as $otherExistingDetalle) {
+                        if (
+                            (int) $otherExistingDetalle->id_detalle_solicitud !== (int) $existingDetalle->id_detalle_solicitud
+                            && (int) $otherExistingDetalle->id_inventario === $idInventario
+                        ) {
+                            throw new DomainException("El inventario {$idInventario} ya esta usado en otro detalle de la solicitud.");
+                        }
+                    }
+                }
+
+                $payload = [
+                    'id_inventario' => $idInventario,
+                    'cantidad_solicitada' => $cantidadSolicitada,
+                    'comentario' => $comentario,
+                    'area_id' => $areaId,
+                ];
+
+                if ($existingDetalle !== null) {
+                    $connection->table('solicitud_detalles')
+                        ->where('id_detalle_solicitud', (int) $existingDetalle->id_detalle_solicitud)
+                        ->update($payload);
+
+                    $updatedCount++;
+
+                    if ($quitarImagen && ! empty($existingDetalle->ruta_imagen)) {
+                        $pathsToDelete[] = [
+                            'path' => (string) $existingDetalle->ruta_imagen,
+                        ];
+
+                        $connection->table('solicitud_detalles')
+                            ->where('id_detalle_solicitud', (int) $existingDetalle->id_detalle_solicitud)
+                            ->update([
+                                'ruta_imagen' => null,
+                                'url_imagen' => null,
+                            ]);
+                    }
+
+                    if ($file instanceof UploadedFile) {
+                        if (! empty($existingDetalle->ruta_imagen)) {
+                            $pathsToDelete[] = [
+                                'path' => (string) $existingDetalle->ruta_imagen,
+                            ];
+                        }
+
+                        $storedFile = $this->storeDetalleFile(
+                            $idSolicitud,
+                            (int) $existingDetalle->id_detalle_solicitud,
+                            $idInventario,
+                            $file
+                        );
+
+                        $uploadedFiles[] = $storedFile;
+
+                        $connection->table('solicitud_detalles')
+                            ->where('id_detalle_solicitud', (int) $existingDetalle->id_detalle_solicitud)
+                            ->update([
+                                'ruta_imagen' => $storedFile['path'],
+                                'url_imagen' => $storedFile['url'] ?? null,
+                            ]);
+                    }
+
+                    continue;
+                }
+
+                $detalleIdCreado = (int) $connection->table('solicitud_detalles')->insertGetId([
+                    'id_solicitud' => $idSolicitud,
+                    'id_inventario' => $idInventario,
+                    'cantidad_solicitada' => $cantidadSolicitada,
+                    'id_estado_detalle' => self::ESTADO_INICIAL,
+                    'comentario' => $comentario,
+                    'area_id' => $areaId,
+                    'ruta_imagen' => null,
+                    'url_imagen' => null,
+                ]);
+
+                $createdCount++;
+
+                if ($file instanceof UploadedFile) {
+                    $storedFile = $this->storeDetalleFile(
+                        $idSolicitud,
+                        $detalleIdCreado,
+                        $idInventario,
+                        $file
+                    );
+
+                    $uploadedFiles[] = $storedFile;
+
+                    $connection->table('solicitud_detalles')
+                        ->where('id_detalle_solicitud', $detalleIdCreado)
+                        ->update([
+                            'ruta_imagen' => $storedFile['path'],
+                            'url_imagen' => $storedFile['url'] ?? null,
+                        ]);
+                }
+            }
+
+            if ($detallesEliminados !== []) {
+                foreach ($detallesEliminados as $detalleId) {
+                    $existingDetalle = $existingById[$detalleId] ?? null;
+                    if ($existingDetalle === null) {
+                        continue;
+                    }
+
+                    if (! empty($existingDetalle->ruta_imagen)) {
+                        $pathsToDelete[] = [
+                            'path' => (string) $existingDetalle->ruta_imagen,
+                        ];
+                    }
+
+                    $connection->table('solicitud_detalles')
+                        ->where('id_detalle_solicitud', (int) $detalleId)
+                        ->delete();
+
+                    $deletedCount++;
+                }
+            }
+        });
+
+        if ($pathsToDelete !== []) {
+            $this->deleteStoredFiles($pathsToDelete);
+        }
+
+        return [
+            'id_solicitud' => $idSolicitud,
+            'ticket' => $this->formatTicket($idSolicitud),
+            'detalles_actualizados' => $updatedCount,
+            'detalles_creados' => $createdCount,
+            'detalles_eliminados' => $deletedCount,
+            'uploaded_files' => $uploadedFiles,
+            'detalles' => $this->getDetallesBySolicitudId($connection, $idSolicitud)
+                ->map(fn (object $row): array => $this->buildDetalleResponsePayload($row))
+                ->all(),
         ];
     }
 
@@ -195,7 +425,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                     'product_name' => (string) ($inventario->producto ?? ''),
                     'requires_photo' => $requiereFoto,
                     'quantity' => $cantidad,
-                    'observacion' => $observacion !== '' ? 'Nota Usuario: '.$observacion : null,
+                    'observacion' => $observacion ,
                     'file' => $file instanceof UploadedFile ? $file : null,
                 ];
 
@@ -300,6 +530,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                 'fecha_necesaria' => $data['fecha_necesaria'] ?? null,
                 'tipo_entrega_preferida' => $data['tipo_entrega_preferida'] ?? 'Directo',
                 'id_direccion_entrega' => $data['id_direccion_entrega'] ?? null,
+                'id_ubicacion' => $data['id_ubicacion'] ?? null,
                 'ubicacion' => $data['ubicacion'] ?? null,
                 'es_pedido_compra' => 0,
                 'pedido_compra_estado' => 0,
@@ -314,7 +545,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                     'id_inventario' => (int) $item['id_inventario'],
                     'cantidad_solicitada' => (int) $item['quantity'],
                     'id_estado_detalle' => self::ESTADO_INICIAL,
-                    'observacion_atencion' => $item['observacion'],
+                    'comentario' => $item['observacion'],
                     'area_id' => (int) $item['id_area'],
                     'ruta_imagen' => null,
                     'url_imagen' => null,
@@ -390,10 +621,24 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
     {
         $rows = $connection->select(
             <<<'SQL'
-                SELECT staff_id, dept_id, firstname, lastname, email, role_id
-                     , id_departamento
-                FROM ost_staff
-                WHERE staff_id = ?
+                SELECT
+                    u.staff_id,
+                    u.dept_id,
+                    u.firstname,
+                    u.lastname,
+                    u.email,
+                    u.role_id,
+                    u.id_departamento,
+                    u.id_area,
+                    u.id_cargo,
+                    a.descripcion_area AS area,
+                    c.descripcion_cargo AS cargo
+                FROM ost_staff u
+                LEFT JOIN area a
+                    ON a.id_area = u.id_area
+                LEFT JOIN cargo c
+                    ON c.id_cargo = u.id_cargo
+                WHERE u.staff_id = ?
                 LIMIT 1
             SQL,
             [$staffId]
@@ -561,7 +806,8 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                 'firstname' => $solicitante->firstname ?? null,
                 'lastname' => $solicitante->lastname ?? null,
                 'email' => $replyToEmail,
-                'dept_id' => isset($solicitante->dept_id) ? (int) $solicitante->dept_id : null,
+                'dept_id' => isset($solicitante->id_departamento) ? (int) $solicitante->id_departamento : null,
+                'id_departamento' => isset($solicitante->id_departamento) ? (int) $solicitante->id_departamento : null,
             ],
             areas: $areaIds,
             items: $items,
@@ -715,6 +961,161 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                 return [(int) $row->id_inventario => (int) $row->id_detalle_solicitud];
             })
             ->all();
+    }
+
+    protected function findSolicitudById(object $connection, int $idSolicitud): ?object
+    {
+        $rows = $connection->select(
+            'SELECT id_solicitud
+             FROM solicitudes
+             WHERE id_solicitud = ?
+             LIMIT 1',
+            [$idSolicitud]
+        );
+
+        return $rows[0] ?? null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @param  array<string, mixed>  $files
+     * @return array<int, array<string, mixed>>
+     */
+    protected function normalizeDetallesUpdatePayload(array $data, array $files): array
+    {
+        $detalles = Arr::get($data, 'detalles', []);
+        if (! is_array($detalles)) {
+            return [];
+        }
+
+        $filesDetalles = Arr::get($files, 'detalles', []);
+
+        $normalized = [];
+        foreach ($detalles as $index => $detalle) {
+            if (! is_array($detalle)) {
+                continue;
+            }
+
+            $file = Arr::get($filesDetalles, "{$index}.imagen");
+            if (! $file instanceof UploadedFile) {
+                $file = Arr::get($filesDetalles, "{$index}.foto");
+            }
+            if (! $file instanceof UploadedFile) {
+                $file = Arr::get($filesDetalles, "{$index}.image");
+            }
+
+            $normalized[] = [
+                'id_detalle_solicitud' => isset($detalle['id_detalle_solicitud']) && (int) $detalle['id_detalle_solicitud'] > 0
+                    ? (int) $detalle['id_detalle_solicitud']
+                    : null,
+                'id_inventario' => (int) ($detalle['id_inventario'] ?? 0),
+                'cantidad_solicitada' => (int) ($detalle['cantidad_solicitada'] ?? 0),
+                'area_id' => isset($detalle['area_id']) && (int) $detalle['area_id'] > 0
+                    ? (int) $detalle['area_id']
+                    : null,
+                'comentario' => array_key_exists('comentario', $detalle) ? (string) $detalle['comentario'] : null,
+                'quitar_imagen' => filter_var($detalle['quitar_imagen'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                'file' => $file instanceof UploadedFile ? $file : null,
+            ];
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<int, int>
+     */
+    protected function normalizeDeleteIds(array $data): array
+    {
+        $ids = Arr::get($data, 'detalles_eliminados', []);
+        if (! is_array($ids)) {
+            return [];
+        }
+
+        return collect($ids)
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id): bool => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    protected function storeDetalleFile(int $idSolicitud, int $idDetalle, int $idInventario, UploadedFile $file): array
+    {
+        $directory = trim('uploads/solicitudes/'.$idSolicitud.'/detalles/'.$idDetalle, '/');
+        $disk = Storage::disk('public');
+        $filename = $this->buildSafeFileName($idSolicitud, $idInventario, $file);
+        $path = $directory.'/'.$filename;
+        $contents = file_get_contents($file->getRealPath());
+
+        if ($contents === false) {
+            throw new DomainException("No se pudo leer la imagen del detalle {$idDetalle}.");
+        }
+
+        $stored = $disk->put($path, $contents);
+        if (! $stored) {
+            throw new DomainException("No se pudo guardar la imagen del detalle {$idDetalle}.");
+        }
+
+        return [
+            'id_detalle_solicitud' => $idDetalle,
+            'id_inventario' => $idInventario,
+            'path' => $path,
+            'url' => $this->buildPublicUrl($path),
+            'original_name' => $file->getClientOriginalName(),
+        ];
+    }
+
+    protected function getDetallesBySolicitudId(object $connection, int $idSolicitud)
+    {
+        return collect($connection->select(
+            <<<SQL
+                SELECT
+                    d.id_detalle_solicitud,
+                    d.id_solicitud,
+                    d.id_inventario,
+                    d.cantidad_solicitada,
+                    d.comentario,
+                    d.area_id,
+                    d.ruta_imagen,
+                    d.url_imagen,
+                    d.id_estado_detalle,
+                    i.id_producto,
+                    p.descripcion AS producto,
+                    a.descripcion_area AS area
+                FROM solicitud_detalles d
+                LEFT JOIN inventario i ON i.id_inventario = d.id_inventario
+                LEFT JOIN productos p ON p.id_producto = i.id_producto
+                LEFT JOIN area a ON a.id_area = d.area_id
+                WHERE d.id_solicitud = ?
+                ORDER BY COALESCE(NULLIF(d.area_id, 0), i.id_area) ASC, p.descripcion ASC
+            SQL,
+            [$idSolicitud]
+        ));
+    }
+
+    protected function buildDetalleResponsePayload(object $row): array
+    {
+        $urlImagen = $row->url_imagen ?? null;
+        if (! $urlImagen && ! empty($row->ruta_imagen)) {
+            $urlImagen = $this->buildPublicUrl((string) $row->ruta_imagen);
+        }
+
+        return [
+            'id_detalle_solicitud' => (int) $row->id_detalle_solicitud,
+            'id_solicitud' => (int) $row->id_solicitud,
+            'id_inventario' => (int) $row->id_inventario,
+            'id_producto' => $row->id_producto !== null ? (int) $row->id_producto : null,
+            'producto' => $row->producto ?? null,
+            'area_id' => $row->area_id !== null ? (int) $row->area_id : null,
+            'area' => $row->area ?? null,
+            'cantidad_solicitada' => $row->cantidad_solicitada !== null ? (int) $row->cantidad_solicitada : null,
+            'comentario' => $row->comentario ?? null,
+            'id_estado_detalle' => $row->id_estado_detalle !== null ? (int) $row->id_estado_detalle : null,
+            'ruta_imagen' => $row->ruta_imagen ?? null,
+            'url_imagen' => $urlImagen,
+        ];
     }
 
     /**

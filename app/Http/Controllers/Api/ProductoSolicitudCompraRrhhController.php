@@ -49,7 +49,7 @@ class ProductoSolicitudCompraRrhhController extends Controller
                     'sd.cantidad_solicitada',
                     'sd.area_id',
                     'sd.id_estado_detalle',
-                    'sd.observacion_atencion',
+                    'sd.comentario',
                     'sd.url_imagen',                       
                     's.fecha_registro as solicitud_fecha_registro',
                     's.fecha_necesaria as solicitud_fecha_necesaria',
@@ -109,7 +109,7 @@ class ProductoSolicitudCompraRrhhController extends Controller
                         'cantidad_solicitada' => $row->cantidad_solicitada !== null ? (float) $row->cantidad_solicitada : null,
                         'area_id' => $row->area_id !== null ? (int) $row->area_id : null,
                         'id_estado_detalle' => $row->id_estado_detalle !== null ? (int) $row->id_estado_detalle : null,
-                        'observacion_atencion' => $row->observacion_atencion ?? null,
+                        'comentario' => $row->comentario ?? null,
                         'url_imagen' => $row->url_imagen ?? null,
                     ],
                     'solicitud' => [

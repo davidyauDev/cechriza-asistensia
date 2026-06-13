@@ -9,6 +9,7 @@ use Illuminate\Database\ConnectionInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Throwable;
@@ -47,6 +48,12 @@ class SolicitudController extends Controller
                 ))
                 ->values()
                 ->all();
+
+            Log::debug('SolicitudController@index payload', [
+                'id_usuario_solicitante' => $idUsuarioSolicitante,
+                'total' => count($payload),
+                'payload' => $payload,
+            ]);
 
             return $this->successResponse($payload, 'Solicitudes consultadas correctamente');
         } catch (Throwable $e) {
@@ -319,6 +326,7 @@ SQL,
                 s.ubicacion,
                 s.estado_rrhh,
                 s.estado_rrhh_comentario,
+                s.comentario_anulacion,
                 s.acta_rrhh_url,
                 s.chat_activo,
                 s.id_estado_general,
@@ -330,7 +338,7 @@ SQL,
             FROM solicitudes s
             INNER JOIN estados_inventario e ON s.id_estado_general = e.id_estado
             INNER JOIN ost_staff u ON s.id_usuario_solicitante = u.staff_id
-            INNER JOIN departamento d ON d.id_departamento = u.id_departamento
+            LEFT JOIN departamento d ON d.id_departamento = u.id_departamento
             WHERE 
 SQL
             .implode("\n              AND ", $clauses)
@@ -380,8 +388,8 @@ SQL
                     d.derivado_a_logistica,
                     e.descripcion AS estado,
                 d.url_imagen,
-                d.observacion_atencion,
-                d.motivo_rechazo AS motivo,
+                d.comentario AS comentario,
+                d.comentario_atencion,
                 d.id_usuario_atendio,
                 d.fecha_atencion,
                 s.id_usuario_solicitante,
@@ -462,6 +470,7 @@ SQL
             'justificacion' => $row->justificacion ?? null,
             'tipo_solicitud' => $row->tipo_solicitud ?? null,
             'estado_rrhh' => $row->estado_rrhh ?? null,
+            'comentario_anulacion' => $row->comentario_anulacion ?? null,
             "qr_token" => $row->qr_token ?? null,
             "empresa_agencia" => $row->empresa_agencia ?? null,
             "numero_orden" => $row->numero_orden ?? null,
@@ -525,8 +534,8 @@ SQL
                     d.derivado_a_logistica,
                     e.descripcion AS estado,
                     d.url_imagen,
-                    d.observacion_atencion,
-                    d.motivo_rechazo AS motivo,
+                    d.comentario AS comentario,
+                    d.comentario_atencion,
                     d.id_usuario_atendio,
                     d.fecha_atencion,
                     s.id_usuario_solicitante,
@@ -581,8 +590,8 @@ SQL,
             'id_estado_detalle' => $row->id_estado_detalle !== null ? (int) $row->id_estado_detalle : null,
             'estado' => $row->estado ?? null,
             'url_imagen' => $row->url_imagen ?? null,
-            'observacion_atencion' => $row->observacion_atencion ?? null,
-            'motivo' => $row->motivo ?? null,
+            'comentario' => $row->comentario ?? null,
+            'comentario_atencion' => $row->comentario_atencion ?? null,
             'id_usuario_atendio' => $row->id_usuario_atendio !== null ? (int) $row->id_usuario_atendio : null,
             'fecha_atencion' => $row->fecha_atencion ?? null,
             'id_usuario_solicitante' => $row->id_usuario_solicitante !== null ? (int) $row->id_usuario_solicitante : null,

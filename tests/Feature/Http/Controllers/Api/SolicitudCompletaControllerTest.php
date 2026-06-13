@@ -132,13 +132,13 @@ class SolicitudCompletaControllerTest extends TestCase
                     && $rows[0]['id_solicitud'] === 42
                     && $rows[0]['id_inventario'] === 101
                     && $rows[0]['cantidad_solicitada'] === 2
-                    && $rows[0]['observacion_atencion'] === null
+                    && $rows[0]['comentario'] === null
                     && $rows[0]['area_id'] === 11
                     && $rows[0]['ruta_imagen'] === null
                     && $rows[0]['url_imagen'] === null
                     && $rows[1]['id_inventario'] === 202
                     && $rows[1]['cantidad_solicitada'] === 1
-                    && $rows[1]['observacion_atencion'] === 'Nota Usuario: Revisar estado'
+                    && $rows[1]['comentario'] === 'Nota Usuario: Revisar estado'
                     && $rows[1]['area_id'] === 12
                     && $rows[1]['ruta_imagen'] === null
                     && $rows[1]['url_imagen'] === null;

@@ -72,7 +72,7 @@ class DetalleSolicitudController extends Controller
                 $connection->update(
                     'UPDATE solicitud_detalles
                      SET cantidad_aprobada = ?,
-                         motivo_rechazo = ?,
+                         comentario_atencion = ?,
                          id_usuario_atendio = ?,
                          fecha_atencion = NOW(),
                          id_estado_detalle = ?
@@ -159,7 +159,7 @@ class DetalleSolicitudController extends Controller
                 $connection->update(
                     'UPDATE solicitud_detalles
                      SET cantidad_aprobada = 0,
-                         motivo_rechazo = ?,
+                         comentario_atencion = ?,
                          id_usuario_atendio = ?,
                          fecha_atencion = NOW(),
                          id_estado_detalle = ?
