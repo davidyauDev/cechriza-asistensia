@@ -323,7 +323,6 @@ SQL,
                 s.cod_orden,
                 s.justificacion,
                 s.tipo_solicitud,
-                s.ubicacion,
                 s.estado_rrhh,
                 s.estado_rrhh_comentario,
                 s.comentario_anulacion,
@@ -387,6 +386,7 @@ SQL
                 d.id_estado_detalle,
                     d.derivado_a_logistica,
                     e.descripcion AS estado,
+                d.id_ubicacion,
                 d.url_imagen,
                 d.comentario AS comentario,
                 d.comentario_atencion,
@@ -397,7 +397,7 @@ SQL
                 s.fecha_necesaria,
                 s.fecha_cierre,
                 s.prioridad,
-                s.ubicacion,
+                s.ubicacion AS solicitud_ubicacion,
                 s.qr_token,
                 s.tipo_entrega_preferida,
                 s.justificacion,
@@ -454,7 +454,7 @@ SQL
             'fecha_necesaria' => $row->fecha_necesaria ?? null,
             'fecha_cierre' => $row->fecha_cierre ?? null,
             'prioridad' => $row->prioridad ?? null,
-            'ubicacion' => $row->ubicacion ?? null,
+            'ubicacion' => $this->resolveUbicacionFromRows($rows),
             'tipo_entrega_preferida' => $row->tipo_entrega_preferida ?? null,
             'detalles_count' => count($rows),
         ];
@@ -480,7 +480,7 @@ SQL
             'chat_activo' => isset($row->chat_activo) ? (int) $row->chat_activo : null,
             'id_estado_general' => $idEstadoGeneral,
             'fecha_registro' => $row->fecha_registro ?? null,
-            'ubicacion' => $row->ubicacion ?? null,
+            'ubicacion' => $this->resolveUbicacionFromDetalles($detalles),
             'estado' => [
                 'id_estado' => $idEstadoGeneral,
                 'descripcion' => $row->estado ?? null,
@@ -533,6 +533,7 @@ SQL
                     d.id_estado_detalle,
                     d.derivado_a_logistica,
                     e.descripcion AS estado,
+                    d.id_ubicacion,
                     d.url_imagen,
                     d.comentario AS comentario,
                     d.comentario_atencion,
@@ -543,7 +544,7 @@ SQL
                     s.fecha_necesaria,
                     s.fecha_cierre,
                     s.prioridad,
-                    s.ubicacion,
+                    s.ubicacion AS solicitud_ubicacion,
                     s.tipo_entrega_preferida,
                     s.justificacion,
                     u.firstname,
@@ -580,6 +581,7 @@ SQL,
             'id_producto' => $row->id_producto !== null ? (int) $row->id_producto : null,
             'area_id' => $row->area_id !== null ? (int) $row->area_id : null,
             'area' => $row->area ?? null,
+            'id_ubicacion' => $row->id_ubicacion !== null ? (int) $row->id_ubicacion : null,
             'id_area_inventario' => $row->id_area_inventario !== null ? (int) $row->id_area_inventario : null,
             'stock_actual' => $row->stock_actual !== null ? (int) $row->stock_actual : null,
             'producto' => $row->producto ?? null,
@@ -599,7 +601,7 @@ SQL,
             'fecha_necesaria' => $row->fecha_necesaria ?? null,
             'fecha_cierre' => $row->fecha_cierre ?? null,
             'prioridad' => $row->prioridad ?? null,
-            'ubicacion' => $row->ubicacion ?? null,
+            'ubicacion' => $row->solicitud_ubicacion ?? null,
             'tipo_entrega_preferida' => $row->tipo_entrega_preferida ?? null,
             'justificacion' => $row->justificacion ?? null,
             'firstname' => $row->firstname ?? null,
@@ -635,6 +637,32 @@ SQL,
         }
 
         return false;
+    }
+
+    protected function resolveUbicacionFromDetalles(array $detalles): ?string
+    {
+        foreach ($detalles as $detalle) {
+            $ubicacion = trim((string) ($detalle['ubicacion'] ?? ''));
+
+            if ($ubicacion !== '') {
+                return $ubicacion;
+            }
+        }
+
+        return null;
+    }
+
+    protected function resolveUbicacionFromRows(array $rows): ?string
+    {
+        foreach ($rows as $row) {
+            $ubicacion = trim((string) ($row->solicitud_ubicacion ?? ''));
+
+            if ($ubicacion !== '') {
+                return $ubicacion;
+            }
+        }
+
+        return null;
     }
 
     protected function toBool(mixed $value): bool

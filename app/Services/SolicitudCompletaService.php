@@ -230,6 +230,9 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                     'cantidad_solicitada' => $cantidadSolicitada,
                     'comentario' => $comentario,
                     'area_id' => $areaId,
+                    'id_ubicacion' => isset($detalleData['id_ubicacion']) && (int) $detalleData['id_ubicacion'] > 0
+                        ? (int) $detalleData['id_ubicacion']
+                        : null,
                 ];
 
                 if ($existingDetalle !== null) {
@@ -286,6 +289,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                     'id_estado_detalle' => self::ESTADO_INICIAL,
                     'comentario' => $comentario,
                     'area_id' => $areaId,
+                    'id_ubicacion' => $detalleData['id_ubicacion'] ?? null,
                     'ruta_imagen' => null,
                     'url_imagen' => null,
                 ]);
@@ -359,6 +363,22 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
     {
         ['data' => $data, 'files' => $files] = $this->normalizeItemsPayload($data, $files);
 
+        Log::debug('solicitudes.registrar_completa.collect_items', [
+            'has_solicitud_gasto_detalles' => isset($data['solicitud_gasto_detalles']),
+            'has_items' => isset($data['items']),
+            'raw_keys' => array_keys($data),
+            'detalles_ubicaciones' => collect(Arr::get($data, 'solicitud_gasto_detalles', []))
+                ->map(fn ($item): array => is_array($item)
+                    ? [
+                        'id_producto' => $item['id_producto'] ?? $item['id_inventario'] ?? null,
+                        'id_ubicacion_limpieza' => $item['id_ubicacion_limpieza'] ?? null,
+                        'id_ubicacion' => $item['id_ubicacion'] ?? null,
+                    ]
+                    : [])
+                ->values()
+                ->all(),
+        ]);
+
         $items = [];
         $seenInventarios = [];
         $areasGlobales = $this->normalizeList($data, 'id_area');
@@ -370,11 +390,13 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
             $observaciones = $this->normalizeList($data, "observacion_{$category}");
             $fotos = $this->normalizeListPreserveKeys($files, "foto_{$category}");
             $areasCategoria = $this->normalizeList($data, "id_area_{$category}");
+            $idUbicacionesCategoria = $this->normalizeList($data, "id_ubicacion_{$category}");
             foreach ($inventarios as $index => $inventarioRaw) {
                 $idReferencia = (int) $inventarioRaw;
                 $cantidad = (int) ($cantidades[$index] ?? 0);
                 $areaDesdeCategoria = (int) ($areasCategoria[$index] ?? 0);
                 $areaDesdeGlobal = (int) ($areasGlobales[$areaGlobalIndex] ?? 0);
+                $idUbicacionDesdeCategoria = (int) ($idUbicacionesCategoria[$index] ?? 0);
                 $areaGlobalIndex++;
 
                 if ($idReferencia <= 0 || $cantidad <= 0) {
@@ -406,6 +428,10 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                     continue;
                 }
 
+                $idUbicacionDetalle = $idUbicacionDesdeCategoria > 0
+                    ? $idUbicacionDesdeCategoria
+                    : ((int) ($data['id_ubicacion'] ?? 0) > 0 ? (int) $data['id_ubicacion'] : null);
+
                 $file = Arr::get($fotos, $index);
                 $requiereFoto = (int) ($inventario->requiere_foto_producto_anterior ?? 0) === 1;
 
@@ -422,6 +448,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                     'id_inventario' => $idInventario,
                     'id_producto' => (int) $inventario->id_producto,
                     'id_area' => $idAreaDetalle,
+                    'id_ubicacion' => $idUbicacionDetalle,
                     'product_name' => (string) ($inventario->producto ?? ''),
                     'requires_photo' => $requiereFoto,
                     'quantity' => $cantidad,
@@ -432,6 +459,17 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                 $seenInventarios[$idInventario] = true;
             }
         }
+
+        Log::debug('solicitudes.registrar_completa.collect_items.normalized', [
+            'count' => count($items),
+            'ubicaciones_normalizadas' => collect($items)
+                ->map(fn (array $item): array => [
+                    'id_inventario' => $item['id_inventario'] ?? null,
+                    'id_ubicacion' => $item['id_ubicacion'] ?? null,
+                ])
+                ->values()
+                ->all(),
+        ]);
 
         return $items;
     }
@@ -445,7 +483,10 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
      */
     protected function normalizeItemsPayload(array $data, array $files): array
     {
-        $items = Arr::get($data, 'items');
+        $items = Arr::get($data, 'solicitud_gasto_detalles');
+        if (! is_array($items) || $items === []) {
+            $items = Arr::get($data, 'items');
+        }
         if (! is_array($items) || $items === []) {
             return ['data' => $data, 'files' => $files];
         }
@@ -461,11 +502,23 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
             $inventarioId = (int) ($item['id_producto'] ?? $item['id_inventario'] ?? 0);
             $cantidad = (int) ($item['cantidad'] ?? $item['quantity'] ?? 0);
             $idArea = (int) ($item['id_area'] ?? $item['area_id'] ?? 0);
-            $observacion = trim((string) ($item['observacion'] ?? $item['observation'] ?? ''));
+            $idUbicacion = (int) (
+                $item['id_ubicacion_limpieza']
+                ?? $item['id_ubicacion']
+                ?? $item['location_id']
+                ?? 0
+            );
+            $observacion = trim((string) (
+                $item['descripcion_adicional']
+                ?? $item['observacion']
+                ?? $item['observation']
+                ?? ''
+            ));
 
             $data["id_producto_{$category}"][] = $inventarioId;
             $data["cantidad_{$category}"][] = $cantidad;
             $data["id_area_{$category}"][] = $idArea;
+            $data["id_ubicacion_{$category}"][] = $idUbicacion;
             $data["observacion_{$category}"][] = $observacion;
 
             $file = Arr::get($files, "items.{$index}.imagen");
@@ -521,6 +574,17 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
         $now = now();
 
         $solicitudId = $connection->transaction(function () use ($connection, $data, $items, $areaIds, $solicitante, $tipoSolicitud, $now): int {
+            Log::debug('solicitudes.registrar_completa.persist.before_insert', [
+                'id_solicitante' => $data['id_usuario_solicitante'] ?? null,
+                'detalles' => collect($items)
+                    ->map(fn (array $item): array => [
+                        'id_inventario' => $item['id_inventario'] ?? null,
+                        'id_ubicacion' => $item['id_ubicacion'] ?? null,
+                    ])
+                    ->values()
+                    ->all(),
+            ]);
+
             $solicitudId = (int) $connection->table('solicitudes')->insertGetId([
                 'id_usuario_solicitante' => (int) $data['id_usuario_solicitante'],
                 'id_area_origen' => (int) $solicitante->dept_id,
@@ -530,8 +594,6 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                 'fecha_necesaria' => $data['fecha_necesaria'] ?? null,
                 'tipo_entrega_preferida' => $data['tipo_entrega_preferida'] ?? 'Directo',
                 'id_direccion_entrega' => $data['id_direccion_entrega'] ?? null,
-                'id_ubicacion' => $data['id_ubicacion'] ?? null,
-                'ubicacion' => $data['ubicacion'] ?? null,
                 'es_pedido_compra' => 0,
                 'pedido_compra_estado' => 0,
                 'tipo_solicitud' => $tipoSolicitud,
@@ -547,6 +609,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                     'id_estado_detalle' => self::ESTADO_INICIAL,
                     'comentario' => $item['observacion'],
                     'area_id' => (int) $item['id_area'],
+                    'id_ubicacion' => $item['id_ubicacion'] ?? null,
                     'ruta_imagen' => null,
                     'url_imagen' => null,
                 ];
@@ -1013,6 +1076,9 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                 'area_id' => isset($detalle['area_id']) && (int) $detalle['area_id'] > 0
                     ? (int) $detalle['area_id']
                     : null,
+                'id_ubicacion' => isset($detalle['id_ubicacion']) && (int) $detalle['id_ubicacion'] > 0
+                    ? (int) $detalle['id_ubicacion']
+                    : null,
                 'comentario' => array_key_exists('comentario', $detalle) ? (string) $detalle['comentario'] : null,
                 'quitar_imagen' => filter_var($detalle['quitar_imagen'] ?? false, FILTER_VALIDATE_BOOLEAN),
                 'file' => $file instanceof UploadedFile ? $file : null,
@@ -1078,6 +1144,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
                     d.cantidad_solicitada,
                     d.comentario,
                     d.area_id,
+                    d.id_ubicacion,
                     d.ruta_imagen,
                     d.url_imagen,
                     d.id_estado_detalle,
@@ -1110,6 +1177,7 @@ class SolicitudCompletaService implements SolicitudCompletaServiceInterface
             'producto' => $row->producto ?? null,
             'area_id' => $row->area_id !== null ? (int) $row->area_id : null,
             'area' => $row->area ?? null,
+            'id_ubicacion' => $row->id_ubicacion !== null ? (int) $row->id_ubicacion : null,
             'cantidad_solicitada' => $row->cantidad_solicitada !== null ? (int) $row->cantidad_solicitada : null,
             'comentario' => $row->comentario ?? null,
             'id_estado_detalle' => $row->id_estado_detalle !== null ? (int) $row->id_estado_detalle : null,
