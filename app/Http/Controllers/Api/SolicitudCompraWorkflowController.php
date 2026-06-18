@@ -336,16 +336,19 @@ class SolicitudCompraWorkflowController extends Controller
                     ];
                 }
 
-                if (
-                    $currentState === self::STATE_PENDING_RRHH
-                    && ! $this->isRrhhUser($user)
-                ) {
-                    return [
-                        'ok' => false,
-                        'status' => 403,
-                        'message' => 'No autorizado. Desde pendiente_rrhh solo RRHH puede rechazar.',
-                    ];
-                }
+                
+                // if (
+                //     $currentState === self::STATE_PENDING_RRHH
+                //     && ! $this->isRrhhUser($user)
+                // ) {
+                //     return [
+                //         'ok' => false,
+                //         'status' => 403,
+                //         'message' => 'No autorizado. Desde pendiente_rrhh solo RRHH puede rechazar.',
+                //     ];
+                // }
+
+               
 
                 if (
                     $currentState === self::STATE_PENDING_GERENCIA
