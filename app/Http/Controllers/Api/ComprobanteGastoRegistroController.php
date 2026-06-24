@@ -235,6 +235,7 @@ class ComprobanteGastoRegistroController extends Controller
         $numero = (string) ($payload['numero'] ?? 'N/A');
         $monto = isset($payload['monto']) ? number_format((float) $payload['monto'], 2, '.', '') : '0.00';
         $archivoUrl = trim((string) ($payload['archivo_url'] ?? ''));
+        $gestionComprasUrl = 'https://osticket.cechriza.com/system/gestion_compras';
         $solicitanteNombre = (string) ($solicitud->solicitante_nombre ?? 'N/A');
         $titulo = 'Registro de comprobante de gasto - '.$solicitanteNombre;
 
@@ -262,6 +263,7 @@ class ComprobanteGastoRegistroController extends Controller
             .'<tr><td style="padding:8px 0;color:#6b7280;">Solicitante</td><td style="padding:8px 0;color:#111827;">'.$escape($solicitanteNombre).'</td></tr>'
             .'<tr><td style="padding:8px 0;color:#6b7280;">Correo solicitante</td><td style="padding:8px 0;color:#111827;">'.$escape($solicitanteEmail ?? 'N/A').'</td></tr>'
             .'<tr><td style="padding:8px 0;color:#6b7280;">Archivo</td><td style="padding:8px 0;color:#111827;">'.$archivoLink.'</td></tr>'
+            .'<tr><td style="padding:8px 0;color:#6b7280;">Acceso</td><td style="padding:8px 0;color:#111827;"><a href="'.$escape($gestionComprasUrl).'" style="display:inline-block;padding:10px 16px;background:#2563eb;color:#ffffff;text-decoration:none;border-radius:6px;">Ir a Gestión Compras</a><div style="margin-top:8px;font-size:12px;color:#6b7280;">o visita '.$escape($gestionComprasUrl).'</div></td></tr>'
             .'</table>'
             .'</td></tr>'
             .'</table>'
@@ -279,6 +281,7 @@ class ComprobanteGastoRegistroController extends Controller
             'Numero: '.($payload['numero'] ?? 'N/A'),
             'Monto: '.(isset($payload['monto']) ? number_format((float) $payload['monto'], 2, '.', '') : '0.00'),
             'URL archivo: '.($payload['archivo_url'] ?? 'N/A'),
+            'Acceso: https://osticket.cechriza.com/system/gestion_compras',
             'Solicitante: '.($solicitud->solicitante_nombre ?? 'N/A'),
             'Correo solicitante: '.($solicitanteEmail ?? 'N/A'),
         ]);
