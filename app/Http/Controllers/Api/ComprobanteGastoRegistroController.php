@@ -114,6 +114,10 @@ class ComprobanteGastoRegistroController extends Controller
 
         $ccConfigured = $this->resolveConfiguredEmailsByArea((int) ($solicitud->id_area ?? 0));
         $cc = collect($ccConfigured);
+        $correoGerencia = $this->normalizeEmail((string) config('services.solicitudes.correo_gerencia', ''));
+        if ($correoGerencia !== null) {
+            $cc->push($correoGerencia);
+        }
         if ($solicitanteEmail !== null) {
             $cc->push($solicitanteEmail);
         }

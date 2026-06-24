@@ -39,6 +39,7 @@ return [
         'area_compras_id' => (int) env('SOLICITUD_AREA_COMPRAS_ID', 7),
         'pedido_compra_notify_email' => env('PEDIDO_COMPRA_NOTIFY_EMAIL'),
         'gerencia_cc_emails' => env('SOLICITUD_COMPRA_GERENCIA_CC_EMAILS', ''),
+        'correo_gerencia' => env('CORREO_GERENCIA', ''),
         'correo_logistica' => env('CORREO_LOGISTICA'),
         'correo_soma' => env('CORREO_SOMA'),
         'comprobante_gasto_notify_to' => env('COMPROBANTE_GASTO_NOTIFY_TO', ''),
