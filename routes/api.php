@@ -36,6 +36,9 @@ use Illuminate\Support\Facades\Route;
 Route::post('/login', [AuthController::class, 'login']);
 Route::get('/reverb-test/ping', [ReverbTestController::class, 'ping']);
 Route::post('/reverb-test/broadcast', [ReverbTestController::class, 'broadcast']);
+Route::post('/notificaciones/fcm/pedido-recogido/{idSolicitud}', [FcmNotificationController::class, 'sendPedidoRecogidoNotification'])
+    ->whereNumber('idSolicitud')
+    ->name('notificaciones.fcm.pedido-recogido');
 Route::prefix('external')
     ->middleware(['external.hmac', 'throttle:60,1'])
     ->group(function () {

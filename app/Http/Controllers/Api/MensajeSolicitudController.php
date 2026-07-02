@@ -236,6 +236,10 @@ class MensajeSolicitudController extends Controller
         try {
             $targetStaffIds = $this->resolveTargetStaffIds($idSolicitud, $senderStaffId);
             if ($targetStaffIds === []) {
+                Log::info('FCM omitido: no hay destinatarios para respuesta de solicitud', [
+                    'id_solicitud' => $idSolicitud,
+                    'sender_staff_id' => $senderStaffId,
+                ]);
                 return;
             }
 
@@ -248,6 +252,11 @@ class MensajeSolicitudController extends Controller
                 ->values();
 
             if ($tokens->isEmpty()) {
+                Log::info('FCM omitido: no hay tokens activos para respuesta de solicitud', [
+                    'id_solicitud' => $idSolicitud,
+                    'sender_staff_id' => $senderStaffId,
+                    'target_staff_ids' => $targetStaffIds,
+                ]);
                 return;
             }
 
@@ -255,6 +264,14 @@ class MensajeSolicitudController extends Controller
             $body = trim((string) $mensajeTexto) !== ''
                 ? Str::limit(trim((string) $mensajeTexto), 120)
                 : 'Tienes una nueva respuesta.';
+
+            Log::info('FCM respuesta de solicitud preparada', [
+                'id_solicitud' => $idSolicitud,
+                'sender_staff_id' => $senderStaffId,
+                'target_staff_ids' => $targetStaffIds,
+                'tokens_count' => $tokens->count(),
+                'mensaje_preview' => Str::limit((string) $body, 80),
+            ]);
 
             foreach ($tokens as $token) {
                 $result = $this->fcmService->sendToToken($token, $title, $body, [

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Events\PedidoRecogidoEnviado;
 use App\Http\Controllers\Controller;
 use App\Models\UserFcmToken;
 use App\Services\FcmService;
@@ -155,6 +156,129 @@ class FcmNotificationController extends Controller
             report($e);
 
             return $this->errorResponse('No se pudieron enviar las notificaciones FCM.', 500);
+        }
+    }
+
+    public function sendPedidoRecogidoNotification(Request $request, int $idSolicitud): JsonResponse
+    {
+        $validated = $request->validate([
+            'mensaje' => 'nullable|string|min:1|max:500',
+            'titulo' => 'nullable|string|min:1|max:150',
+            'key' => 'nullable|string|min:1|max:255',
+        ]);
+
+        try {
+            $configuredKey = (string) config('services.notifications.pedido_recogido_key', '');
+            $providedKey = (string) ($request->header('X-Pedido-Key') ?? $validated['key'] ?? '');
+
+            if ($configuredKey === '' || ! hash_equals($configuredKey, $providedKey)) {
+                Log::warning('Pedido recogido: llave invalida', [
+                    'id_solicitud' => $idSolicitud,
+                    'has_configured_key' => $configuredKey !== '',
+                    'provided_key_present' => trim($providedKey) !== '',
+                ]);
+
+                return $this->errorResponse('Llave invalida.', 401);
+            }
+
+            $solicitud = DB::connection('mysql_external')->selectOne(
+                'SELECT id_solicitud, id_usuario_solicitante FROM solicitudes WHERE id_solicitud = ? LIMIT 1',
+                [$idSolicitud]
+            );
+
+            if (! $solicitud || ! isset($solicitud->id_usuario_solicitante)) {
+                return $this->errorResponse('Solicitud no encontrada.', 404);
+            }
+
+            $recipientStaffId = (int) $solicitud->id_usuario_solicitante;
+            if ($recipientStaffId <= 0) {
+                return $this->errorResponse('No se pudo resolver el destinatario de la solicitud.', 422);
+            }
+
+            $tokens = UserFcmToken::query()
+                ->active()
+                ->where('staff_id', $recipientStaffId)
+                ->pluck('token')
+                ->map(fn ($token): string => (string) $token)
+                ->filter(fn (string $token): bool => trim($token) !== '')
+                ->values();
+
+            $payload = [
+                'id_solicitud' => $idSolicitud,
+                'recipient_staff_id' => $recipientStaffId,
+                'titulo' => (string) ($validated['titulo'] ?? 'Pedido listo para recoger'),
+                'mensaje' => (string) ($validated['mensaje'] ?? 'Tu pedido ya está listo para recoger.'),
+                'tokens_count' => $tokens->count(),
+                'sent_at' => now()->toISOString(),
+            ];
+
+            broadcast(new PedidoRecogidoEnviado($payload));
+
+            if ($tokens->isEmpty()) {
+                Log::info('Pedido recogido: sin tokens activos', [
+                    'id_solicitud' => $idSolicitud,
+                    'recipient_staff_id' => $recipientStaffId,
+                ]);
+
+                return response()->json([
+                    'success' => true,
+                    'sent' => 0,
+                    'failed' => 0,
+                    'recipient_staff_id' => $recipientStaffId,
+                    'message' => 'Solicitud encontrada, pero el destinatario no tiene tokens FCM activos.',
+                    'broadcast' => $payload,
+                ]);
+            }
+
+            $sent = 0;
+            $failed = 0;
+
+            foreach ($tokens as $token) {
+                $result = $this->fcmService->sendToToken(
+                    $token,
+                    $payload['titulo'],
+                    $payload['mensaje'],
+                    [
+                        'type' => 'pedido_recogido',
+                        'id_solicitud' => (string) $idSolicitud,
+                        'recipient_staff_id' => (string) $recipientStaffId,
+                    ]
+                );
+
+                Log::info('FCM pedido recogido resultado', [
+                    'id_solicitud' => $idSolicitud,
+                    'recipient_staff_id' => $recipientStaffId,
+                    'token_preview' => $this->maskToken($token),
+                    'status' => $result['status'] ?? null,
+                    'ok' => $result['ok'] ?? false,
+                    'invalid_token' => $result['invalid_token'] ?? false,
+                    'message' => $result['message'] ?? null,
+                ]);
+
+                if (($result['ok'] ?? false) === true) {
+                    $sent++;
+                    continue;
+                }
+
+                $failed++;
+                if (($result['invalid_token'] ?? false) === true) {
+                    UserFcmToken::query()
+                        ->where('token', $token)
+                        ->update(['is_active' => false]);
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'sent' => $sent,
+                'failed' => $failed,
+                'recipient_staff_id' => $recipientStaffId,
+                'broadcast' => $payload,
+            ]);
+        } catch (Throwable $e) {
+            report($e);
+
+            return $this->errorResponse('No se pudo notificar el pedido recogido.', 500);
         }
     }
 

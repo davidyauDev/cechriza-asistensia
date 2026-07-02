@@ -56,6 +56,10 @@ return [
         'service_account_path' => env('FIREBASE_SERVICE_ACCOUNT_PATH'),
     ],
 
+    'notifications' => [
+        'pedido_recogido_key' => env('PEDIDO_RECOGIDO_KEY'),
+    ],
+
     'external_api' => [
         'key' => env('EXTERNAL_API_KEY', ''),
         'secret' => env('EXTERNAL_API_SECRET', ''),
