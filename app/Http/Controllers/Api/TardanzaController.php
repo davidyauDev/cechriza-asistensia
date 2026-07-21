@@ -96,12 +96,12 @@ class TardanzaController extends Controller
         }
 
         $ccRecipients = $mailer === 'smtp_alt'
-            ? 'flavia.veliz@cechriza.com'
+            ? 'emma.julian@cechriza.com'
             : 'emma.julian@cechriza.com';
 
         $bccRecipients = $mailer === 'smtp_alt'
             ? []
-            : ['flavia.veliz@cechriza.com'];
+            : ['emma.julian@cechriza.com'];
 
         $pendingMail = Mail::mailer($mailer)
             ->to($data['email'])
