@@ -68,6 +68,7 @@ class InventarioController extends Controller
                 ON c.id_categoria = p.id_categoria
             where p.tipo_responsable = 'SSOMA'
             and p.eliminado = 0
+            and i.id_area = 11
             {$noBotasCondition}
             GROUP BY
                 p.id_producto,
