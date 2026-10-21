@@ -103,6 +103,7 @@ class SeguimientoTecnicoController extends Controller
             $todosUsuarios = DB::connection('pgsql_external')
                 ->table('personnel_employee as pe')
                 ->join('personnel_department as pd', 'pe.department_id', '=', 'pd.id')
+                ->leftJoin('personnel_company as pc', 'pd.company_id', '=', 'pc.id')
                 ->leftJoin('personnel_position as pp', 'pe.position_id', '=', 'pp.id')
                 ->select([
                     'pe.id',
@@ -112,6 +113,8 @@ class SeguimientoTecnicoController extends Controller
                     DB::raw("CONCAT(pe.first_name, ' ', pe.last_name) as nombre_completo"),
                     'pe.department_id',
                     'pd.dept_name as departamento',
+                    'pd.company_id as empresa_id',
+                    'pc.company_name as empresa',
                     'pe.position_id',
                     'pp.position_name as posicion',
                     'pe.email',
@@ -156,6 +159,8 @@ class SeguimientoTecnicoController extends Controller
                     'nombre_completo' => $usuario->nombre_completo,
                     'department_id' => $usuario->department_id,
                     'departamento' => $usuario->departamento,
+                    'empresa_id' => $usuario->empresa_id,
+                    'empresa' => $usuario->empresa,
                     'position_id' => $usuario->position_id,
                     'posicion' => $usuario->posicion,
                     'email' => $usuario->email,
