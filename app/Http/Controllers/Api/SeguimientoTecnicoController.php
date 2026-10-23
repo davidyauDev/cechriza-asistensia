@@ -25,11 +25,12 @@ class SeguimientoTecnicoController extends Controller
         try {
             $fecha = $request->query('fecha');
             $dni = $request->query('dni');
+            $dniNormalizado = $dni !== null ? $this->normalizarDni($dni) : null;
             $departamentos = [9, 7, 2, 10, 5]; // Áreas técnicas
 
             $rutasResults = DB::connection('mysql_external')->select(
                 'CALL sp_get_rutas_tecnicos_dia_fecha(?, ?)',
-                [$dni, $fecha]
+                [$dniNormalizado, $fecha]
             );
 
             Log::info('Resultados SP sp_get_rutas_tecnicos_dia_fecha', [
@@ -50,7 +51,7 @@ class SeguimientoTecnicoController extends Controller
 
             $iclockByEmpCode = [];
             foreach ($resultPgsql as $row) {
-                $iclockByEmpCode[$row->emp_code][] = $row;
+                $iclockByEmpCode[$this->normalizarDni($row->emp_code)][] = $row;
             }
 
             // Obtener daily_records de la fecha
@@ -80,7 +81,7 @@ class SeguimientoTecnicoController extends Controller
 
             $dailyRecordsByEmpCode = [];
             foreach ($dailyRecordsResult as $dr) {
-                $dailyRecordsByEmpCode[$dr->emp_code] = [
+                $dailyRecordsByEmpCode[$this->normalizarDni($dr->emp_code)] = [
                     'id' => $dr->id,
                     'date' => $dr->date,
                     'employee_id' => $dr->employee_id,
@@ -123,8 +124,13 @@ class SeguimientoTecnicoController extends Controller
                 ])
                 ->where('pe.status', 0)
                 ->whereIn('pe.department_id', $departamentos)
-                ->when($dni, function ($query) use ($dni) {
-                    return $query->where('pe.emp_code', $dni);
+                ->when($dniNormalizado, function ($query) use ($dni, $dniNormalizado) {
+                    $codigos = array_unique([$dni, $dniNormalizado]);
+                    if (strlen($dniNormalizado) === 8 && str_starts_with($dniNormalizado, '0')) {
+                        $codigos[] = substr($dniNormalizado, 1);
+                    }
+
+                    return $query->whereIn('pe.emp_code', $codigos);
                 })
                 ->orderBy('pe.last_name')
                 ->orderBy('pe.first_name')
@@ -137,7 +143,7 @@ class SeguimientoTecnicoController extends Controller
             // 4. Crear índice de usuarios con ruta
             $usuariosConRutaMap = [];
             foreach ($rutasResults as $ruta) {
-                $dniRuta = $ruta->dni;
+                $dniRuta = $this->normalizarDni($ruta->dni);
                 if (! isset($usuariosConRutaMap[$dniRuta])) {
                     $usuariosConRutaMap[$dniRuta] = [];
                 }
@@ -149,7 +155,7 @@ class SeguimientoTecnicoController extends Controller
             $usuariosSinRuta = [];
 
             foreach ($todosUsuarios as $usuario) {
-                $dniUsuario = $usuario->dni;
+                $dniUsuario = $this->normalizarDni($usuario->dni);
 
                 $userData = [
                     'id' => $usuario->id,
@@ -197,7 +203,7 @@ class SeguimientoTecnicoController extends Controller
             return response()->json([
                 'success' => true,
                 'fecha' => $fecha,
-                'dni' => $dni,
+                'dni' => $dniNormalizado,
                 'total_usuarios' => count($todosUsuarios),
                 'total_con_ruta' => count($usuariosConRuta),
                 'total_sin_ruta' => count($usuariosSinRuta),
@@ -213,6 +219,15 @@ class SeguimientoTecnicoController extends Controller
                 'error' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    private function normalizarDni(string|int|null $dni): string
+    {
+        $dni = trim((string) $dni);
+
+        return ctype_digit($dni) && strlen($dni) === 7
+            ? '0'.$dni
+            : $dni;
     }
 
     public function notificacionesDiaAnterior(Request $request): JsonResponse
